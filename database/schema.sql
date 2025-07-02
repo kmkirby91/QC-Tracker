@@ -1,0 +1,43 @@
+-- QC Tracker Database Schema
+-- This file documents the MongoDB schema structure
+
+-- Users Collection
+-- {
+--   _id: ObjectId,
+--   name: String (required),
+--   email: String (required, unique),
+--   password: String (hashed, required),
+--   role: String (enum: ['admin', 'supervisor', 'inspector', 'viewer']),
+--   department: String (required),
+--   isActive: Boolean (default: true),
+--   lastLogin: Date,
+--   createdAt: Date,
+--   updatedAt: Date
+-- }
+
+-- QC Checks Collection
+-- {
+--   _id: ObjectId,
+--   title: String (required),
+--   description: String (required),
+--   category: String (enum: ['inspection', 'testing', 'verification', 'validation', 'audit']),
+--   status: String (enum: ['pending', 'in-progress', 'passed', 'failed', 'on-hold']),
+--   priority: String (enum: ['low', 'medium', 'high', 'critical']),
+--   assignedTo: ObjectId (ref: User),
+--   createdBy: ObjectId (ref: User, required),
+--   dueDate: Date,
+--   completedAt: Date,
+--   results: String,
+--   attachments: [{
+--     filename: String,
+--     url: String,
+--     uploadedAt: Date
+--   }],
+--   comments: [{
+--     text: String,
+--     author: ObjectId (ref: User),
+--     createdAt: Date
+--   }],
+--   createdAt: Date,
+--   updatedAt: Date
+-- }
