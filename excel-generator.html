@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        input {
+            padding: 10px;
+            font-size: 16px;
+            width: 300px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .container {
+            text-align: center;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Excel File Generator</h2>
+        <p>Enter a value and generate an Excel file:</p>
+        <input type="text" id="userInput" placeholder="Enter your value here">
+        <button onclick="generateExcel()">Generate Excel</button>
+    </div>
+
+    <script>
+        function generateExcel() {
+            const userValue = document.getElementById('userInput').value;
+            
+            if (!userValue) {
+                alert('Please enter a value');
+                return;
+            }
+
+            // Create a new workbook
+            const wb = XLSX.utils.book_new();
+            
+            // Create worksheet data with standard content
+            const data = [
+                ['Company Report', '', '', 'Generated: ' + new Date().toLocaleDateString()],
+                ['', '', '', ''],
+                ['User Input:', userValue, '', ''],
+                ['', '', '', ''],
+                ['Standard Data', '', '', ''],
+                ['Department', 'Q1', 'Q2', 'Q3', 'Q4'],
+                ['Sales', 1200, 1450, 1300, 1600],
+                ['Marketing', 800, 900, 850, 950],
+                ['Operations', 600, 650, 700, 720],
+                ['IT', 400, 420, 450, 480],
+                ['', '', '', ''],
+                ['Total Revenue:', '=SUM(B7:E10)', '', ''],
+                ['User Notes:', userValue, '', '']
+            ];
+            
+            // Create worksheet
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 15 },  // Column A
+                { wch: 12 },  // Column B
+                { wch: 12 },  // Column C
+                { wch: 12 },  // Column D
+                { wch: 20 }   // Column E
+            ];
+            
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Report');
+            
+            // Generate filename with timestamp
+            const filename = `report_${userValue.replace(/\s+/g, '_')}_${Date.now()}.xlsx`;
+            
+            // Write the file
+            XLSX.writeFile(wb, filename);
+            
+            // Clear the input
+            document.getElementById('userInput').value = '';
+            
+            alert(`Excel file "${filename}" has been generated!`);
+        }
+    </script>
+</body>
+</html>
