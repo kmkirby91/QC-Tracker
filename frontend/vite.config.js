@@ -6,6 +6,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Allow access from any host
     port: 3000,
+    allowedHosts: [
+      'localhost',
+      '192.168.1.182',
+      'qctracker.a-naviq.com',
+      '.a-naviq.com' // Allow all subdomains
+    ],
     proxy: {
       '/api': {
         target: 'http://192.168.1.182:5000',
