@@ -20,15 +20,24 @@
 - **MongoDB**: Commented out for development phase
 
 ## Application URLs
+- **Public Access**: https://qctracker.a-naviq.com (reverse proxy)
 - Frontend: http://192.168.1.182:3000
 - Backend API: http://192.168.1.182:5000
 - Code-server: http://192.168.1.182:8443
 
 ## Development Commands
+- **Quick restart**: `./restart-services.sh`
 - Start backend: `cd backend && npm start`
 - Start frontend: `cd frontend && npm run dev`
 - Check processes: `ps aux | grep node`
 - Kill app processes: `pkill -f "node src/server.js"` (NOT code-server)
+
+## Reverse Proxy Configuration
+- **Status**: ✅ Configured for public access
+- **Domain**: qctracker.a-naviq.com
+- **CORS**: Configured for both local and public domains
+- **Security**: Rate limiting and security headers enabled
+- **Documentation**: See `REVERSE_PROXY_SETUP.md` for detailed configuration
 
 ## Recent Development Work
 - ✅ Machine detail pages with QC tracking

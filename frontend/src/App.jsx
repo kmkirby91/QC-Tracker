@@ -11,6 +11,7 @@ import QCTestDetail from './components/QCTestDetail'
 import DueToday from './components/DueToday'
 import DueTasksWidget from './components/DueTasksWidget'
 import QCForm from './components/QCForm'
+import OpenFailures from './components/OpenFailures'
 import './App.css'
 
 const queryClient = new QueryClient()
@@ -111,6 +112,7 @@ function App() {
               <Route path="/reporting" element={<Reporting />} />
               <Route path="/schedule" element={<Schedule />} />
               <Route path="/due-today" element={<DueToday />} />
+              <Route path="/open-failures" element={<OpenFailures />} />
               <Route path="/machines/:machineId" element={<MachineDetail />} />
               <Route path="/machines/:machineId/qc/:date" element={<QCTestDetail />} />
               <Route path="/qc/perform/:machineId/:frequency" element={<QCForm />} />

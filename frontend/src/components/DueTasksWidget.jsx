@@ -200,7 +200,7 @@ const DueTasksWidget = () => {
                     <h5 className="text-sm font-medium text-gray-300 mb-1">Daily QC</h5>
                     <div className="space-y-1">
                       {dueTasks.dailyOverdue.slice(0, 3).map((task, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm bg-gray-800 bg-opacity-70 rounded p-2">
+                        <div key={index} className="flex items-center justify-between text-sm bg-gray-800 bg-opacity-70 rounded p-3">
                           <div className="flex items-center space-x-2">
                             <Link 
                               to={`/machines/${task.machineId}`}
@@ -210,9 +210,17 @@ const DueTasksWidget = () => {
                             </Link>
                             <span className="text-gray-400">({task.type})</span>
                           </div>
-                          <span className={getTaskPriority(task)}>
-                            {formatDaysOverdue(task.daysOverdue)}
-                          </span>
+                          <div className="flex items-center space-x-2">
+                            <span className={getTaskPriority(task)}>
+                              {formatDaysOverdue(task.daysOverdue)}
+                            </span>
+                            <Link
+                              to={`/qc/perform/${task.machineId}/daily`}
+                              className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors"
+                            >
+                              Perform QC
+                            </Link>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -225,7 +233,7 @@ const DueTasksWidget = () => {
                     <h5 className="text-sm font-medium text-gray-300 mb-1">Monthly QC</h5>
                     <div className="space-y-1">
                       {dueTasks.monthlyOverdue.slice(0, 2).map((task, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm bg-gray-800 bg-opacity-70 rounded p-2">
+                        <div key={index} className="flex items-center justify-between text-sm bg-gray-800 bg-opacity-70 rounded p-3">
                           <div className="flex items-center space-x-2">
                             <Link 
                               to={`/machines/${task.machineId}`}
@@ -235,9 +243,17 @@ const DueTasksWidget = () => {
                             </Link>
                             <span className="text-gray-400">({task.type})</span>
                           </div>
-                          <span className={getTaskPriority(task)}>
-                            {formatDaysOverdue(task.daysOverdue)}
-                          </span>
+                          <div className="flex items-center space-x-2">
+                            <span className={getTaskPriority(task)}>
+                              {formatDaysOverdue(task.daysOverdue)}
+                            </span>
+                            <Link
+                              to={`/qc/perform/${task.machineId}/monthly`}
+                              className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors"
+                            >
+                              Perform QC
+                            </Link>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -250,7 +266,7 @@ const DueTasksWidget = () => {
                     <h5 className="text-sm font-medium text-gray-300 mb-1">Quarterly QC</h5>
                     <div className="space-y-1">
                       {dueTasks.quarterlyOverdue.slice(0, 2).map((task, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm bg-gray-800 bg-opacity-70 rounded p-2">
+                        <div key={index} className="flex items-center justify-between text-sm bg-gray-800 bg-opacity-70 rounded p-3">
                           <div className="flex items-center space-x-2">
                             <Link 
                               to={`/machines/${task.machineId}`}
@@ -260,9 +276,17 @@ const DueTasksWidget = () => {
                             </Link>
                             <span className="text-gray-400">({task.type})</span>
                           </div>
-                          <span className={getTaskPriority(task)}>
-                            Overdue
-                          </span>
+                          <div className="flex items-center space-x-2">
+                            <span className={getTaskPriority(task)}>
+                              Overdue
+                            </span>
+                            <Link
+                              to={`/qc/perform/${task.machineId}/quarterly`}
+                              className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors"
+                            >
+                              Perform QC
+                            </Link>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -275,7 +299,7 @@ const DueTasksWidget = () => {
                     <h5 className="text-sm font-medium text-gray-300 mb-1">Annual QC</h5>
                     <div className="space-y-1">
                       {dueTasks.annualOverdue.slice(0, 2).map((task, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm bg-gray-800 bg-opacity-70 rounded p-2">
+                        <div key={index} className="flex items-center justify-between text-sm bg-gray-800 bg-opacity-70 rounded p-3">
                           <div className="flex items-center space-x-2">
                             <Link 
                               to={`/machines/${task.machineId}`}
@@ -285,9 +309,17 @@ const DueTasksWidget = () => {
                             </Link>
                             <span className="text-gray-400">({task.type})</span>
                           </div>
-                          <span className={getTaskPriority(task)}>
-                            Overdue
-                          </span>
+                          <div className="flex items-center space-x-2">
+                            <span className={getTaskPriority(task)}>
+                              Overdue
+                            </span>
+                            <Link
+                              to={`/qc/perform/${task.machineId}/annual`}
+                              className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors"
+                            >
+                              Perform QC
+                            </Link>
+                          </div>
                         </div>
                       ))}
                     </div>

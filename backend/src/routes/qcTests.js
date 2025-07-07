@@ -660,6 +660,95 @@ router.get('/test-templates/:machineType/:frequency', (req, res) => {
   res.json(tests);
 });
 
+// Get open failures
+router.get('/open-failures', async (req, res) => {
+  try {
+    // Mock open failures data
+    const openFailures = [
+      {
+        id: 'F-001',
+        machineId: 'CT-GON-001',
+        machineName: 'Siemens SOMATOM Force',
+        type: 'CT',
+        location: 'Gonzales - Emergency CT',
+        testName: 'Noise Measurement',
+        failureDate: '2025-07-05',
+        daysOpen: 2,
+        severity: 'high',
+        description: 'Noise levels exceeding tolerance (8.2 HU vs 6.0 HU limit)',
+        assignedTo: 'Engineering Team',
+        status: 'investigating',
+        priority: 'high'
+      },
+      {
+        id: 'F-002',
+        machineId: 'MRI-ESS-001',
+        machineName: 'Siemens MAGNETOM Vida',
+        type: 'MRI',
+        location: 'Essen - MRI Suite 1',
+        testName: 'Center Frequency',
+        failureDate: '2025-07-04',
+        daysOpen: 3,
+        severity: 'medium',
+        description: 'Frequency drift detected (+4.2 ppm vs ±3 ppm tolerance)',
+        assignedTo: 'Service Team',
+        status: 'scheduled',
+        priority: 'medium'
+      },
+      {
+        id: 'F-003',
+        machineId: 'PET-WOM-001',
+        machineName: 'Philips Vereos PET/CT',
+        type: 'PET',
+        location: "Woman's - Nuclear Medicine Suite",
+        testName: 'Daily Normalization',
+        failureDate: '2025-07-06',
+        daysOpen: 1,
+        severity: 'critical',
+        description: 'Normalization scan failed - detector ring issue suspected',
+        assignedTo: 'Philips Service',
+        status: 'urgent',
+        priority: 'critical'
+      },
+      {
+        id: 'F-004',
+        machineId: 'CT-WOM-001',
+        machineName: 'Canon Aquilion ONE',
+        type: 'CT',
+        location: "Woman's - CT Suite B",
+        testName: 'Spatial Resolution',
+        failureDate: '2025-07-03',
+        daysOpen: 4,
+        severity: 'low',
+        description: 'Slight degradation in spatial resolution (0.8mm vs 0.6mm)',
+        assignedTo: 'QC Team',
+        status: 'monitoring',
+        priority: 'low'
+      },
+      {
+        id: 'F-005',
+        machineId: 'MRI-WOM-001',
+        machineName: 'Philips Ingenia 1.5T',
+        type: 'MRI',
+        location: "Woman's - MRI Room 2",
+        testName: 'RF Safety Assessment',
+        failureDate: '2025-07-01',
+        daysOpen: 6,
+        severity: 'medium',
+        description: 'RF door interlock delayed response (3.2s vs 2.0s limit)',
+        assignedTo: 'Safety Team',
+        status: 'parts_ordered',
+        priority: 'medium'
+      }
+    ];
+
+    res.json(openFailures);
+  } catch (error) {
+    console.error('Error getting open failures:', error);
+    res.status(500).json({ error: 'Failed to get open failures' });
+  }
+});
+
 // Submit QC data
 router.post('/submit', (req, res) => {
   try {
