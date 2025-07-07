@@ -11,7 +11,7 @@ const MachineDetail = () => {
   const [machine, setMachine] = useState(null);
   const [qcHistory, setQCHistory] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('daily');
+  const [activeTab, setActiveTab] = useState(null);
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'history'
 
   useEffect(() => {
@@ -26,11 +26,33 @@ const MachineDetail = () => {
       
       const qcRes = await axios.get(`/api/qc/machines/${machineId}/qc-history?type=${machineRes.data.type}`);
       setQCHistory(qcRes.data);
+      
+      // Set the first available QC frequency as the default active tab
+      const schedule = machineRes.data.qcSchedule;
+      if (schedule.daily) setActiveTab('daily');
+      else if (schedule.weekly) setActiveTab('weekly');
+      else if (schedule.monthly) setActiveTab('monthly');
+      else if (schedule.quarterly) setActiveTab('quarterly');
+      else if (schedule.annual) setActiveTab('annual');
     } catch (error) {
       console.error('Error fetching machine data:', error);
     } finally {
       setLoading(false);
     }
+  };
+  
+  const getQCTabs = () => {
+    if (!machine) return [];
+    const tabs = [];
+    const schedule = machine.qcSchedule;
+    
+    if (schedule.daily) tabs.push({ key: 'daily', label: 'Daily QC' });
+    if (schedule.weekly) tabs.push({ key: 'weekly', label: 'Weekly QC' });
+    if (schedule.monthly) tabs.push({ key: 'monthly', label: 'Monthly QC' });
+    if (schedule.quarterly) tabs.push({ key: 'quarterly', label: 'Quarterly QC' });
+    if (schedule.annual) tabs.push({ key: 'annual', label: 'Annual QC' });
+    
+    return tabs;
   };
 
   if (loading) {
@@ -87,7 +109,7 @@ const MachineDetail = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">Equipment Details</h3>
             <dl className="space-y-1 text-sm">
@@ -135,23 +157,87 @@ const MachineDetail = () => {
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">QC Schedule</h3>
             <dl className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Daily QC:</dt>
-                <dd className="font-medium">{machine.qcSchedule.daily ? 'Required' : 'Not Required'}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Weekly QC:</dt>
-                <dd className="font-medium">{machine.qcSchedule.weekly ? 'Required' : 'Not Required'}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Monthly QC:</dt>
-                <dd className="font-medium">{machine.qcSchedule.monthly ? 'Required' : 'Not Required'}</dd>
-              </div>
-              <div className="flex justify-between">
+              {machine.qcSchedule.daily && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Daily QC:</dt>
+                  <dd className="font-medium text-green-400">Required</dd>
+                </div>
+              )}
+              {machine.qcSchedule.weekly && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Weekly QC:</dt>
+                  <dd className="font-medium text-green-400">Required</dd>
+                </div>
+              )}
+              {machine.qcSchedule.monthly && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Monthly QC:</dt>
+                  <dd className="font-medium text-green-400">Required</dd>
+                </div>
+              )}
+              {machine.qcSchedule.quarterly && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Quarterly QC:</dt>
+                  <dd className="font-medium text-green-400">Required</dd>
+                </div>
+              )}
+              {machine.qcSchedule.annual && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">Annual QC:</dt>
+                  <dd className="font-medium text-green-400">Required</dd>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-gray-700 pt-1 mt-2">
                 <dt className="text-gray-400">Next QC Due:</dt>
                 <dd className="font-medium text-blue-400">{new Date(machine.nextQCDue).toLocaleDateString()}</dd>
               </div>
             </dl>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-300 mb-2">Perform QC</h3>
+            <div className="space-y-2">
+              {machine.qcSchedule.daily && (
+                <Link
+                  to={`/qc/perform/${machine.machineId}/daily`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  Daily QC
+                </Link>
+              )}
+              {machine.qcSchedule.weekly && (
+                <Link
+                  to={`/qc/perform/${machine.machineId}/weekly`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                >
+                  Weekly QC
+                </Link>
+              )}
+              {machine.qcSchedule.monthly && (
+                <Link
+                  to={`/qc/perform/${machine.machineId}/monthly`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-yellow-600 hover:bg-yellow-700 rounded-md transition-colors"
+                >
+                  Monthly QC
+                </Link>
+              )}
+              {machine.qcSchedule.quarterly && (
+                <Link
+                  to={`/qc/perform/${machine.machineId}/quarterly`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors"
+                >
+                  Quarterly QC
+                </Link>
+              )}
+              {machine.qcSchedule.annual && (
+                <Link
+                  to={`/qc/perform/${machine.machineId}/annual`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                >
+                  Annual QC
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -169,26 +255,19 @@ const MachineDetail = () => {
         <div className="border-b border-gray-700">
           <div className="flex justify-between items-center">
             <nav className="flex -mb-px">
-              <button
-                onClick={() => setActiveTab('daily')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'daily'
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-300'
-                }`}
-              >
-                Daily QC
-              </button>
-              <button
-                onClick={() => setActiveTab('monthly')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'monthly'
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-300'
-                }`}
-              >
-                Monthly QC
-              </button>
+              {getQCTabs().map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === tab.key
+                      ? 'border-blue-500 text-blue-400'
+                      : 'border-transparent text-gray-400 hover:text-gray-300'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </nav>
             
             <div className="flex mr-6 bg-gray-900 rounded-lg p-1">

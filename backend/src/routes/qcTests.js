@@ -4,7 +4,7 @@ const router = express.Router();
 // QC test templates by machine type
 const qcTestTemplates = {
   MRI: {
-    daily: [
+    weekly: [
       'Table Positioning',
       'Setup and Scanning',
       'Center (Central) Frequency',
@@ -25,13 +25,6 @@ const qcTestTemplates = {
       'Magnetic Field Drift',
       'Helium Level Check',
       'Cold Head Temperature'
-    ],
-    quarterly: [
-      'Comprehensive Phantom Testing',
-      'Safety System Verification',
-      'RF Safety Assessment',
-      'Quench System Test',
-      'Environmental Monitoring'
     ],
     annual: [
       'Full System Calibration',
@@ -60,12 +53,6 @@ const qcTestTemplates = {
       'mA Linearity',
       'Timer Accuracy'
     ],
-    quarterly: [
-      'Radiation Dose Optimization',
-      'Advanced Imaging Protocol Review',
-      'Contrast Injector Calibration',
-      'Emergency Procedure Training'
-    ],
     annual: [
       'Full Dosimetry Calibration',
       'X-ray Tube Performance Assessment',
@@ -74,7 +61,7 @@ const qcTestTemplates = {
       'Preventive Maintenance Audit'
     ]
   },
-  'PET-CT': {
+  'PET': {
     daily: [
       'Daily Normalization',
       'Coincidence Timing Resolution',
@@ -83,20 +70,15 @@ const qcTestTemplates = {
       'CT Warm-up',
       'PET/CT Alignment Check'
     ],
-    monthly: [
-      'Sensitivity Measurement',
-      'Spatial Resolution Test',
-      'Count Rate Performance',
-      'Image Quality Phantom',
-      'Attenuation Correction Accuracy',
-      'SUV Calibration',
-      'Cross-calibration with Dose Calibrator'
-    ],
     quarterly: [
       'Well Counter Cross-Calibration',
       'Partial Volume Correction QC',
       'Advanced Reconstruction QC',
-      'Radiation Safety Assessment'
+      'Radiation Safety Assessment',
+      'Sensitivity Measurement',
+      'Spatial Resolution Test',
+      'Count Rate Performance',
+      'Image Quality Phantom'
     ],
     annual: [
       'Full System Performance Evaluation',
@@ -110,42 +92,51 @@ const qcTestTemplates = {
 
 // Generate mock QC history
 const generateQCHistory = (machineType, machineId) => {
-  const tests = qcTestTemplates[machineType] || qcTestTemplates['CT'];
+  const tests = qcTestTemplates[machineType] || qcTestTemplates['CT'] || {};
+  
+  // Ensure all test types exist as empty arrays if not defined
+  if (!tests.daily) tests.daily = [];
+  if (!tests.weekly) tests.weekly = [];
+  if (!tests.monthly) tests.monthly = [];
+  if (!tests.quarterly) tests.quarterly = [];
+  if (!tests.annual) tests.annual = [];
   const history = {
     daily: [],
+    weekly: [],
     monthly: [],
     quarterly: [],
     annual: []
   };
 
-  // Generate daily QC for last 30 days
-  for (let i = 0; i < 30; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    
-    // Skip weekends for daily QC
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
-    
-    // Skip today's QC for MRI-001 to simulate missing daily QC
-    if (i === 0 && machineId === 'MRI-001') continue;
-    
-    // Skip today's QC for CT-001 to simulate missing daily QC
-    if (i === 0 && machineId === 'CT-001') continue;
-    
-    // Skip yesterday's QC for CT-002 to simulate overdue daily QC
-    if (i === 1 && machineId === 'CT-002') continue;
-    
-    // Skip yesterday's QC for PET-001 to simulate overdue daily QC
-    if (i === 1 && machineId === 'PET-001') continue;
-    
-    // Skip June 28th QC for MRI-001 to simulate a missed QC date in the past
-    if (i === 4 && machineId === 'MRI-001') continue;
-    
-    // Select a single technician for this day's QC
-    const technicians = ['John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Williams'];
-    const todaysTechnician = technicians[Math.floor(Math.random() * technicians.length)];
-    
-    const dailyTests = tests.daily.map(test => {
+  // Generate daily QC for last 30 days (only if machine has daily tests)
+  if (tests.daily && tests.daily.length > 0) {
+    for (let i = 0; i < 30; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      
+      // Skip weekends for daily QC
+      if (date.getDay() === 0 || date.getDay() === 6) continue;
+      
+      // Skip today's QC for MRI-ESS-001 to simulate missing daily QC
+      if (i === 0 && machineId === 'MRI-ESS-001') continue;
+      
+      // Skip today's QC for CT-ESS-001 to simulate missing daily QC
+      if (i === 0 && machineId === 'CT-ESS-001') continue;
+      
+      // Skip yesterday's QC for CT-GON-001 to simulate overdue daily QC
+      if (i === 1 && machineId === 'CT-GON-001') continue;
+      
+      // Skip yesterday's QC for PET-WOM-001 to simulate overdue daily QC
+      if (i === 1 && machineId === 'PET-WOM-001') continue;
+      
+      // Skip June 28th QC for MRI-ESS-001 to simulate a missed QC date in the past
+      if (i === 4 && machineId === 'MRI-ESS-001') continue;
+      
+      // Select a single technician for this day's QC
+      const technicians = ['John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Williams'];
+      const todaysTechnician = technicians[Math.floor(Math.random() * technicians.length)];
+      
+      const dailyTests = tests.daily.map(test => {
       const value = generateTestValue(test);
       let result = 'pass';
       let notes = '';
@@ -259,20 +250,54 @@ const generateQCHistory = (machineType, machineId) => {
       comments: comments,
       completedAt: new Date(date.setHours(7 + Math.random() * 2)).toISOString()
     });
+    }
   }
 
-  // Generate monthly QC for last 12 months
-  for (let i = 0; i < 12; i++) {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    
-    // Skip last month's QC for PET-001 to simulate overdue monthly QC
-    if (i === 1 && machineId === 'PET-001') continue;
-    
-    // Select a single QC specialist for monthly QC
-    const monthlyTechnician = ['Tom Brown', 'Alice Green', 'Dr. Patricia Lee'][Math.floor(Math.random() * 3)];
-    
-    const monthlyTests = tests.monthly.map(test => ({
+  // Generate weekly QC for last 12 weeks (for MRI machines)
+  if (tests.weekly) {
+    for (let i = 0; i < 12; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - (i * 7)); // Go back by weeks
+      
+      // Select a single technician for weekly QC
+      const weeklyTechnician = ['John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Williams'][Math.floor(Math.random() * 4)];
+      
+      const weeklyTests = tests.weekly.map(test => ({
+        testName: test,
+        result: Math.random() > 0.95 ? 'fail' : Math.random() > 0.9 ? 'conditional' : 'pass',
+        value: generateTestValue(test),
+        tolerance: '±5%',
+        notes: Math.random() > 0.8 ? 'Within tolerance' : '',
+        performedBy: weeklyTechnician
+      }));
+
+      const weeklyComments = 'Weekly QC completed successfully. All parameters within tolerance.';
+      
+      history.weekly.push({
+        date: date.toISOString().split('T')[0],
+        overallResult: weeklyTests.some(t => t.result === 'fail') ? 'fail' : 
+                       weeklyTests.some(t => t.result === 'conditional') ? 'conditional' : 'pass',
+        tests: weeklyTests,
+        performedBy: weeklyTechnician,
+        comments: weeklyComments,
+        completedAt: new Date(date.setHours(8 + Math.random() * 2)).toISOString()
+      });
+    }
+  }
+
+  // Generate monthly QC for last 12 months (only if machine has monthly tests)
+  if (tests.monthly && tests.monthly.length > 0) {
+    for (let i = 0; i < 12; i++) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      
+      // Skip last month's QC for PET-WOM-001 to simulate overdue monthly QC
+      if (i === 1 && machineId === 'PET-WOM-001') continue;
+      
+      // Select a single QC specialist for monthly QC
+      const monthlyTechnician = ['Tom Brown', 'Alice Green', 'Dr. Patricia Lee'][Math.floor(Math.random() * 3)];
+      
+      const monthlyTests = tests.monthly.map(test => ({
       testName: test,
       result: Math.random() > 0.98 ? 'fail' : Math.random() > 0.9 ? 'conditional' : 'pass',
       value: generateTestValue(test),
@@ -314,10 +339,11 @@ const generateQCHistory = (machineType, machineId) => {
       completedAt: new Date(date.setHours(10 + Math.random() * 4)).toISOString(),
       reportUrl: `http://192.168.1.182:5000/reports/monthly-qc-${machineId}-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}.pdf`
     });
+    }
   }
 
   // Generate quarterly QC for last 8 quarters (2 years)
-  if (tests.quarterly) {
+  if (tests.quarterly && tests.quarterly.length > 0) {
     for (let i = 0; i < 8; i++) {
       const date = new Date();
       const currentQuarter = Math.floor(date.getMonth() / 3);
@@ -360,7 +386,7 @@ const generateQCHistory = (machineType, machineId) => {
   }
 
   // Generate annual QC for last 3 years
-  if (tests.annual) {
+  if (tests.annual && tests.annual.length > 0) {
     for (let i = 0; i < 3; i++) {
       const date = new Date();
       const year = date.getFullYear() - i;
@@ -489,256 +515,87 @@ router.get('/machines/:machineId/qc-history/:date', (req, res) => {
 // Get QC tasks due today or this month
 router.get('/due-tasks', async (req, res) => {
   try {
-    // Get all machines
-    const machines = [
-      {
-        machineId: 'MRI-001',
-        name: 'Siemens MAGNETOM Vida',
-        type: 'MRI',
-        location: 'Main Hospital - MRI Suite 1',
-        nextQCDue: '2024-01-09',
-        lastQC: { date: '2024-01-02' }
-      },
-      {
-        machineId: 'CT-001',
-        name: 'GE Revolution CT',
-        type: 'CT',
-        location: 'Main Hospital - CT Room 1',
-        nextQCDue: '2024-01-10',
-        lastQC: { date: '2024-01-03' }
-      },
-      {
-        machineId: 'PET-001',
-        name: 'Philips Vereos PET-CT',
-        type: 'PET-CT',
-        location: 'Nuclear Medicine - PET Suite A',
-        nextQCDue: '2024-01-08',
-        lastQC: { date: '2024-01-01' }
-      },
-      {
-        machineId: 'MRI-002',
-        name: 'Philips Ingenia 1.5T',
-        type: 'MRI',
-        location: 'Outpatient Center - MRI Room 2',
-        nextQCDue: '2024-01-09',
-        lastQC: { date: '2024-01-02' }
-      },
-      {
-        machineId: 'CT-002',
-        name: 'Siemens SOMATOM Force',
-        type: 'CT',
-        location: 'Emergency Department - Trauma CT',
-        nextQCDue: '2024-01-04',
-        lastQC: { date: '2024-01-03' }
-      }
-    ];
-
+    // Simple mock response for due tasks
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const twoDaysAgo = new Date(today);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
     const dueTasks = {
-      dailyOverdue: [],
-      dailyDueToday: [],
-      monthlyOverdue: [],
-      monthlyDueThisMonth: [],
+      dailyOverdue: [
+        {
+          machineId: 'CT-GON-001',
+          machineName: 'Siemens SOMATOM Force',
+          type: 'CT',
+          location: 'Gonzales - Emergency CT',
+          daysOverdue: 2,
+          nextDue: twoDaysAgo.toISOString().split('T')[0],
+          lastQC: twoDaysAgo.toISOString().split('T')[0],
+          priority: 'high'
+        },
+        {
+          machineId: 'PET-WOM-001',
+          machineName: 'Philips Vereos PET/CT',
+          type: 'PET',
+          location: "Woman's - Nuclear Medicine Suite",
+          daysOverdue: 1,
+          nextDue: yesterday.toISOString().split('T')[0],
+          lastQC: yesterday.toISOString().split('T')[0],
+          priority: 'high'
+        }
+      ],
+      dailyDueToday: [
+        {
+          machineId: 'MRI-ESS-001',
+          machineName: 'Siemens MAGNETOM Vida',
+          type: 'MRI',
+          location: 'Essen - MRI Suite 1',
+          daysOverdue: 0,
+          nextDue: today.toISOString().split('T')[0],
+          lastQC: yesterday.toISOString().split('T')[0],
+          priority: 'medium'
+        },
+        {
+          machineId: 'CT-ESS-001',
+          machineName: 'GE Revolution CT',
+          type: 'CT',
+          location: 'Essen - CT Room 1',
+          daysOverdue: 0,
+          nextDue: today.toISOString().split('T')[0],
+          lastQC: yesterday.toISOString().split('T')[0],
+          priority: 'medium'
+        }
+      ],
+      monthlyOverdue: [
+        {
+          machineId: 'PET-WOM-001',
+          machineName: 'Philips Vereos PET/CT',
+          type: 'PET',
+          location: "Woman's - Nuclear Medicine Suite",
+          daysOverdue: 30,
+          nextDue: '2025-06-01',
+          lastQC: '2025-05-15',
+          priority: 'critical'
+        }
+      ],
+      monthlyDueThisMonth: [
+        {
+          machineId: 'MRI-WOM-001',
+          machineName: 'Philips Ingenia 1.5T',
+          type: 'MRI',
+          location: "Woman's - MRI Room 2",
+          daysOverdue: 0,
+          nextDue: '2025-07-01',
+          lastQC: '2025-06-15',
+          priority: 'medium'
+        }
+      ],
       quarterlyOverdue: [],
       quarterlyDueThisQuarter: [],
       annualOverdue: [],
       annualDueThisYear: []
     };
-
-    // Check each machine for due tasks
-    for (const machine of machines) {
-      // Get QC history for this machine
-      const qcHistory = generateQCHistory(machine.type, machine.machineId);
-      
-      // Check daily QC status
-      const todayQC = qcHistory.daily.find(qc => qc.date === todayStr);
-      const dayOfWeek = today.getDay();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      
-      // For demo purposes, always check daily QC regardless of weekend
-      if (!todayQC) {
-        // Check if overdue (should have been done on previous working days)
-        let daysOverdue = 0;
-        let checkDate = new Date(today);
-        
-        while (daysOverdue < 5) { // Check last 5 days
-          checkDate.setDate(checkDate.getDate() - 1);
-          const checkDayOfWeek = checkDate.getDay();
-          
-          if (checkDayOfWeek !== 0 && checkDayOfWeek !== 6) { // Skip weekends
-            const checkDateStr = checkDate.toISOString().split('T')[0];
-            const qcExists = qcHistory.daily.find(qc => qc.date === checkDateStr);
-            
-            if (!qcExists) {
-              daysOverdue++;
-            } else {
-              break; // Found the last QC, stop counting
-            }
-          }
-        }
-
-        const taskData = {
-          machineId: machine.machineId,
-          machineName: machine.name,
-          type: machine.type,
-          location: machine.location,
-          daysOverdue: daysOverdue,
-          nextDue: todayStr,
-          lastQC: machine.lastQC?.date,
-          priority: daysOverdue >= 3 ? 'critical' : daysOverdue >= 1 ? 'high' : 'medium'
-        };
-
-        if (daysOverdue > 0) {
-          dueTasks.dailyOverdue.push(taskData);
-        } else {
-          dueTasks.dailyDueToday.push(taskData);
-        }
-      }
-
-      // Check monthly QC status
-      const currentMonthQC = qcHistory.monthly.find(qc => {
-        const qcDate = new Date(qc.date);
-        return qcDate.getMonth() === currentMonth && qcDate.getFullYear() === currentYear;
-      });
-
-      if (!currentMonthQC) {
-        // Check if overdue (past months)
-        let monthsOverdue = 0;
-        let checkDate = new Date(currentYear, currentMonth - 1, 1);
-        
-        for (let i = 1; i <= 6; i++) { // Check last 6 months
-          const qcExists = qcHistory.monthly.find(qc => {
-            const qcDate = new Date(qc.date);
-            return qcDate.getMonth() === checkDate.getMonth() && 
-                   qcDate.getFullYear() === checkDate.getFullYear();
-          });
-          
-          if (!qcExists) {
-            monthsOverdue++;
-          } else {
-            break;
-          }
-          
-          checkDate.setMonth(checkDate.getMonth() - 1);
-        }
-
-        const taskData = {
-          machineId: machine.machineId,
-          machineName: machine.name,
-          type: machine.type,
-          location: machine.location,
-          daysOverdue: monthsOverdue * 30, // Approximate for display
-          nextDue: new Date(currentYear, currentMonth, 1).toISOString().split('T')[0],
-          lastQC: machine.lastQC?.date,
-          priority: monthsOverdue >= 2 ? 'critical' : monthsOverdue >= 1 ? 'high' : 'medium'
-        };
-
-        if (monthsOverdue > 0) {
-          dueTasks.monthlyOverdue.push(taskData);
-        } else {
-          dueTasks.monthlyDueThisMonth.push(taskData);
-        }
-      }
-
-      // Check quarterly QC status
-      const currentQuarter = Math.floor(currentMonth / 3);
-      const currentQuarterQC = qcHistory.quarterly?.find(qc => {
-        const qcDate = new Date(qc.date);
-        const qcQuarter = Math.floor(qcDate.getMonth() / 3);
-        return qcQuarter === currentQuarter && qcDate.getFullYear() === currentYear;
-      });
-
-      if (!currentQuarterQC && qcHistory.quarterly) {
-        // Check if overdue (past quarters)
-        let quartersOverdue = 0;
-        let checkYear = currentYear;
-        let checkQuarter = currentQuarter - 1;
-        
-        for (let i = 1; i <= 4; i++) { // Check last 4 quarters
-          if (checkQuarter < 0) {
-            checkQuarter = 3;
-            checkYear--;
-          }
-          
-          const qcExists = qcHistory.quarterly.find(qc => {
-            const qcDate = new Date(qc.date);
-            const qcQuarter = Math.floor(qcDate.getMonth() / 3);
-            return qcQuarter === checkQuarter && qcDate.getFullYear() === checkYear;
-          });
-          
-          if (!qcExists) {
-            quartersOverdue++;
-          } else {
-            break;
-          }
-          
-          checkQuarter--;
-        }
-
-        const taskData = {
-          machineId: machine.machineId,
-          machineName: machine.name,
-          type: machine.type,
-          location: machine.location,
-          daysOverdue: quartersOverdue * 90, // Approximate for display
-          nextDue: new Date(currentYear, currentQuarter * 3, 1).toISOString().split('T')[0],
-          lastQC: machine.lastQC?.date,
-          priority: quartersOverdue >= 2 ? 'critical' : quartersOverdue >= 1 ? 'high' : 'medium'
-        };
-
-        if (quartersOverdue > 0) {
-          dueTasks.quarterlyOverdue.push(taskData);
-        } else {
-          dueTasks.quarterlyDueThisQuarter.push(taskData);
-        }
-      }
-
-      // Check annual QC status
-      const currentYearQC = qcHistory.annual?.find(qc => {
-        const qcDate = new Date(qc.date);
-        return qcDate.getFullYear() === currentYear;
-      });
-
-      if (!currentYearQC && qcHistory.annual) {
-        // Check if overdue (past years)
-        let yearsOverdue = 0;
-        
-        for (let i = 1; i <= 3; i++) { // Check last 3 years
-          const checkYear = currentYear - i;
-          const qcExists = qcHistory.annual.find(qc => {
-            const qcDate = new Date(qc.date);
-            return qcDate.getFullYear() === checkYear;
-          });
-          
-          if (!qcExists) {
-            yearsOverdue++;
-          } else {
-            break;
-          }
-        }
-
-        const taskData = {
-          machineId: machine.machineId,
-          machineName: machine.name,
-          type: machine.type,
-          location: machine.location,
-          daysOverdue: yearsOverdue * 365, // Approximate for display
-          nextDue: new Date(currentYear, 0, 1).toISOString().split('T')[0],
-          lastQC: machine.lastQC?.date,
-          priority: yearsOverdue >= 2 ? 'critical' : yearsOverdue >= 1 ? 'high' : 'medium'
-        };
-
-        if (yearsOverdue > 0) {
-          dueTasks.annualOverdue.push(taskData);
-        } else {
-          dueTasks.annualDueThisYear.push(taskData);
-        }
-      }
-    }
 
     res.json(dueTasks);
   } catch (error) {

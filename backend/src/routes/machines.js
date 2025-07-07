@@ -4,14 +4,14 @@ const router = express.Router();
 // Mock data for development
 const mockMachines = [
   {
-    machineId: 'MRI-001',
+    machineId: 'MRI-ESS-001',
     name: 'Siemens MAGNETOM Vida',
     type: 'MRI',
     manufacturer: 'Siemens',
     model: 'MAGNETOM Vida 3T',
     serialNumber: 'SN-MRI-2021-001',
     location: {
-      building: 'Main Hospital',
+      building: 'Essen',
       floor: '2',
       room: 'MRI Suite 1'
     },
@@ -25,22 +25,22 @@ const mockMachines = [
     },
     nextQCDue: '2024-01-09',
     qcSchedule: {
-      daily: true,
+      daily: false,
       weekly: true,
       monthly: true,
-      quarterly: true,
+      quarterly: false,
       annual: true
     }
   },
   {
-    machineId: 'CT-001',
+    machineId: 'CT-ESS-001',
     name: 'GE Revolution CT',
     type: 'CT',
     manufacturer: 'GE Healthcare',
     model: 'Revolution CT 256',
     serialNumber: 'SN-CT-2020-001',
     location: {
-      building: 'Main Hospital',
+      building: 'Essen',
       floor: '1',
       room: 'CT Room 1'
     },
@@ -55,23 +55,23 @@ const mockMachines = [
     nextQCDue: '2024-01-10',
     qcSchedule: {
       daily: true,
-      weekly: true,
+      weekly: false,
       monthly: true,
       quarterly: false,
       annual: true
     }
   },
   {
-    machineId: 'PET-001',
-    name: 'Philips Vereos PET-CT',
-    type: 'PET-CT',
+    machineId: 'PET-WOM-001',
+    name: 'Philips Vereos PET/CT',
+    type: 'PET',
     manufacturer: 'Philips',
-    model: 'Vereos Digital PET-CT',
+    model: 'Vereos Digital PET/CT',
     serialNumber: 'SN-PET-2022-001',
     location: {
-      building: 'Nuclear Medicine',
+      building: "Woman's",
       floor: '1',
-      room: 'PET Suite A'
+      room: 'Nuclear Medicine Suite'
     },
     installationDate: '2022-01-10',
     status: 'maintenance',
@@ -84,21 +84,21 @@ const mockMachines = [
     nextQCDue: '2024-01-08',
     qcSchedule: {
       daily: true,
-      weekly: true,
-      monthly: true,
+      weekly: false,
+      monthly: false,
       quarterly: true,
       annual: true
     }
   },
   {
-    machineId: 'MRI-002',
+    machineId: 'MRI-WOM-001',
     name: 'Philips Ingenia 1.5T',
     type: 'MRI',
     manufacturer: 'Philips',
     model: 'Ingenia 1.5T',
     serialNumber: 'SN-MRI-2019-002',
     location: {
-      building: 'Outpatient Center',
+      building: "Woman's",
       floor: '1',
       room: 'MRI Room 2'
     },
@@ -112,24 +112,24 @@ const mockMachines = [
     },
     nextQCDue: '2024-01-09',
     qcSchedule: {
-      daily: true,
+      daily: false,
       weekly: true,
       monthly: true,
-      quarterly: true,
+      quarterly: false,
       annual: true
     }
   },
   {
-    machineId: 'CT-002',
+    machineId: 'CT-GON-001',
     name: 'Siemens SOMATOM Force',
     type: 'CT',
     manufacturer: 'Siemens',
     model: 'SOMATOM Force',
     serialNumber: 'SN-CT-2023-002',
     location: {
-      building: 'Emergency Department',
+      building: 'Gonzales',
       floor: '1',
-      room: 'Trauma CT'
+      room: 'Emergency CT'
     },
     installationDate: '2023-02-28',
     status: 'critical',
@@ -142,8 +142,95 @@ const mockMachines = [
     nextQCDue: '2024-01-04',
     qcSchedule: {
       daily: true,
+      weekly: false,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'MRI-GON-001',
+    name: 'GE SIGNA Premier',
+    type: 'MRI',
+    manufacturer: 'GE Healthcare',
+    model: 'SIGNA Premier 3T',
+    serialNumber: 'SN-MRI-2022-003',
+    location: {
+      building: 'Gonzales',
+      floor: '2',
+      room: 'MRI Suite A'
+    },
+    installationDate: '2022-08-10',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-02',
+      result: 'pass',
+      performedBy: 'David Chen',
+      notes: 'System performing optimally'
+    },
+    nextQCDue: '2024-01-09',
+    qcSchedule: {
+      daily: false,
       weekly: true,
       monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'CT-WOM-001',
+    name: 'Canon Aquilion ONE',
+    type: 'CT',
+    manufacturer: 'Canon Medical',
+    model: 'Aquilion ONE Genesis',
+    serialNumber: 'SN-CT-2021-003',
+    location: {
+      building: "Woman's",
+      floor: '2',
+      room: 'CT Suite B'
+    },
+    installationDate: '2021-05-20',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Emily Rodriguez',
+      notes: 'All QC tests within tolerance'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'PET-ESS-001',
+    name: 'Siemens Biograph Vision',
+    type: 'PET',
+    manufacturer: 'Siemens',
+    model: 'Biograph Vision 600',
+    serialNumber: 'SN-PET-2023-002',
+    location: {
+      building: 'Essen',
+      floor: '3',
+      room: 'Nuclear Medicine'
+    },
+    installationDate: '2023-01-15',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-01',
+      result: 'pass',
+      performedBy: 'Robert Martinez',
+      notes: 'Excellent image quality'
+    },
+    nextQCDue: '2024-01-08',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: false,
       quarterly: true,
       annual: true
     }
