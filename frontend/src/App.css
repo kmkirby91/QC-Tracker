@@ -1,0 +1,66 @@
+/* Print styles for worksheets */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  .print\:shadow-none {
+    box-shadow: none !important;
+  }
+  
+  .print\:p-6 {
+    padding: 1.5rem !important;
+  }
+  
+  /* Hide navigation and other UI elements when printing */
+  header, nav, .no-print {
+    display: none !important;
+  }
+  
+  /* Ensure worksheet content fills the page */
+  #worksheet {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 20px !important;
+  }
+  
+  /* Ensure tables print properly */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  
+  th, td {
+    border: 1px solid #000 !important;
+    padding: 8px !important;
+  }
+  
+  /* Page break handling */
+  .page-break-before {
+    page-break-before: always;
+  }
+  
+  .page-break-after {
+    page-break-after: always;
+  }
+  
+  .page-break-inside-avoid {
+    page-break-inside: avoid;
+  }
+}
+
+/* Regular styles */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

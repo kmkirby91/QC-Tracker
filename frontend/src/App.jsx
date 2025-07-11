@@ -12,6 +12,8 @@ import DueToday from './components/DueToday'
 import DueTasksWidget from './components/DueTasksWidget'
 import QCForm from './components/QCForm'
 import OpenFailures from './components/OpenFailures'
+import AddMachine from './components/AddMachine'
+import Worksheets from './components/Worksheets'
 import './App.css'
 
 const queryClient = new QueryClient()
@@ -24,6 +26,7 @@ function NavigationDropdown() {
   const navigationItems = [
     { label: 'Dashboard', path: '/', icon: '🏠' },
     { label: 'Machine List', path: '/machines', icon: '🏥' },
+    { label: 'Worksheets', path: '/worksheets', icon: '📋' },
     { label: 'Reporting', path: '/reporting', icon: '📊' },
     { label: 'Schedule', path: '/schedule', icon: '📅' }
   ]
@@ -109,6 +112,8 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/machines" element={<MachineList />} />
+              <Route path="/machines/add" element={<AddMachine />} />
+              <Route path="/worksheets" element={<Worksheets />} />
               <Route path="/reporting" element={<Reporting />} />
               <Route path="/schedule" element={<Schedule />} />
               <Route path="/due-today" element={<DueToday />} />
@@ -116,6 +121,7 @@ function App() {
               <Route path="/machines/:machineId" element={<MachineDetail />} />
               <Route path="/machines/:machineId/qc/:date" element={<QCTestDetail />} />
               <Route path="/qc/perform/:machineId/:frequency" element={<QCForm />} />
+              <Route path="/qc/view/:machineType/:frequency" element={<QCForm viewOnly={true} />} />
             </Routes>
           </main>
         </div>
@@ -260,7 +266,16 @@ function MachineList() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-100 mb-6">All Machines</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-100">All Machines</h1>
+        <Link
+          to="/machines/add"
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+        >
+          <span>+</span>
+          <span>Add Machine</span>
+        </Link>
+      </div>
       <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-700">

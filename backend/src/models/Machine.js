@@ -13,7 +13,7 @@ const machineSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['MRI', 'CT', 'PET', 'PET-CT', 'X-Ray', 'Ultrasound']
+    enum: ['MRI', 'CT', 'PET', 'PET-CT', 'X-Ray', 'Ultrasound', 'Mammography']
   },
   manufacturer: {
     type: String,

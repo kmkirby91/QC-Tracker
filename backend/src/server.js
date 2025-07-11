@@ -74,9 +74,11 @@ app.use('/reports', express.static('reports'));
 const machinesRouter = require('./routes/machines');
 const qcTestsRouter = require('./routes/qcTests');
 const qcReportsRouter = require('./routes/qcReports');
+const worksheetsRouter = require('./routes/worksheets');
 app.use('/api/machines', machinesRouter);
 app.use('/api/qc', qcTestsRouter);
 app.use('/api/qc', qcReportsRouter);
+app.use('/api/worksheets', worksheetsRouter);
 
 // MongoDB connection (commented out for development without MongoDB)
 // Uncomment when MongoDB is available

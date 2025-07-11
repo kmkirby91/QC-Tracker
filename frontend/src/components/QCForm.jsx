@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const QCForm = () => {
-  const { machineId, frequency } = useParams();
+const QCForm = ({ viewOnly = false }) => {
+  const { machineId, frequency, machineType } = useParams();
   const navigate = useNavigate();
   const [machine, setMachine] = useState(null);
   const [formData, setFormData] = useState({});
@@ -17,35 +17,49 @@ const QCForm = () => {
 
   useEffect(() => {
     fetchMachineAndTests();
-  }, [machineId, frequency]);
+  }, [machineId, frequency, machineType, viewOnly]);
 
   const fetchMachineAndTests = async () => {
     try {
       // Get machine details
-      const machinesResponse = await axios.get('/api/machines');
-      const foundMachine = machinesResponse.data.find(m => m.machineId === machineId);
+      let foundMachine;
+      if (viewOnly && machineType) {
+        // For view-only mode, create a mock machine object
+        foundMachine = {
+          machineId: machineType,
+          name: `${machineType} Template`,
+          type: machineType,
+          location: { building: 'Template', room: 'Template' }
+        };
+      } else {
+        // For regular mode, fetch the actual machine
+        const machinesResponse = await axios.get('/api/machines');
+        foundMachine = machinesResponse.data.find(m => m.machineId === machineId);
+      }
       setMachine(foundMachine);
 
       // Get test templates based on machine type and frequency
-      const testsResponse = await axios.get(`/api/qc/test-templates/${foundMachine.type}/${frequency}`);
+      const testsResponse = await axios.get(`/api/worksheets/${foundMachine.type}/${frequency}`);
       setTests(testsResponse.data);
 
-      // Get existing QC dates
-      const qcHistoryResponse = await axios.get(`/api/qc/machines/${machineId}/qc-history?type=${foundMachine.type}`);
-      const existingDates = qcHistoryResponse.data[frequency]?.map(qc => qc.date) || [];
-      setExistingQCDates(existingDates);
+      // Get existing QC dates (skip for view-only mode)
+      if (!viewOnly) {
+        const qcHistoryResponse = await axios.get(`/api/qc/machines/${machineId}/qc-history?type=${foundMachine.type}`);
+        const existingDates = qcHistoryResponse.data[frequency]?.map(qc => qc.date) || [];
+        setExistingQCDates(existingDates);
+      }
 
       // Initialize form data
       const initialData = {};
       testsResponse.data.forEach(test => {
-        initialData[test.testName] = {
-          value: '',
-          result: '',
-          notes: ''
+        initialData[test.name || test.testName] = {
+          value: viewOnly ? test.tolerance || 'Template Value' : '',
+          result: viewOnly ? 'pass' : '',
+          notes: viewOnly ? 'Template notes' : ''
         };
       });
-      initialData.performedBy = '';
-      initialData.comments = '';
+      initialData.performedBy = viewOnly ? 'Template User' : '';
+      initialData.comments = viewOnly ? 'This is a template view of the worksheet structure.' : '';
       setFormData(initialData);
       
     } catch (error) {
@@ -257,7 +271,7 @@ const QCForm = () => {
       <div className="bg-gray-800 rounded-lg shadow-lg p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-100 mb-2">
-            {frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC - {machine.name}
+            {viewOnly ? 'View ' : ''}{frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC {viewOnly ? 'Template' : ''} - {machine.name}
           </h1>
           <div className="text-sm text-gray-400">
             <p>Machine ID: {machine.machineId}</p>
@@ -265,70 +279,83 @@ const QCForm = () => {
             <p>Location: {machine.location.building} - {machine.location.room}</p>
           </div>
           
-          {/* Date Selection */}
-          <div className="mt-4 p-4 bg-blue-900 rounded-lg">
-            <h3 className="text-sm font-semibold text-blue-200 mb-2">QC Date Selection</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Select Date for QC *
-                </label>
-                <select
-                  value={selectedDate}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                  className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
-                  required
-                >
-                  {generateDateOptions().map(option => (
-                    <option 
-                      key={option.value} 
-                      value={option.value}
-                      style={{
-                        backgroundColor: option.hasData ? '#374151' : '#064e3b',
-                        color: option.hasData ? '#d1d5db' : '#86efac'
-                      }}
-                    >
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-1 text-xs text-gray-400">
-                  <span className="inline-block w-3 h-3 bg-green-900 border border-green-600 rounded mr-1"></span>
-                  Available dates
-                  <span className="inline-block w-3 h-3 bg-gray-900 border border-gray-600 rounded mr-1 ml-3"></span>
-                  Data exists
+          {/* Date Selection - Hide in view-only mode */}
+          {!viewOnly && (
+            <div className="mt-4 p-4 bg-blue-900 rounded-lg">
+              <h3 className="text-sm font-semibold text-blue-200 mb-2">QC Date Selection</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Select Date for QC *
+                  </label>
+                  <select
+                    value={selectedDate}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
+                    required
+                  >
+                    {generateDateOptions().map(option => (
+                      <option 
+                        key={option.value} 
+                        value={option.value}
+                        style={{
+                          backgroundColor: option.hasData ? '#374151' : '#064e3b',
+                          color: option.hasData ? '#d1d5db' : '#86efac'
+                        }}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-1 text-xs text-gray-400">
+                    <span className="inline-block w-3 h-3 bg-green-900 border border-green-600 rounded mr-1"></span>
+                    Available dates
+                    <span className="inline-block w-3 h-3 bg-gray-900 border border-gray-600 rounded mr-1 ml-3"></span>
+                    Data exists
+                  </div>
                 </div>
+                {loadingExistingData && (
+                  <div className="bg-blue-900 border border-blue-700 rounded-md p-3">
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400 mr-3"></div>
+                      <p className="text-sm text-blue-300">Loading existing QC data...</p>
+                    </div>
+                  </div>
+                )}
+                
+                {showReplaceWarning && !loadingExistingData && (
+                  <div className="bg-amber-900 border border-amber-700 rounded-md p-3">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <h4 className="text-sm font-medium text-amber-200">
+                          Editing Existing Data
+                        </h4>
+                        <p className="text-sm text-amber-300 mt-1">
+                          Form has been populated with existing QC data for this date. You can review and modify the values below. Submitting will replace the existing data.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              {loadingExistingData && (
-                <div className="bg-blue-900 border border-blue-700 rounded-md p-3">
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400 mr-3"></div>
-                    <p className="text-sm text-blue-300">Loading existing QC data...</p>
-                  </div>
-                </div>
-              )}
-              
-              {showReplaceWarning && !loadingExistingData && (
-                <div className="bg-amber-900 border border-amber-700 rounded-md p-3">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <h4 className="text-sm font-medium text-amber-200">
-                        Editing Existing Data
-                      </h4>
-                      <p className="text-sm text-amber-300 mt-1">
-                        Form has been populated with existing QC data for this date. You can review and modify the values below. Submitting will replace the existing data.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
+          )}
+          
+          {/* View-only info */}
+          {viewOnly && (
+            <div className="mt-4 p-4 bg-purple-900 rounded-lg">
+              <h3 className="text-sm font-semibold text-purple-200 mb-2">Template View</h3>
+              <p className="text-sm text-purple-300">
+                This is a read-only view of the {frequency} QC worksheet template for {machine.type} equipment.
+                This shows the structure and tests that would be performed during actual QC.
+              </p>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -347,6 +374,7 @@ const QCForm = () => {
                   className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
                   placeholder="Enter your name"
                   required
+                  readOnly={viewOnly}
                 />
               </div>
               <div>
@@ -356,7 +384,8 @@ const QCForm = () => {
                 <input
                   type="time"
                   className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
-                  defaultValue={new Date().toTimeString().slice(0,5)}
+                  defaultValue={viewOnly ? '08:00' : new Date().toTimeString().slice(0,5)}
+                  readOnly={viewOnly}
                 />
               </div>
             </div>
@@ -371,10 +400,13 @@ const QCForm = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                     <div className="lg:col-span-1">
                       <label className="block text-sm font-medium text-gray-100 mb-1">
-                        {test.testName}
+                        {test.name || test.testName}
                       </label>
                       {test.tolerance && (
                         <p className="text-xs text-gray-400">Tolerance: {test.tolerance}</p>
+                      )}
+                      {test.units && (
+                        <p className="text-xs text-gray-400">Units: {test.units}</p>
                       )}
                       {test.description && (
                         <p className="text-xs text-gray-400 mt-1">{test.description}</p>
@@ -387,17 +419,19 @@ const QCForm = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData[test.testName]?.value || ''}
+                        value={formData[test.name || test.testName]?.value || ''}
                         onChange={(e) => {
-                          handleTestChange(test.testName, 'value', e.target.value);
+                          const testName = test.name || test.testName;
+                          handleTestChange(testName, 'value', e.target.value);
                           // Auto-determine result
-                          const result = determineResult(test.testName, e.target.value);
+                          const result = determineResult(testName, e.target.value);
                           if (result) {
-                            handleTestChange(test.testName, 'result', result);
+                            handleTestChange(testName, 'result', result);
                           }
                         }}
                         className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
                         placeholder={test.placeholder || "Enter value"}
+                        readOnly={viewOnly}
                       />
                     </div>
                     
@@ -406,12 +440,13 @@ const QCForm = () => {
                         Result
                       </label>
                       <select
-                        value={formData[test.testName]?.result || ''}
-                        onChange={(e) => handleTestChange(test.testName, 'result', e.target.value)}
+                        value={formData[test.name || test.testName]?.result || ''}
+                        onChange={(e) => handleTestChange(test.name || test.testName, 'result', e.target.value)}
                         className={`w-full border border-gray-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100 ${
-                          formData[test.testName]?.result === 'fail' ? 'bg-red-900' : 
-                          formData[test.testName]?.result === 'pass' ? 'bg-green-900' : ''
+                          formData[test.name || test.testName]?.result === 'fail' ? 'bg-red-900' : 
+                          formData[test.name || test.testName]?.result === 'pass' ? 'bg-green-900' : ''
                         }`}
+                        disabled={viewOnly}
                       >
                         <option value="">Select</option>
                         <option value="pass">Pass</option>
@@ -426,10 +461,11 @@ const QCForm = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData[test.testName]?.notes || ''}
-                        onChange={(e) => handleTestChange(test.testName, 'notes', e.target.value)}
+                        value={formData[test.name || test.testName]?.notes || ''}
+                        onChange={(e) => handleTestChange(test.name || test.testName, 'notes', e.target.value)}
                         className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
                         placeholder="Optional notes"
+                        readOnly={viewOnly}
                       />
                     </div>
                   </div>
@@ -447,6 +483,7 @@ const QCForm = () => {
               rows={4}
               className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
               placeholder="Enter any general observations, issues, or notes about the QC session..."
+              readOnly={viewOnly}
             />
           </div>
 
@@ -457,24 +494,37 @@ const QCForm = () => {
               onClick={() => navigate(-1)}
               className="px-4 py-2 text-gray-300 bg-gray-900 rounded-md hover:bg-gray-700 transition-colors"
             >
-              Cancel
+              {viewOnly ? 'Back to Worksheets' : 'Cancel'}
             </button>
             
-            <div className="flex space-x-3">
+            {viewOnly && (
               <button
                 type="button"
-                className="px-4 py-2 text-blue-300 bg-blue-900 rounded-md hover:bg-blue-800 transition-colors"
+                onClick={() => navigate(`/worksheets?edit=${machineType}&frequency=${frequency}`)}
+                className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center space-x-2"
               >
-                Save Draft
+                <span>✏️</span>
+                <span>Edit Worksheet</span>
               </button>
-              <button
-                type="submit"
-                disabled={submitting || !formData.performedBy}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                {submitting ? 'Submitting...' : showReplaceWarning ? 'Update QC Data' : 'Complete QC'}
-              </button>
-            </div>
+            )}
+            
+            {!viewOnly && (
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  className="px-4 py-2 text-blue-300 bg-blue-900 rounded-md hover:bg-blue-800 transition-colors"
+                >
+                  Save Draft
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !formData.performedBy}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  {submitting ? 'Submitting...' : showReplaceWarning ? 'Update QC Data' : 'Complete QC'}
+                </button>
+              </div>
+            )}
           </div>
         </form>
       </div>

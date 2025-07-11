@@ -1,7 +1,99 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const MachineCard = ({ machine }) => {
+  const [customWorksheets, setCustomWorksheets] = useState([]);
+
+  useEffect(() => {
+    loadCustomWorksheets();
+  }, []);
+
+  const loadCustomWorksheets = () => {
+    try {
+      const stored = localStorage.getItem('customWorksheets');
+      if (stored) {
+        setCustomWorksheets(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading custom worksheets:', error);
+    }
+  };
+
+  const getWorksheetForMachineAndFrequency = (machineId, frequency) => {
+    const worksheet = customWorksheets.find(ws => 
+      ws.machineId === machineId && ws.frequency === frequency
+    );
+    return worksheet;
+  };
+
+  const getWorksheetsForMachineAndFrequency = (machineId, frequency) => {
+    return customWorksheets.filter(ws => 
+      ws.machineId === machineId && ws.frequency === frequency
+    );
+  };
+
+  const getMachineWorksheets = () => {
+    const worksheets = [];
+    const schedule = machine.qcSchedule;
+    
+    if (schedule.daily) {
+      const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'daily');
+      worksheets.push({
+        frequency: 'Daily',
+        count: machineWorksheets.length,
+        name: machineWorksheets.length > 0 ? 
+          (machineWorksheets.length === 1 ? machineWorksheets[0].title : `${machineWorksheets.length} Custom QCs`) : 
+          `Default ${machine.type} Daily`,
+        isCustom: machineWorksheets.length > 0
+      });
+    }
+    if (schedule.weekly) {
+      const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'weekly');
+      worksheets.push({
+        frequency: 'Weekly',
+        count: machineWorksheets.length,
+        name: machineWorksheets.length > 0 ? 
+          (machineWorksheets.length === 1 ? machineWorksheets[0].title : `${machineWorksheets.length} Custom QCs`) : 
+          `Default ${machine.type} Weekly`,
+        isCustom: machineWorksheets.length > 0
+      });
+    }
+    if (schedule.monthly) {
+      const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'monthly');
+      worksheets.push({
+        frequency: 'Monthly',
+        count: machineWorksheets.length,
+        name: machineWorksheets.length > 0 ? 
+          (machineWorksheets.length === 1 ? machineWorksheets[0].title : `${machineWorksheets.length} Custom QCs`) : 
+          `Default ${machine.type} Monthly`,
+        isCustom: machineWorksheets.length > 0
+      });
+    }
+    if (schedule.quarterly) {
+      const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'quarterly');
+      worksheets.push({
+        frequency: 'Quarterly',
+        count: machineWorksheets.length,
+        name: machineWorksheets.length > 0 ? 
+          (machineWorksheets.length === 1 ? machineWorksheets[0].title : `${machineWorksheets.length} Custom QCs`) : 
+          `Default ${machine.type} Quarterly`,
+        isCustom: machineWorksheets.length > 0
+      });
+    }
+    if (schedule.annual) {
+      const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'annual');
+      worksheets.push({
+        frequency: 'Annual',
+        count: machineWorksheets.length,
+        name: machineWorksheets.length > 0 ? 
+          (machineWorksheets.length === 1 ? machineWorksheets[0].title : `${machineWorksheets.length} Custom QCs`) : 
+          `Default ${machine.type} Annual`,
+        isCustom: machineWorksheets.length > 0
+      });
+    }
+    
+    return worksheets;
+  };
   const getStatusColor = (status) => {
     switch (status) {
       case 'operational':
@@ -73,10 +165,10 @@ const MachineCard = ({ machine }) => {
           <span className="text-sm text-gray-400">Last QC:</span>
           <div className="text-right">
             <span className={`text-sm font-medium ${getQCResultColor(machine.lastQC.result)}`}>
-              {machine.lastQC.result.toUpperCase()}
+              {machine.lastQC.result ? machine.lastQC.result.toUpperCase() : 'N/A'}
             </span>
             <p className="text-xs text-gray-400">
-              {new Date(machine.lastQC.date).toLocaleDateString()}
+              {machine.lastQC.date ? new Date(machine.lastQC.date).toLocaleDateString() : 'Not performed'}
             </p>
           </div>
         </div>
@@ -99,6 +191,36 @@ const MachineCard = ({ machine }) => {
           <span className="font-medium">Note:</span> {machine.lastQC.notes}
         </div>
       )}
+
+      {/* QC Worksheets Section */}
+      <div className="mt-4 pt-4 border-t border-gray-700">
+        <h4 className="text-sm font-medium text-gray-300 mb-2">QC Worksheets</h4>
+        <div className="space-y-1">
+          {getMachineWorksheets().map((worksheet, index) => (
+            <div key={index} className="flex justify-between items-center text-xs">
+              <span className="text-gray-400">{worksheet.frequency}:</span>
+              <div className="text-right max-w-32">
+                <span className={`font-medium ${worksheet.isCustom ? 'text-blue-300' : 'text-gray-400'}`}>
+                  {worksheet.name}
+                </span>
+                {worksheet.isCustom && (
+                  <div className="flex items-center space-x-1">
+                    <div className="text-xs text-blue-500">📋 Custom</div>
+                    {worksheet.count > 1 && (
+                      <div className="text-xs bg-orange-600 text-white px-1 rounded">
+                        {worksheet.count}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {getMachineWorksheets().length === 0 && (
+            <div className="text-xs text-gray-500 italic">No QC schedule configured</div>
+          )}
+        </div>
+      </div>
       </div>
     </Link>
   );

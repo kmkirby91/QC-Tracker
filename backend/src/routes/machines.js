@@ -234,6 +234,35 @@ const mockMachines = [
       quarterly: true,
       annual: true
     }
+  },
+  {
+    machineId: 'MAMMO-WOM-001',
+    name: 'Hologic Selenia Dimensions',
+    type: 'Mammography',
+    manufacturer: 'Hologic',
+    model: 'Selenia Dimensions 3D',
+    serialNumber: 'SN-MAMMO-2023-001',
+    location: {
+      building: "Woman's",
+      floor: '1',
+      room: 'Mammography Suite'
+    },
+    installationDate: '2023-03-15',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Lisa Johnson',
+      notes: 'All phantom images within ACR standards'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: true,
+      weekly: true,
+      monthly: true,
+      quarterly: true,
+      annual: true
+    }
   }
 ];
 
@@ -262,6 +291,41 @@ router.get('/status/:status', (req, res) => {
 router.get('/type/:type', (req, res) => {
   const machines = mockMachines.filter(m => m.type === req.params.type);
   res.json(machines);
+});
+
+// Create new machine
+router.post('/', (req, res) => {
+  try {
+    const newMachine = req.body;
+    
+    // Check if machine ID already exists
+    const existingMachine = mockMachines.find(m => m.machineId === newMachine.machineId);
+    if (existingMachine) {
+      return res.status(400).json({ error: 'Machine ID already exists' });
+    }
+
+    // Add timestamps and initial QC data
+    newMachine.createdAt = new Date().toISOString();
+    newMachine.updatedAt = new Date().toISOString();
+    
+    // Set initial lastQC if not provided
+    if (!newMachine.lastQC) {
+      newMachine.lastQC = {
+        date: null,
+        result: null,
+        performedBy: null,
+        notes: 'Initial setup - no QC performed yet'
+      };
+    }
+
+    // Add to mock data array
+    mockMachines.push(newMachine);
+    
+    res.status(201).json(newMachine);
+  } catch (error) {
+    console.error('Error creating machine:', error);
+    res.status(500).json({ error: 'Failed to create machine' });
+  }
 });
 
 // Update machine status

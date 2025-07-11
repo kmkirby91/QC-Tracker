@@ -68,19 +68,6 @@ const StatusSummary = ({ machines }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <div className="bg-gray-800 rounded-lg shadow-lg p-6">
-        <h3 className="text-sm font-medium text-gray-400 mb-2">Total Machines</h3>
-        <p className="text-3xl font-bold text-gray-100">{machines.length}</p>
-        <div className="mt-3 text-xs space-y-1">
-          {Object.entries(typeCounts).map(([type, count]) => (
-            <div key={type} className="flex justify-between">
-              <span className="text-gray-400">{type}:</span>
-              <span className="font-medium text-gray-100">{count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-gray-800 rounded-lg shadow-lg p-6">
         <h3 className="text-sm font-medium text-gray-400 mb-2">Operational Status</h3>
         <p className="text-3xl font-bold text-green-400">{statusCounts.operational || 0}</p>
         <div className="mt-3 space-y-1">
@@ -96,6 +83,19 @@ const StatusSummary = ({ machines }) => {
             <span className="text-gray-400">Offline:</span>
             <span className="font-medium text-gray-100">{statusCounts.offline || 0}</span>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-800 rounded-lg shadow-lg p-6">
+        <h3 className="text-sm font-medium text-gray-400 mb-2">Total Machines</h3>
+        <p className="text-3xl font-bold text-gray-100">{machines.length}</p>
+        <div className="mt-3 text-xs space-y-1">
+          {Object.entries(typeCounts).map(([type, count]) => (
+            <div key={type} className="flex justify-between">
+              <span className="text-gray-400">{type}:</span>
+              <span className="font-medium text-gray-100">{count}</span>
+            </div>
+          ))}
         </div>
       </div>
 
