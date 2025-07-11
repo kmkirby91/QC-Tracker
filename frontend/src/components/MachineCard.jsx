@@ -8,35 +8,64 @@ const MachineCard = ({ machine }) => {
     loadCustomWorksheets();
   }, []);
 
+  // Listen for localStorage changes to update custom worksheets
+  useEffect(() => {
+    const handleStorageChange = () => {
+      loadCustomWorksheets();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const loadCustomWorksheets = () => {
     try {
-      const stored = localStorage.getItem('customWorksheets');
+      const stored = localStorage.getItem('qcWorksheets');
       if (stored) {
         setCustomWorksheets(JSON.parse(stored));
       }
     } catch (error) {
-      console.error('Error loading custom worksheets:', error);
+      console.error('Error loading worksheets:', error);
     }
   };
 
   const getWorksheetForMachineAndFrequency = (machineId, frequency) => {
     const worksheet = customWorksheets.find(ws => 
-      ws.machineId === machineId && ws.frequency === frequency
+      ws.assignedMachines && ws.assignedMachines.includes(machineId) && ws.frequency === frequency
     );
     return worksheet;
   };
 
   const getWorksheetsForMachineAndFrequency = (machineId, frequency) => {
     return customWorksheets.filter(ws => 
-      ws.machineId === machineId && ws.frequency === frequency
+      ws.assignedMachines && ws.assignedMachines.includes(machineId) && ws.frequency === frequency
     );
+  };
+
+  const getAssignedFrequencies = (machine) => {
+    // Only return frequencies where the machine has actual worksheets assigned
+    const assignedFrequencies = [];
+    if (machine && customWorksheets.length > 0) {
+      ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
+        const hasWorksheet = customWorksheets.some(ws => 
+          ws.modality === machine.type && 
+          ws.frequency === frequency && 
+          ws.assignedMachines && 
+          ws.assignedMachines.includes(machine.machineId)
+        );
+        if (hasWorksheet) {
+          assignedFrequencies.push(frequency);
+        }
+      });
+    }
+    return assignedFrequencies;
   };
 
   const getMachineWorksheets = () => {
     const worksheets = [];
-    const schedule = machine.qcSchedule;
+    const assignedFrequencies = getAssignedFrequencies(machine);
     
-    if (schedule.daily) {
+    if (assignedFrequencies.includes('daily')) {
       const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'daily');
       worksheets.push({
         frequency: 'Daily',
@@ -47,7 +76,7 @@ const MachineCard = ({ machine }) => {
         isCustom: machineWorksheets.length > 0
       });
     }
-    if (schedule.weekly) {
+    if (assignedFrequencies.includes('weekly')) {
       const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'weekly');
       worksheets.push({
         frequency: 'Weekly',
@@ -58,7 +87,7 @@ const MachineCard = ({ machine }) => {
         isCustom: machineWorksheets.length > 0
       });
     }
-    if (schedule.monthly) {
+    if (assignedFrequencies.includes('monthly')) {
       const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'monthly');
       worksheets.push({
         frequency: 'Monthly',
@@ -69,7 +98,7 @@ const MachineCard = ({ machine }) => {
         isCustom: machineWorksheets.length > 0
       });
     }
-    if (schedule.quarterly) {
+    if (assignedFrequencies.includes('quarterly')) {
       const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'quarterly');
       worksheets.push({
         frequency: 'Quarterly',
@@ -80,7 +109,7 @@ const MachineCard = ({ machine }) => {
         isCustom: machineWorksheets.length > 0
       });
     }
-    if (schedule.annual) {
+    if (assignedFrequencies.includes('annual')) {
       const machineWorksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'annual');
       worksheets.push({
         frequency: 'Annual',
@@ -133,11 +162,15 @@ const MachineCard = ({ machine }) => {
   const daysUntilQC = getDaysUntilQC();
 
   return (
-    <Link to={`/machines/${machine.machineId}`} className="block">
-      <div className="bg-gray-800 rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer">
+    <div className="bg-gray-800 rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-100">{machine.name}</h3>
+          <Link 
+            to={`/machines/${machine.machineId}`} 
+            className="text-lg font-semibold text-gray-100 hover:text-blue-400 transition-colors"
+          >
+            {machine.name}
+          </Link>
           <p className="text-sm text-gray-400">{machine.machineId}</p>
         </div>
         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(machine.status)}`}>
@@ -198,11 +231,21 @@ const MachineCard = ({ machine }) => {
         <div className="space-y-1">
           {getMachineWorksheets().map((worksheet, index) => (
             <div key={index} className="flex justify-between items-center text-xs">
-              <span className="text-gray-400">{worksheet.frequency}:</span>
+              <Link
+                to={`/qc/view-worksheet/${machine.machineId}/${worksheet.frequency.toLowerCase()}`}
+                className="text-gray-400 hover:text-blue-400 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {worksheet.frequency}:
+              </Link>
               <div className="text-right max-w-32">
-                <span className={`font-medium ${worksheet.isCustom ? 'text-blue-300' : 'text-gray-400'}`}>
+                <Link
+                  to={`/qc/view-worksheet/${machine.machineId}/${worksheet.frequency.toLowerCase()}`}
+                  className={`font-medium hover:underline transition-colors ${worksheet.isCustom ? 'text-blue-300 hover:text-blue-200' : 'text-gray-400 hover:text-gray-300'}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {worksheet.name}
-                </span>
+                </Link>
                 {worksheet.isCustom && (
                   <div className="flex items-center space-x-1">
                     <div className="text-xs text-blue-500">📋 Custom</div>
@@ -221,8 +264,7 @@ const MachineCard = ({ machine }) => {
           )}
         </div>
       </div>
-      </div>
-    </Link>
+    </div>
   );
 };
 

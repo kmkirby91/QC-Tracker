@@ -38,9 +38,49 @@ const QCForm = ({ viewOnly = false }) => {
       }
       setMachine(foundMachine);
 
-      // Get test templates based on machine type and frequency
-      const testsResponse = await axios.get(`/api/worksheets/${foundMachine.type}/${frequency}`);
-      setTests(testsResponse.data);
+      // Check for custom worksheets first
+      let testsData = [];
+      let hasCustomWorksheet = false;
+      
+      if (!viewOnly) {
+        try {
+          const storedWorksheets = localStorage.getItem('qcWorksheets');
+          if (storedWorksheets) {
+            const worksheets = JSON.parse(storedWorksheets);
+            const customWorksheet = worksheets.find(ws => 
+              ws.modality === foundMachine.type && 
+              ws.frequency === frequency && 
+              ws.assignedMachines && 
+              ws.assignedMachines.includes(foundMachine.machineId)
+            );
+            
+            if (customWorksheet) {
+              testsData = customWorksheet.tests.map(test => ({
+                name: test.testName || test.name,
+                testName: test.testName || test.name,
+                tolerance: test.tolerance,
+                units: test.units,
+                notes: test.notes,
+                description: test.description,
+                templateSource: customWorksheet.templateSource,
+                isCustomField: test.isCustomField || false,
+                customFieldType: test.customFieldType || 'template-default'
+              }));
+              hasCustomWorksheet = true;
+            }
+          }
+        } catch (error) {
+          console.error('Error loading custom worksheets:', error);
+        }
+      }
+      
+      // Fall back to API templates if no custom worksheet found
+      if (!hasCustomWorksheet) {
+        const testsResponse = await axios.get(`/api/worksheets/${foundMachine.type}/${frequency}`);
+        testsData = testsResponse.data;
+      }
+      
+      setTests(testsData);
 
       // Get existing QC dates (skip for view-only mode)
       if (!viewOnly) {
@@ -51,7 +91,7 @@ const QCForm = ({ viewOnly = false }) => {
 
       // Initialize form data
       const initialData = {};
-      testsResponse.data.forEach(test => {
+      testsData.forEach(test => {
         initialData[test.name || test.testName] = {
           value: viewOnly ? test.tolerance || 'Template Value' : '',
           result: viewOnly ? 'pass' : '',
@@ -271,7 +311,7 @@ const QCForm = ({ viewOnly = false }) => {
       <div className="bg-gray-800 rounded-lg shadow-lg p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-100 mb-2">
-            {viewOnly ? 'View ' : ''}{frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC {viewOnly ? 'Template' : ''} - {machine.name}
+            {viewOnly ? 'View ' : ''}{frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC {viewOnly ? (tests.length > 0 && tests[0].templateSource ? 'Worksheet' : 'Template') : ''} - {machine.name}
           </h1>
           <div className="text-sm text-gray-400">
             <p>Machine ID: {machine.machineId}</p>
@@ -349,10 +389,17 @@ const QCForm = ({ viewOnly = false }) => {
           {/* View-only info */}
           {viewOnly && (
             <div className="mt-4 p-4 bg-purple-900 rounded-lg">
-              <h3 className="text-sm font-semibold text-purple-200 mb-2">Template View</h3>
+              <h3 className="text-sm font-semibold text-purple-200 mb-2">
+                {tests.length > 0 && tests[0].templateSource ? 'Custom Worksheet View' : 'Template View'}
+              </h3>
               <p className="text-sm text-purple-300">
-                This is a read-only view of the {frequency} QC worksheet template for {machine.type} equipment.
-                This shows the structure and tests that would be performed during actual QC.
+                {tests.length > 0 && tests[0].templateSource ? (
+                  <>This is a read-only view of the custom {frequency} QC worksheet assigned to {machine.name}.
+                   This shows the actual custom tests and structure that would be performed during QC.</>
+                ) : (
+                  <>This is a read-only view of the {frequency} QC worksheet template for {machine.type} equipment.
+                   This shows the structure and tests that would be performed during actual QC.</>
+                )}
               </p>
             </div>
           )}
@@ -394,6 +441,19 @@ const QCForm = ({ viewOnly = false }) => {
           {/* QC Tests */}
           <div>
             <h3 className="text-lg font-semibold text-gray-100 mb-4">{machine.type} {frequency} QC Tests</h3>
+            
+            {/* Template Source Information */}
+            {tests.length > 0 && tests[0].templateSource && (
+              <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
+                <div className="text-sm text-blue-300 font-medium">
+                  📋 Worksheet based on: {tests[0].templateSource}
+                </div>
+                <div className="text-xs text-blue-200 mt-1">
+                  Custom fields and modifications are marked with 🔧
+                </div>
+              </div>
+            )}
+            
             <div className="space-y-4">
               {tests.map((test, index) => (
                 <div key={index} className="border border-gray-700 rounded-lg p-4">
@@ -401,6 +461,9 @@ const QCForm = ({ viewOnly = false }) => {
                     <div className="lg:col-span-1">
                       <label className="block text-sm font-medium text-gray-100 mb-1">
                         {test.name || test.testName}
+                        {test.isCustomField && (
+                          <span className="ml-2 text-xs text-blue-400 font-bold">🔧 Custom</span>
+                        )}
                       </label>
                       {test.tolerance && (
                         <p className="text-xs text-gray-400">Tolerance: {test.tolerance}</p>
@@ -494,18 +557,32 @@ const QCForm = ({ viewOnly = false }) => {
               onClick={() => navigate(-1)}
               className="px-4 py-2 text-gray-300 bg-gray-900 rounded-md hover:bg-gray-700 transition-colors"
             >
-              {viewOnly ? 'Back to Worksheets' : 'Cancel'}
+              {viewOnly ? (machineId && tests.length > 0 && tests[0].templateSource ? 'Back to Machine' : 'Back to Worksheets') : 'Cancel'}
             </button>
             
             {viewOnly && (
-              <button
-                type="button"
-                onClick={() => navigate(`/worksheets?edit=${machineType}&frequency=${frequency}`)}
-                className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center space-x-2"
-              >
-                <span>✏️</span>
-                <span>Edit Worksheet</span>
-              </button>
+              <div className="flex space-x-3">
+                {/* Show Perform QC button if this is a custom worksheet for a specific machine */}
+                {machineId && tests.length > 0 && tests[0].templateSource && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/qc/perform/${machineId}/${frequency}`)}
+                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  >
+                    <span>▶️</span>
+                    <span>Perform QC</span>
+                  </button>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={() => navigate(`/worksheets?edit=${machineType}&frequency=${frequency}`)}
+                  className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center space-x-2"
+                >
+                  <span>✏️</span>
+                  <span>Edit Worksheet</span>
+                </button>
+              </div>
             )}
             
             {!viewOnly && (

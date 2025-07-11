@@ -122,6 +122,7 @@ function App() {
               <Route path="/machines/:machineId/qc/:date" element={<QCTestDetail />} />
               <Route path="/qc/perform/:machineId/:frequency" element={<QCForm />} />
               <Route path="/qc/view/:machineType/:frequency" element={<QCForm viewOnly={true} />} />
+              <Route path="/qc/view-worksheet/:machineId/:frequency" element={<QCForm viewOnly={true} />} />
             </Routes>
           </main>
         </div>
@@ -240,6 +241,7 @@ function Dashboard() {
 function MachineList() {
   const [machines, setMachines] = useState([])
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     fetchMachines()
@@ -254,6 +256,53 @@ function MachineList() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const getAssignedFrequencies = (machine) => {
+    // Check for custom worksheets assigned to this machine
+    const assignedFrequencies = [];
+    try {
+      const storedWorksheets = localStorage.getItem('qcWorksheets');
+      if (storedWorksheets) {
+        const worksheets = JSON.parse(storedWorksheets);
+        ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
+          const hasWorksheet = worksheets.some(ws => 
+            ws.modality === machine.type && 
+            ws.frequency === frequency && 
+            ws.assignedMachines && 
+            ws.assignedMachines.includes(machine.machineId)
+          );
+          if (hasWorksheet) {
+            assignedFrequencies.push(frequency);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error loading worksheets:', error);
+    }
+    return assignedFrequencies;
+  }
+
+  const getFrequencyColor = (frequency) => {
+    const colors = {
+      daily: 'bg-blue-600 hover:bg-blue-700',
+      weekly: 'bg-green-600 hover:bg-green-700', 
+      monthly: 'bg-purple-600 hover:bg-purple-700',
+      quarterly: 'bg-yellow-600 hover:bg-yellow-700',
+      annual: 'bg-red-600 hover:bg-red-700'
+    };
+    return colors[frequency] || 'bg-gray-600 hover:bg-gray-700';
+  }
+
+  const getFrequencyLabel = (frequency) => {
+    const labels = {
+      daily: 'Daily',
+      weekly: 'Weekly',
+      monthly: 'Monthly', 
+      quarterly: 'Quarterly',
+      annual: 'Annual'
+    };
+    return labels[frequency] || frequency;
   }
 
   if (loading) {
@@ -286,7 +335,7 @@ function MachineList() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Location</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Next QC Due</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions & Worksheets</th>
               </tr>
             </thead>
             <tbody className="bg-gray-800 divide-y divide-gray-700">
@@ -316,12 +365,56 @@ function MachineList() {
                     {new Date(machine.nextQCDue).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <Link
-                      to={`/machines/${machine.machineId}`}
-                      className="text-blue-400 hover:text-blue-300"
-                    >
-                      View Details
-                    </Link>
+                    <div className="flex flex-col space-y-2">
+                      <Link
+                        to={`/machines/${machine.machineId}`}
+                        className="text-blue-400 hover:text-blue-300 text-xs"
+                      >
+                        View Details
+                      </Link>
+                      
+                      {/* Assigned Worksheets */}
+                      {(() => {
+                        const assignedFrequencies = getAssignedFrequencies(machine);
+                        if (assignedFrequencies.length === 0) {
+                          return (
+                            <div className="space-y-1">
+                              <span className="text-xs text-gray-500">No custom worksheets assigned</span>
+                              <Link
+                                to="/worksheets"
+                                className="text-xs text-blue-400 hover:text-blue-300"
+                              >
+                                Create worksheets
+                              </Link>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="space-y-1">
+                              <div className="text-xs text-gray-400 font-medium">Assigned Worksheets:</div>
+                              {assignedFrequencies.map(frequency => (
+                                <div key={frequency} className="flex items-center space-x-1">
+                                  <button
+                                    onClick={() => navigate(`/qc/view-worksheet/${machine.machineId}/${frequency}`)}
+                                    className={`px-1 py-0.5 text-xs text-white rounded transition-colors ${getFrequencyColor(frequency).replace('600', '500').replace('700', '600')}`}
+                                    title={`View ${getFrequencyLabel(frequency)} worksheet`}
+                                  >
+                                    📋 {getFrequencyLabel(frequency)}
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/qc/perform/${machine.machineId}/${frequency}`)}
+                                    className={`px-1 py-0.5 text-xs text-white rounded transition-colors ${getFrequencyColor(frequency)}`}
+                                    title={`Perform ${getFrequencyLabel(frequency)} QC`}
+                                  >
+                                    ▶️
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
                   </td>
                 </tr>
               ))}

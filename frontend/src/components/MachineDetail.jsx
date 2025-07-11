@@ -20,6 +20,16 @@ const MachineDetail = () => {
     loadCustomWorksheets();
   }, [machineId]);
 
+  // Listen for localStorage changes to update custom worksheets
+  useEffect(() => {
+    const handleStorageChange = () => {
+      loadCustomWorksheets();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const fetchMachineData = async () => {
     try {
       setLoading(true);
@@ -45,38 +55,57 @@ const MachineDetail = () => {
 
   const loadCustomWorksheets = () => {
     try {
-      const stored = localStorage.getItem('customWorksheets');
+      const stored = localStorage.getItem('qcWorksheets');
       if (stored) {
         setCustomWorksheets(JSON.parse(stored));
       }
     } catch (error) {
-      console.error('Error loading custom worksheets:', error);
+      console.error('Error loading worksheets:', error);
     }
   };
 
   const getWorksheetForMachineAndFrequency = (machineId, frequency) => {
     const worksheet = customWorksheets.find(ws => 
-      ws.machineId === machineId && ws.frequency === frequency
+      ws.assignedMachines && ws.assignedMachines.includes(machineId) && ws.frequency === frequency
     );
     return worksheet;
   };
 
   const getWorksheetsForMachineAndFrequency = (machineId, frequency) => {
     return customWorksheets.filter(ws => 
-      ws.machineId === machineId && ws.frequency === frequency
+      ws.assignedMachines && ws.assignedMachines.includes(machineId) && ws.frequency === frequency
     );
   };
   
+  const getAssignedFrequencies = (machine) => {
+    // Only return frequencies where the machine has actual worksheets assigned
+    const assignedFrequencies = [];
+    if (machine && customWorksheets.length > 0) {
+      ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
+        const hasWorksheet = customWorksheets.some(ws => 
+          ws.modality === machine.type && 
+          ws.frequency === frequency && 
+          ws.assignedMachines && 
+          ws.assignedMachines.includes(machine.machineId)
+        );
+        if (hasWorksheet) {
+          assignedFrequencies.push(frequency);
+        }
+      });
+    }
+    return assignedFrequencies;
+  };
+
   const getQCTabs = () => {
     if (!machine) return [];
     const tabs = [];
-    const schedule = machine.qcSchedule;
+    const assignedFrequencies = getAssignedFrequencies(machine);
     
-    if (schedule.daily) tabs.push({ key: 'daily', label: 'Daily QC' });
-    if (schedule.weekly) tabs.push({ key: 'weekly', label: 'Weekly QC' });
-    if (schedule.monthly) tabs.push({ key: 'monthly', label: 'Monthly QC' });
-    if (schedule.quarterly) tabs.push({ key: 'quarterly', label: 'Quarterly QC' });
-    if (schedule.annual) tabs.push({ key: 'annual', label: 'Annual QC' });
+    if (assignedFrequencies.includes('daily')) tabs.push({ key: 'daily', label: 'Daily QC' });
+    if (assignedFrequencies.includes('weekly')) tabs.push({ key: 'weekly', label: 'Weekly QC' });
+    if (assignedFrequencies.includes('monthly')) tabs.push({ key: 'monthly', label: 'Monthly QC' });
+    if (assignedFrequencies.includes('quarterly')) tabs.push({ key: 'quarterly', label: 'Quarterly QC' });
+    if (assignedFrequencies.includes('annual')) tabs.push({ key: 'annual', label: 'Annual QC' });
     
     return tabs;
   };
@@ -135,7 +164,7 @@ const MachineDetail = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">Equipment Details</h3>
             <dl className="space-y-1 text-sm">
@@ -181,9 +210,9 @@ const MachineDetail = () => {
           </div>
 
           <div>
-            <h3 className="font-semibold text-gray-300 mb-2">QC Schedule</h3>
+            <h3 className="font-semibold text-gray-300 mb-2">QC Worksheets</h3>
             <dl className="space-y-1 text-sm">
-              {machine.qcSchedule.daily && (
+              {getAssignedFrequencies(machine).includes('daily') && (
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Daily QC:</dt>
@@ -216,7 +245,7 @@ const MachineDetail = () => {
                   })()}
                 </div>
               )}
-              {machine.qcSchedule.weekly && (
+              {getAssignedFrequencies(machine).includes('weekly') && (
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Weekly QC:</dt>
@@ -249,7 +278,7 @@ const MachineDetail = () => {
                   })()}
                 </div>
               )}
-              {machine.qcSchedule.monthly && (
+              {getAssignedFrequencies(machine).includes('monthly') && (
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Monthly QC:</dt>
@@ -282,7 +311,7 @@ const MachineDetail = () => {
                   })()}
                 </div>
               )}
-              {machine.qcSchedule.quarterly && (
+              {getAssignedFrequencies(machine).includes('quarterly') && (
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Quarterly QC:</dt>
@@ -315,7 +344,7 @@ const MachineDetail = () => {
                   })()}
                 </div>
               )}
-              {machine.qcSchedule.annual && (
+              {getAssignedFrequencies(machine).includes('annual') && (
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Annual QC:</dt>
@@ -356,46 +385,92 @@ const MachineDetail = () => {
           </div>
 
           <div>
+            <h3 className="font-semibold text-gray-300 mb-2">View QC Worksheets</h3>
+            <div className="space-y-2">
+              {getAssignedFrequencies(machine).includes('daily') && (
+                <Link
+                  to={`/qc/view-worksheet/${machine.machineId}/daily`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-blue-500 hover:bg-blue-600 rounded-md transition-colors"
+                >
+                  📋 View Daily Worksheet
+                </Link>
+              )}
+              {getAssignedFrequencies(machine).includes('weekly') && (
+                <Link
+                  to={`/qc/view-worksheet/${machine.machineId}/weekly`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors"
+                >
+                  📋 View Weekly Worksheet
+                </Link>
+              )}
+              {getAssignedFrequencies(machine).includes('monthly') && (
+                <Link
+                  to={`/qc/view-worksheet/${machine.machineId}/monthly`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-yellow-500 hover:bg-yellow-600 rounded-md transition-colors"
+                >
+                  📋 View Monthly Worksheet
+                </Link>
+              )}
+              {getAssignedFrequencies(machine).includes('quarterly') && (
+                <Link
+                  to={`/qc/view-worksheet/${machine.machineId}/quarterly`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-purple-500 hover:bg-purple-600 rounded-md transition-colors"
+                >
+                  📋 View Quarterly Worksheet
+                </Link>
+              )}
+              {getAssignedFrequencies(machine).includes('annual') && (
+                <Link
+                  to={`/qc/view-worksheet/${machine.machineId}/annual`}
+                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
+                >
+                  📋 View Annual Worksheet
+                </Link>
+              )}
+            </div>
+          </div>
+
+          <div>
             <h3 className="font-semibold text-gray-300 mb-2">Perform QC</h3>
             <div className="space-y-2">
-              {machine.qcSchedule.daily && (
+              {getAssignedFrequencies(machine).includes('daily') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/daily`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
                 >
-                  Daily QC
+                  ▶️ Perform Daily QC
                 </Link>
               )}
-              {machine.qcSchedule.weekly && (
+              {getAssignedFrequencies(machine).includes('weekly') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/weekly`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
                 >
-                  Weekly QC
+                  ▶️ Perform Weekly QC
                 </Link>
               )}
-              {machine.qcSchedule.monthly && (
+              {getAssignedFrequencies(machine).includes('monthly') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/monthly`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-yellow-600 hover:bg-yellow-700 rounded-md transition-colors"
                 >
-                  Monthly QC
+                  ▶️ Perform Monthly QC
                 </Link>
               )}
-              {machine.qcSchedule.quarterly && (
+              {getAssignedFrequencies(machine).includes('quarterly') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/quarterly`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors"
                 >
-                  Quarterly QC
+                  ▶️ Perform Quarterly QC
                 </Link>
               )}
-              {machine.qcSchedule.annual && (
+              {getAssignedFrequencies(machine).includes('annual') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/annual`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
                 >
-                  Annual QC
+                  ▶️ Perform Annual QC
                 </Link>
               )}
             </div>
