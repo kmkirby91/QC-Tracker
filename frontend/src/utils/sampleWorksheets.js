@@ -120,10 +120,39 @@ export const checkAndInitializeSampleData = () => {
   const existingWorksheets = localStorage.getItem('qcWorksheets');
   const existingTemplates = localStorage.getItem('qcModalityTemplates');
   
-  // Only initialize if no worksheets exist
-  if (!existingWorksheets || JSON.parse(existingWorksheets).length === 0) {
+  // Check if SOMATOM Force specifically has a worksheet assigned
+  let needsInitialization = true;
+  
+  if (existingWorksheets) {
+    try {
+      const worksheets = JSON.parse(existingWorksheets);
+      const somatumWorksheet = worksheets.find(w => 
+        w.modality === 'CT' && 
+        w.frequency === 'daily' && 
+        w.assignedMachines && 
+        w.assignedMachines.includes('CT-GON-001') &&
+        w.isWorksheet === true
+      );
+      
+      if (somatumWorksheet) {
+        needsInitialization = false;
+        console.log('SOMATOM Force already has CT daily worksheet assigned');
+      }
+    } catch (error) {
+      console.error('Error checking existing worksheets:', error);
+    }
+  }
+  
+  if (needsInitialization) {
+    console.log('Initializing sample data for SOMATOM Force CT...');
     return initializeSampleWorksheets();
   }
   
   return null; // Data already exists
+};
+
+// Force initialization for debugging
+export const forceInitializeSampleData = () => {
+  console.log('Forcing sample data initialization...');
+  return initializeSampleWorksheets();
 };

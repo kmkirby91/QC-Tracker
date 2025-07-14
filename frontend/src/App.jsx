@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import axios from 'axios'
-import { checkAndInitializeSampleData } from './utils/sampleWorksheets'
+import { checkAndInitializeSampleData, forceInitializeSampleData } from './utils/sampleWorksheets'
+import { checkSomatumForceStatus, quickFixSomatumForce } from './utils/diagnostics'
 import MachineCard from './components/MachineCard'
 import StatusSummary from './components/StatusSummary'
 import FilterBar from './components/FilterBar'
@@ -34,12 +35,12 @@ function NavigationDropdown() {
   ]
 
   const handleReloadSampleData = () => {
-    // Clear existing data and reload sample data
+    // Clear existing data and force reload sample data
     localStorage.removeItem('qcWorksheets')
     localStorage.removeItem('qcModalityTemplates')
-    const result = checkAndInitializeSampleData()
+    const result = forceInitializeSampleData()
     if (result) {
-      alert('Sample data reloaded! SOMATOM Force CT now has daily QC worksheet assigned.')
+      alert(`Sample data reloaded! SOMATOM Force CT now has daily QC worksheet assigned.\n\nCreated: ${result.templatesCreated} template(s)\nWorksheets: ${result.worksheetsCreated} worksheet(s)\nAssigned to: ${result.machinesWithWorksheets.join(', ')}`)
       window.location.reload() // Refresh to show updated data
     }
   }
@@ -172,6 +173,10 @@ function Dashboard() {
     fetchMachines()
     // Initialize sample worksheets on app load
     checkAndInitializeSampleData()
+    
+    // Add diagnostic functions to global scope for debugging
+    window.checkSomatumForceStatus = checkSomatumForceStatus
+    window.quickFixSomatumForce = quickFixSomatumForce
   }, [])
 
   useEffect(() => {
