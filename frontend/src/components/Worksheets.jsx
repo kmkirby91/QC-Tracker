@@ -25,6 +25,7 @@ const Worksheets = () => {
   });
   const [templateMode, setTemplateMode] = useState('manage'); // 'manage'
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [selectedTemplateForGeneration, setSelectedTemplateForGeneration] = useState('');
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
   const [expandedMachines, setExpandedMachines] = useState(new Set());
   const [modalityTemplateInfo, setModalityTemplateInfo] = useState({
@@ -34,6 +35,11 @@ const Worksheets = () => {
     modality: '',
     description: ''
   });
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [filterMachine, setFilterMachine] = useState('');
+  const [filterFrequency, setFilterFrequency] = useState('');
+  const [filterModality, setFilterModality] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState({});
 
   const frequencies = [
     { value: 'daily', label: 'Daily QC', icon: '📅' },
@@ -55,6 +61,7 @@ const Worksheets = () => {
 
   useEffect(() => {
     fetchMachines();
+    initializeSampleTemplates();
   }, []);
 
   useEffect(() => {
@@ -67,6 +74,88 @@ const Worksheets = () => {
       loadModalityTemplateForEdit(editMachineType, editFrequency);
     }
   }, [searchParams]);
+
+  const initializeSampleTemplates = () => {
+    const existingTemplates = getModalityTemplates();
+    if (existingTemplates.length === 0) {
+      // Create sample templates for testing
+      const sampleTemplates = [
+        {
+          id: Date.now() + 1,
+          title: 'MRI Daily QC Template',
+          modality: 'MRI',
+          frequency: 'daily',
+          description: 'Standard daily QC tests for MRI equipment',
+          tests: [
+            { id: 1, testName: 'Signal-to-Noise Ratio', testType: 'value', tolerance: '>100', units: 'SNR', notes: 'Check phantom signal uniformity' },
+            { id: 2, testName: 'Center Frequency', testType: 'value', tolerance: '±50', units: 'Hz', notes: 'Verify scanner frequency calibration' },
+            { id: 3, testName: 'Transmit Gain', testType: 'value', tolerance: '±10%', units: 'dB', notes: 'Check RF power output' }
+          ],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: Date.now() + 2,
+          title: 'CT Daily QC Template',
+          modality: 'CT',
+          frequency: 'daily',
+          description: 'Standard daily QC tests for CT equipment',
+          tests: [
+            { id: 1, testName: 'Water CT Number', testType: 'value', tolerance: '0 ± 5', units: 'HU', notes: 'Check water phantom calibration' },
+            { id: 2, testName: 'Noise Level', testType: 'value', tolerance: '<10', units: 'HU', notes: 'Measure image noise in water phantom' },
+            { id: 3, testName: 'Uniformity', testType: 'value', tolerance: '±5', units: 'HU', notes: 'Check peripheral vs center ROI' }
+          ],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: Date.now() + 3,
+          title: 'X-Ray Weekly QC Template',
+          modality: 'X-Ray',
+          frequency: 'weekly',
+          description: 'Weekly QC tests for X-Ray equipment',
+          tests: [
+            { id: 1, testName: 'Exposure Reproducibility', testType: 'value', tolerance: '±5%', units: '%', notes: 'Test multiple exposures at same settings' },
+            { id: 2, testName: 'kVp Accuracy', testType: 'value', tolerance: '±5%', units: 'kVp', notes: 'Verify kilovoltage peak accuracy' },
+            { id: 3, testName: 'Half Value Layer', testType: 'value', tolerance: '±0.1', units: 'mm Al', notes: 'Beam quality assessment' }
+          ],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: Date.now() + 4,
+          title: 'PET-CT Daily PET QC Template',
+          modality: 'PET-CT',
+          frequency: 'daily',
+          description: 'Daily PET component QC tests for PET-CT equipment',
+          tests: [
+            { id: 1, testName: 'Detector Normalization', testType: 'value', tolerance: '±5%', units: '%', notes: 'Check PET detector uniformity' },
+            { id: 2, testName: 'Coincidence Timing', testType: 'value', tolerance: '±2', units: 'ns', notes: 'Verify timing window calibration' },
+            { id: 3, testName: 'Energy Resolution', testType: 'value', tolerance: '±10%', units: '%', notes: 'Check energy peak resolution' }
+          ],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: Date.now() + 5,
+          title: 'PET-CT Daily CT QC Template',
+          modality: 'PET-CT',
+          frequency: 'daily',
+          description: 'Daily CT component QC tests for PET-CT equipment',
+          tests: [
+            { id: 1, testName: 'Water CT Number', testType: 'value', tolerance: '0 ± 5', units: 'HU', notes: 'Check CT water phantom calibration' },
+            { id: 2, testName: 'CT Noise Level', testType: 'value', tolerance: '<8', units: 'HU', notes: 'Measure CT image noise' },
+            { id: 3, testName: 'CT Uniformity', testType: 'value', tolerance: '±5', units: 'HU', notes: 'Check CT uniformity across field' }
+          ],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ];
+      
+      localStorage.setItem('qcModalityTemplates', JSON.stringify(sampleTemplates));
+      console.log('Sample templates created for testing read-only functionality');
+    }
+  };
 
   const fetchMachines = async () => {
     try {
@@ -325,8 +414,62 @@ const Worksheets = () => {
     return JSON.parse(localStorage.getItem('qcModalityTemplates') || '[]');
   };
 
+  const getGroupedModalityTemplates = () => {
+    const templates = getModalityTemplates();
+    const frequencyOrder = ['daily', 'weekly', 'monthly', 'quarterly', 'annual'];
+    
+    // Group by modality
+    const grouped = templates.reduce((acc, template) => {
+      if (!acc[template.modality]) {
+        acc[template.modality] = [];
+      }
+      acc[template.modality].push(template);
+      return acc;
+    }, {});
+    
+    // Sort each modality group by frequency
+    Object.keys(grouped).forEach(modality => {
+      grouped[modality].sort((a, b) => {
+        const aIndex = frequencyOrder.indexOf(a.frequency);
+        const bIndex = frequencyOrder.indexOf(b.frequency);
+        return aIndex - bIndex;
+      });
+    });
+    
+    // Sort modalities alphabetically and return as array of groups
+    return Object.keys(grouped)
+      .sort()
+      .map(modality => ({
+        modality,
+        templates: grouped[modality]
+      }));
+  };
+
   const getCustomWorksheets = () => {
     return JSON.parse(localStorage.getItem('qcCustomWorksheets') || '[]');
+  };
+
+  const isWorksheetActuallyCustomized = (baseTemplate, customTests, customWorksheetInfo) => {
+    if (!baseTemplate || !baseTemplate.tests) {
+      // If no base template, it's considered custom
+      return true;
+    }
+
+    // Check if title was changed from default
+    const defaultTitle = `${customWorksheetInfo.modality} ${customWorksheetInfo.frequency} QC`;
+    if (customWorksheetInfo.title !== defaultTitle && 
+        customWorksheetInfo.title !== `${customWorksheetInfo.modality} ${customWorksheetInfo.frequency}`) {
+      return true;
+    }
+
+    // Check if description was added
+    if (customWorksheetInfo.description && customWorksheetInfo.description.trim() !== '') {
+      return true;
+    }
+
+    // Check if tests were modified
+    const modifications = calculateModifications(baseTemplate, customTests);
+    return modifications.length > 0;
   };
 
   const calculateModifications = (baseTemplate, customTests) => {
@@ -383,13 +526,17 @@ const Worksheets = () => {
       modality: worksheetData.modality,
       frequency: worksheetData.frequency,
       tests: worksheetData.tests,
-      templateSource: worksheetData.templateSource || null, // Which template this was created from
-      templateId: worksheetData.templateId || null, // Template ID for comparison
-      baseTemplate: worksheetData.baseTemplate || null, // Original template data for comparison
-      modifications: worksheetData.modifications || [], // List of what was changed
-      createdAt: new Date().toISOString(),
+      isWorksheet: worksheetData.isWorksheet || true, // Mark as worksheet (not template)
+      sourceTemplateId: worksheetData.sourceTemplateId || null, // ID of template used to create this
+      sourceTemplateName: worksheetData.sourceTemplateName || null, // Name of template used
+      // Legacy properties for backward compatibility
+      templateSource: worksheetData.templateSource || worksheetData.sourceTemplateName || null,
+      templateId: worksheetData.templateId || worksheetData.sourceTemplateId || null,
+      baseTemplate: worksheetData.baseTemplate || null,
+      modifications: worksheetData.modifications || [],
+      createdAt: worksheetData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      assignedMachines: [] // Array of machine IDs this worksheet is assigned to
+      assignedMachines: worksheetData.assignedMachines || [] // Array of machine IDs this worksheet is assigned to
     };
     
     // Always add new worksheet
@@ -476,15 +623,17 @@ const Worksheets = () => {
     }));
 
     const worksheetData = {
-      title: `${template.title} - Worksheet`,
+      title: template.title, // Keep original title, don't add "- Worksheet"
       description: template.description,
       modality: template.modality,
       frequency: template.frequency,
       tests: testsWithTracking,
-      templateSource: template.title,
-      templateId: template.id,
-      baseTemplate: template,
-      modifications: []
+      sourceTemplateId: template.id,
+      sourceTemplateName: template.title,
+      isWorksheet: true, // Mark as worksheet, not template
+      assignedMachines: [], // Start with no machines assigned
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     return saveWorksheet(worksheetData);
@@ -549,6 +698,51 @@ const Worksheets = () => {
     setSelectedTemplate(template);
     setIsCreatingTemplate(true);
     toast.success('Template loaded for editing!');
+  };
+
+  const viewTemplateReadOnly = (template) => {
+    console.log('viewTemplateReadOnly called with template:', template);
+    
+    // Store template data temporarily for QCForm to use
+    localStorage.setItem('tempTemplateView', JSON.stringify(template));
+    
+    // Navigate to QCForm in view-only mode for templates
+    navigate(`/qc/view/${template.modality}/${template.frequency}`);
+    toast.success(`Viewing template: ${template.title}`);
+  };
+
+  const viewCustomWorksheetReadOnly = (worksheet, machineId = null) => {
+    console.log('viewCustomWorksheetReadOnly called with worksheet:', worksheet, 'machineId:', machineId);
+    
+    // Store worksheet data temporarily for QCForm to use
+    localStorage.setItem('tempWorksheetView', JSON.stringify(worksheet));
+    
+    // Navigate to QCForm in view-only mode for custom worksheets
+    if (machineId) {
+      navigate(`/qc/view-worksheet/${machineId}/${worksheet.frequency}`);
+    } else {
+      // For unassigned worksheets, use the modality route
+      navigate(`/qc/view/${worksheet.modality}/${worksheet.frequency}`);
+    }
+    toast.success(`Viewing worksheet: ${worksheet.title}`);
+  };
+
+  const editCustomWorksheet = (worksheet) => {
+    console.log('editCustomWorksheet called with worksheet:', worksheet);
+    
+    // Load worksheet data into the custom worksheet form
+    setCustomWorksheetInfo({
+      title: worksheet.title,
+      frequency: worksheet.frequency,
+      machineId: '',
+      modality: worksheet.modality,
+      description: worksheet.description || ''
+    });
+    setCustomTests(worksheet.tests || []);
+    setWorksheetData(null);
+    setSelectedTemplate(worksheet); // Set as selected to enable editing
+    setViewMode('custom');
+    toast.success(`Editing worksheet: ${worksheet.title}`);
   };
 
   const deleteModalityTemplate = (templateId) => {
@@ -632,6 +826,7 @@ const Worksheets = () => {
       { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '' }
     ]);
     setSelectedTemplate(null);
+    setSelectedTemplateForGeneration('');
     setIsCreatingTemplate(false);
   };
 
@@ -650,6 +845,46 @@ const Worksheets = () => {
       newExpanded.add(machineId);
     }
     setExpandedMachines(newExpanded);
+  };
+
+  const refreshCurrentView = () => {
+    // Force a re-render by updating a timestamp or triggering a refresh
+    // This will cause components to re-read localStorage and refresh their data
+    console.log(`Refreshing ${viewMode} view`);
+    
+    // Clear any cached state that might prevent refresh
+    setWorksheetData(null);
+    setSelectedTemplate(null);
+    setIsCreatingTemplate(false);
+    
+    // Reset all internal tab states to defaults
+    setTemplateMode('manage'); // Reset templates to default "manage" view
+    setExpandedMachines(new Set()); // Reset expanded machines
+    
+    // Reset custom worksheet form to default state
+    setCustomWorksheetInfo({
+      title: '',
+      frequency: 'daily',
+      machineId: '',
+      modality: '',
+      description: ''
+    });
+    setCustomTests([
+      { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '' }
+    ]);
+    
+    // Force re-fetch of machines data
+    fetchMachines();
+    
+    // Increment refresh key to force re-render
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const handleViewModeChange = (newMode) => {
+    if (newMode !== viewMode) {
+      setViewMode(newMode);
+      refreshCurrentView();
+    }
   };
 
   const getAllFrequencies = () => {
@@ -675,7 +910,7 @@ const Worksheets = () => {
       <div className="mb-6">
         <div className="flex space-x-4">
           <button
-            onClick={() => setViewMode('overview')}
+            onClick={() => handleViewModeChange('overview')}
             className={`px-4 py-2 rounded-md font-medium transition-colors ${
               viewMode === 'overview' 
                 ? 'bg-blue-600 text-white' 
@@ -685,7 +920,7 @@ const Worksheets = () => {
             🏥 All Machines Overview
           </button>
           <button
-            onClick={() => setViewMode('worksheets')}
+            onClick={() => handleViewModeChange('worksheets')}
             className={`px-4 py-2 rounded-md font-medium transition-colors ${
               viewMode === 'worksheets' 
                 ? 'bg-blue-600 text-white' 
@@ -695,17 +930,17 @@ const Worksheets = () => {
             📄 Existing Worksheets
           </button>
           <button
-            onClick={() => setViewMode('custom')}
+            onClick={() => handleViewModeChange('custom')}
             className={`px-4 py-2 rounded-md font-medium transition-colors ${
               viewMode === 'custom' 
                 ? 'bg-blue-600 text-white' 
                 : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
             }`}
           >
-            ✏️ Custom Worksheet
+            ✏️ Add Worksheet
           </button>
           <button
-            onClick={() => setViewMode('templates')}
+            onClick={() => handleViewModeChange('templates')}
             className={`px-4 py-2 rounded-md font-medium transition-colors ${
               viewMode === 'templates' 
                 ? 'bg-blue-600 text-white' 
@@ -856,214 +1091,139 @@ const Worksheets = () => {
         </div>
       )}
 
-      {/* Templates Mode - Template Management & Generation */}
+      {/* Templates Mode - Simplified */}
       {viewMode === 'templates' && (
-        <div className="space-y-6">
-          {/* Template Mode Selection */}
+        <div key={`templates-${refreshKey}`} className="space-y-6">
+          
+          {/* Generate New Template Widget */}
           {!worksheetData && !isCreatingTemplate && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-100 mb-4">Template Management</h2>
-              <div className="flex space-x-4 mb-6">
+            <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+              <h2 className="text-xl font-semibold text-gray-100 mb-4">Generate New Template</h2>
+              
+              {/* Create from existing template */}
+              <div className="flex items-end space-x-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Select Template
+                  </label>
+                  <select
+                    value={selectedTemplateForGeneration}
+                    onChange={(e) => setSelectedTemplateForGeneration(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Choose a template...</option>
+                    {getModalityTemplates().map(template => (
+                      <option key={template.id} value={template.id}>
+                        {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={() => {
+                    if (selectedTemplateForGeneration) {
+                      const template = getModalityTemplates().find(t => t.id.toString() === selectedTemplateForGeneration);
+                      if (template) {
+                        // Load template for editing as a new template
+                        setSelectedTemplate({ ...template, id: Date.now() }); // Give it a new ID
+                        setCustomWorksheetInfo({
+                          title: `Copy of ${template.title}`,
+                          frequency: template.frequency,
+                          machineId: '',
+                          modality: template.modality,
+                          description: template.description || ''
+                        });
+                        setCustomTests(template.tests.map(test => ({ ...test, id: Date.now() + Math.random() })));
+                        setIsCreatingTemplate(true);
+                        toast.success(`Template "${template.title}" loaded for editing as new template`);
+                      }
+                    } else {
+                      toast.error('Please select a template first');
+                    }
+                  }}
+                  disabled={!selectedTemplateForGeneration}
+                  className={`px-4 py-2 rounded-md transition-colors flex items-center space-x-2 ${
+                    selectedTemplateForGeneration 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <span>📋</span>
+                  <span>Create From Selected</span>
+                </button>
+              </div>
+              
+              {/* Create new template from scratch */}
+              <div className="pt-2 border-t border-gray-600">
                 <button
                   onClick={() => {
                     resetTemplateForm();
                     setIsCreatingTemplate(true);
                   }}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  className="w-full px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
                 >
                   <span>➕</span>
-                  <span>Create New Template</span>
-                </button>
-                <button
-                  onClick={() => setTemplateMode('manage')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md font-medium transition-colors"
-                >
-                  <span>🗂️</span>
-                  <span>Manage Templates</span>
-                </button>
-                <button
-                  onClick={() => setTemplateMode('generate')}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-md font-medium transition-colors"
-                >
-                  <span>📋</span>
-                  <span>Generate Worksheets</span>
+                  <span>Create New Template from Scratch</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* Template Management Content */}
-          {!worksheetData && !isCreatingTemplate && templateMode === 'manage' && (
+          {/* Templates List */}
+          {!worksheetData && !isCreatingTemplate && (
             <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-100 mb-4">Manage Templates</h3>
+              <h2 className="text-xl font-semibold text-gray-100 mb-4">All Templates</h2>
               {getModalityTemplates().length === 0 ? (
                 <p className="text-gray-400 text-center py-8">No templates saved yet. Create your first template!</p>
               ) : (
-                <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Edit Template
-                    </label>
-                    <select
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          const template = getModalityTemplates().find(t => t.id.toString() === e.target.value);
-                          if (template) {
-                            loadTemplateForEditing(template);
-                          }
-                          e.target.value = '';
-                        }
-                      }}
-                    >
-                      <option value="">Select template to edit...</option>
-                      {getModalityTemplates().map(template => (
-                        <option key={template.id} value={template.id}>
-                          {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Use Template in Custom Worksheet
-                    </label>
-                    <select
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          const template = getModalityTemplates().find(t => t.id.toString() === e.target.value);
-                          if (template) {
-                            createWorksheetFromTemplate(template);
-                          }
-                          e.target.value = '';
-                        }
-                      }}
-                    >
-                      <option value="">Select template to use...</option>
-                      {getModalityTemplates().map(template => (
-                        <option key={template.id} value={template.id}>
-                          {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Delete Template
-                    </label>
-                    <select
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
-                      onChange={(e) => {
-                        if (e.target.value && window.confirm('Are you sure you want to delete this template?')) {
-                          deleteModalityTemplate(parseInt(e.target.value));
-                          e.target.value = '';
-                        }
-                      }}
-                    >
-                      <option value="">Select template to delete...</option>
-                      {getModalityTemplates().map(template => (
-                        <option key={template.id} value={template.id}>
-                          {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Create Another Template Button */}
-                <div className="mt-6 text-center">
-                  <button
-                    onClick={() => {
-                      resetTemplateForm();
-                      setIsCreatingTemplate(true);
-                    }}
-                    className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2 mx-auto"
-                  >
-                    <span>➕</span>
-                    <span>Create Another Template</span>
-                  </button>
-                </div>
-                </>
-              )}
-              
-              {/* Template List for Reference */}
-              {getModalityTemplates().length > 0 && (
-                <div className="mt-6">
-                  <h4 className="text-md font-semibold text-gray-200 mb-3">Saved Templates ({getModalityTemplates().length})</h4>
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <div className="space-y-2">
-                      {getModalityTemplates().map(template => (
-                        <div key={template.id} className="flex items-center justify-between py-2 px-3 bg-gray-800 rounded">
-                          <div>
-                            <span className="text-gray-100 font-medium">{template.title}</span>
-                            <span className="text-gray-400 text-sm ml-2">
-                              📱 {template.modality} • {getFrequencyIcon(template.frequency)} {getFrequencyLabel(template.frequency)} • {template.tests.length} tests
-                            </span>
+                <div className="space-y-6">
+                  {getGroupedModalityTemplates().map(group => (
+                    <div key={group.modality}>
+                      <h4 className="text-lg font-semibold text-blue-300 mb-3 border-b border-gray-600 pb-2">
+                        📱 {group.modality} Templates ({group.templates.length})
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {group.templates.map(template => (
+                          <div key={template.id} className="bg-gray-700 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <button
+                                onClick={() => viewTemplateReadOnly(template)}
+                                className="font-medium text-gray-100 text-sm hover:text-blue-400 hover:underline transition-colors cursor-pointer text-left"
+                                title="Click to view template in read-only mode"
+                              >
+                                {template.title}
+                              </button>
+                              <span className="text-xs bg-green-600 text-white px-2 py-1 rounded-full">
+                                Template
+                              </span>
+                            </div>
+                            
+                            <div className="space-y-2 mb-4">
+                              <div className="text-xs text-gray-300">
+                                <strong>Modality:</strong> {template.modality}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                <strong>Frequency:</strong> {getFrequencyLabel(template.frequency)}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                <strong>Tests:</strong> {template.tests.length}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Created: {new Date(template.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                            
+                            <div className="flex justify-center">
+                              <button
+                                onClick={() => loadTemplateForEditing(template)}
+                                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                              >
+                                ✏️ Edit Template
+                              </button>
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(template.createdAt).toLocaleDateString()}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          )}
-
-          {/* Generate Worksheets from Templates */}
-          {!worksheetData && !isCreatingTemplate && templateMode === 'generate' && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-100 mb-4">Generate Worksheets from Templates</h3>
-              <p className="text-gray-400 mb-6">Create worksheets from existing templates. Worksheets can then be assigned to machines.</p>
-              
-              {getModalityTemplates().length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No templates available. Create templates first to generate worksheets.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {getModalityTemplates().map(template => (
-                    <div key={template.id} className="bg-gray-700 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-gray-100 text-sm">
-                          {template.title}
-                        </h4>
-                        <span className="text-xs bg-green-600 text-white px-2 py-1 rounded-full">
-                          Template
-                        </span>
+                        ))}
                       </div>
-                      
-                      <div className="space-y-2 mb-4">
-                        <div className="text-xs text-gray-300">
-                          <strong>Modality:</strong> {template.modality}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          <strong>Frequency:</strong> {getFrequencyLabel(template.frequency)}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          <strong>Tests:</strong> {template.tests.length}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Created: {new Date(template.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                      
-                      <button
-                        onClick={() => {
-                          const newWorksheet = generateWorksheetFromTemplate(template.id, 'modality');
-                          if (newWorksheet) {
-                            toast.success(`Worksheet "${newWorksheet.title}" created successfully!`);
-                          }
-                        }}
-                        className="w-full px-3 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 transition-colors"
-                      >
-                        📋 Generate Worksheet
-                      </button>
                     </div>
                   ))}
                 </div>
@@ -1071,7 +1231,7 @@ const Worksheets = () => {
             </div>
           )}
 
-          {/* Template Creator - Uses same interface as Custom Worksheet */}
+          {/* Template Creator */}
           {!worksheetData && isCreatingTemplate && (
             <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex justify-between items-center mb-6">
@@ -1090,7 +1250,7 @@ const Worksheets = () => {
                 </button>
               </div>
               
-              {/* Template Information - Same as Custom Worksheet */}
+              {/* Template Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -1121,9 +1281,6 @@ const Worksheets = () => {
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    The template will be created for {customWorksheetInfo.modality || 'selected'} equipment
-                  </p>
                 </div>
               </div>
 
@@ -1159,10 +1316,10 @@ const Worksheets = () => {
                 </div>
               </div>
 
-              {/* Test Builder - Same as Custom Worksheet */}
-              <div className="bg-gray-700 rounded-lg p-4 mb-6">
+              {/* Test Builder */}
+              <div className="bg-gray-900 rounded-lg p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-lg font-semibold text-gray-100">QC Tests</h4>
+                  <h2 className="text-xl font-semibold text-gray-100">QC Tests</h2>
                   <button
                     onClick={addCustomTest}
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
@@ -1174,9 +1331,9 @@ const Worksheets = () => {
 
                 <div className="space-y-4">
                   {customTests.map((test, index) => (
-                    <div key={test.id} className="bg-gray-800 rounded-lg p-4">
+                    <div key={test.id} className="bg-gray-700 rounded-lg p-4">
                       <div className="flex justify-between items-center mb-4">
-                        <h5 className="text-md font-medium text-gray-100">Test #{index + 1}</h5>
+                        <h3 className="text-lg font-medium text-gray-100">Test #{index + 1}</h3>
                         {customTests.length > 1 && (
                           <button
                             onClick={() => removeCustomTest(test.id)}
@@ -1259,24 +1416,23 @@ const Worksheets = () => {
                     </div>
                   ))}
                 </div>
-              </div>
 
-              <div className="flex justify-center space-x-4">
-                <button
-                  onClick={saveAsTemplate}
-                  className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
-                >
-                  <span>💾</span>
-                  <span>{selectedTemplate ? 'Update Template' : 'Save Template'}</span>
-                </button>
-                
-                <button
-                  onClick={resetTemplateForm}
-                  className="px-6 py-3 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 transition-colors flex items-center space-x-2"
-                >
-                  <span>🔄</span>
-                  <span>Reset</span>
-                </button>
+                <div className="mt-6 flex justify-center space-x-4">
+                  <button
+                    onClick={saveAsTemplate}
+                    className="px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                  >
+                    <span>💾</span>
+                    <span>Save Template</span>
+                  </button>
+                  <button
+                    onClick={resetTemplateForm}
+                    className="px-6 py-3 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 transition-colors flex items-center space-x-2"
+                  >
+                    <span>🔄</span>
+                    <span>Reset</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1286,18 +1442,109 @@ const Worksheets = () => {
 
       {/* Existing Worksheets Mode - List all available worksheets */}
       {viewMode === 'worksheets' && (
-        <div className="space-y-6">
+        <div key={`worksheets-${refreshKey}`} className="space-y-6">
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl font-semibold text-gray-100 mb-4">Existing QC Worksheets</h2>
-            <p className="text-gray-400 mb-6">All QC worksheets organized by modality, then frequency. Shows worksheets and their machine assignments.</p>
+            <p className="text-gray-400 mb-6">QC worksheets that have been assigned to machines, organized by modality and frequency.</p>
+            
+            {/* Filter Controls */}
+            <div className="bg-gray-700 rounded-lg p-4 mb-6">
+              <h3 className="text-lg font-medium text-gray-200 mb-3">Filter Worksheets</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Machine</label>
+                  <select
+                    value={filterMachine}
+                    onChange={(e) => setFilterMachine(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Machines</option>
+                    {machines.map(machine => (
+                      <option key={machine.machineId} value={machine.machineId}>
+                        {machine.name} ({machine.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Frequency</label>
+                  <select
+                    value={filterFrequency}
+                    onChange={(e) => setFilterFrequency(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Frequencies</option>
+                    {frequencies.map(freq => (
+                      <option key={freq.value} value={freq.value}>
+                        {freq.icon} {freq.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Modality</label>
+                  <select
+                    value={filterModality}
+                    onChange={(e) => setFilterModality(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Modalities</option>
+                    {modalities.map(modality => (
+                      <option key={modality.value} value={modality.value}>
+                        {modality.icon} {modality.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {/* Clear Filters Button */}
+              {(filterMachine || filterFrequency || filterModality) && (
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setFilterMachine('');
+                      setFilterFrequency('');
+                      setFilterModality('');
+                    }}
+                    className="px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-500 transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              )}
+            </div>
             
             {/* Worksheet listing organized by modality, then frequency */}
             <div className="space-y-8">
               {modalities.map(modality => {
-                // Get all worksheets for this modality
-                const modalityWorksheets = getWorksheets().filter(w => w.modality === modality.value);
+                // Skip this modality if it doesn't match the filter
+                if (filterModality && modality.value !== filterModality) {
+                  return null;
+                }
                 
-                // Only show modality section if there are worksheets
+                // Get all worksheets for this modality that are assigned to machines
+                let modalityWorksheets = getWorksheets().filter(w => 
+                  w.modality === modality.value && 
+                  w.assignedMachines && 
+                  w.assignedMachines.length > 0
+                );
+                
+                // Apply frequency filter if set
+                if (filterFrequency) {
+                  modalityWorksheets = modalityWorksheets.filter(w => w.frequency === filterFrequency);
+                }
+                
+                // Apply machine filter if set
+                if (filterMachine) {
+                  modalityWorksheets = modalityWorksheets.filter(w => 
+                    w.assignedMachines && w.assignedMachines.includes(filterMachine)
+                  );
+                }
+                
+                // Only show modality section if there are worksheets after filtering
                 if (modalityWorksheets.length === 0) {
                   return null;
                 }
@@ -1315,8 +1562,20 @@ const Worksheets = () => {
                     {/* Group by frequency within this modality */}
                     <div className="space-y-6">
                       {getAllFrequencies().map(frequency => {
-                        // Get worksheets for this modality and frequency
-                        const frequencyWorksheets = modalityWorksheets.filter(w => w.frequency === frequency);
+                        // Skip this frequency if it doesn't match the filter
+                        if (filterFrequency && frequency !== filterFrequency) {
+                          return null;
+                        }
+                        
+                        // Get worksheets for this modality and frequency (already filtered for assigned machines)
+                        let frequencyWorksheets = modalityWorksheets.filter(w => w.frequency === frequency);
+                        
+                        // Apply machine filter to frequency worksheets if not already applied
+                        if (filterMachine && !filterFrequency) {
+                          frequencyWorksheets = frequencyWorksheets.filter(w => 
+                            w.assignedMachines && w.assignedMachines.includes(filterMachine)
+                          );
+                        }
                         
                         // Only show frequency section if there are worksheets
                         if (frequencyWorksheets.length === 0) {
@@ -1392,15 +1651,8 @@ const Worksheets = () => {
                                         {worksheet.assignedMachines.map(machineId => {
                                           const machine = machines.find(m => m.machineId === machineId);
                                           return machine ? (
-                                            <div key={machineId} className="flex items-center justify-between text-xs">
-                                              <span className="text-gray-300">{machine.name}</span>
-                                              <button
-                                                onClick={() => unassignWorksheetFromMachine(worksheet.id, machineId)}
-                                                className="text-red-400 hover:text-red-300"
-                                                title="Unassign from machine"
-                                              >
-                                                ✕
-                                              </button>
+                                            <div key={machineId} className="text-xs text-gray-300">
+                                              {machine.name}
                                             </div>
                                           ) : null;
                                         })}
@@ -1409,52 +1661,43 @@ const Worksheets = () => {
                                   )}
                                   
                                   <div className="space-y-2">
-                                    {/* View Button - Shows options based on machine assignments */}
-                                    {worksheet.assignedMachines.length === 0 ? (
-                                      <div className="flex space-x-1">
+                                    {/* View and Edit Buttons */}
+                                    <div className="space-y-2">
+                                      {/* Edit Button - Always available */}
+                                      <button
+                                        onClick={() => editCustomWorksheet(worksheet)}
+                                        className="w-full px-2 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
+                                      >
+                                        ✏️ Edit Worksheet
+                                      </button>
+                                      
+                                      {/* View Buttons - Based on machine assignments */}
+                                      {worksheet.assignedMachines.length === 0 ? (
                                         <button
-                                          onClick={() => navigate(`/qc/view/${worksheet.modality}/${worksheet.frequency}`)}
-                                          className="flex-1 px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                                          onClick={() => viewCustomWorksheetReadOnly(worksheet)}
+                                          className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
                                         >
-                                          📋 View Template
+                                          👁️ View Template
                                         </button>
+                                      ) : worksheet.assignedMachines.length === 1 ? (
                                         <button
-                                          onClick={() => deleteWorksheet(worksheet.id)}
-                                          className="px-2 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
-                                          title="Delete this worksheet"
+                                          onClick={() => viewCustomWorksheetReadOnly(worksheet, worksheet.assignedMachines[0])}
+                                          className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
                                         >
-                                          🗑️
+                                          👁️ View for {machines.find(m => m.machineId === worksheet.assignedMachines[0])?.name || 'Machine'}
                                         </button>
-                                      </div>
-                                    ) : worksheet.assignedMachines.length === 1 ? (
-                                      <div className="flex space-x-1">
-                                        <button
-                                          onClick={() => navigate(`/qc/view-worksheet/${worksheet.assignedMachines[0]}/${worksheet.frequency}`)}
-                                          className="flex-1 px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                                        >
-                                          📋 View Worksheet
-                                        </button>
-                                        <button
-                                          onClick={() => deleteWorksheet(worksheet.id)}
-                                          className="px-2 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
-                                          title="Delete this worksheet"
-                                        >
-                                          🗑️
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        <div className="text-xs text-gray-400">View for machine:</div>
+                                      ) : (
                                         <div className="space-y-1">
+                                          <div className="text-xs text-gray-400">View for machine:</div>
                                           {worksheet.assignedMachines.slice(0, 2).map(machineId => {
                                             const machine = machines.find(m => m.machineId === machineId);
                                             return machine ? (
                                               <button
                                                 key={machineId}
-                                                onClick={() => navigate(`/qc/view-worksheet/${machineId}/${worksheet.frequency}`)}
+                                                onClick={() => viewCustomWorksheetReadOnly(worksheet, machineId)}
                                                 className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors text-left"
                                               >
-                                                📋 {machine.name}
+                                                👁️ {machine.name}
                                               </button>
                                             ) : null;
                                           })}
@@ -1464,15 +1707,8 @@ const Worksheets = () => {
                                             </div>
                                           )}
                                         </div>
-                                        <button
-                                          onClick={() => deleteWorksheet(worksheet.id)}
-                                          className="w-full px-2 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
-                                          title="Delete this worksheet"
-                                        >
-                                          🗑️ Delete
-                                        </button>
-                                      </div>
-                                    )}
+                                      )}
+                                    </div>
 
                                     {/* Machine Assignment Dropdown */}
                                     <div className="flex space-x-1">
@@ -1480,6 +1716,7 @@ const Worksheets = () => {
                                         onChange={(e) => {
                                           if (e.target.value) {
                                             assignWorksheetToMachine(worksheet.id, e.target.value);
+                                            setRefreshKey(prev => prev + 1); // Refresh the page to update sections
                                             e.target.value = '';
                                           }
                                         }}
@@ -1518,13 +1755,133 @@ const Worksheets = () => {
                 </div>
               )}
             </div>
+            
+            {/* Unassigned Worksheets Section */}
+            <div className="bg-gray-800 rounded-lg p-6 mt-8">
+              <h2 className="text-xl font-semibold text-gray-100 mb-4">📋 Unassigned Worksheets</h2>
+              <p className="text-gray-400 mb-6">Worksheets that have been created but are not currently assigned to any machines.</p>
+              
+              {(() => {
+                // Get all worksheets that are NOT assigned to machines
+                const unassignedWorksheets = getWorksheets().filter(w => 
+                  !w.assignedMachines || w.assignedMachines.length === 0
+                );
+                
+                // Apply filters to unassigned worksheets
+                let filteredUnassigned = unassignedWorksheets;
+                
+                if (filterModality) {
+                  filteredUnassigned = filteredUnassigned.filter(w => w.modality === filterModality);
+                }
+                
+                if (filterFrequency) {
+                  filteredUnassigned = filteredUnassigned.filter(w => w.frequency === filterFrequency);
+                }
+                
+                if (filteredUnassigned.length === 0) {
+                  return (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">
+                        {unassignedWorksheets.length === 0 
+                          ? "No unassigned worksheets found." 
+                          : "No unassigned worksheets match the current filters."
+                        }
+                      </p>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredUnassigned.map(worksheet => {
+                      const modality = modalities.find(m => m.value === worksheet.modality);
+                      const frequency = frequencies.find(f => f.value === worksheet.frequency);
+                      
+                      return (
+                        <div key={worksheet.id} className="bg-gray-700 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-medium text-gray-100 text-sm">{worksheet.title}</h4>
+                            <span className="text-xs bg-gray-600 text-gray-300 px-2 py-1 rounded-full">
+                              Unassigned
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2 mb-4">
+                            <div className="text-xs text-gray-300">
+                              <strong>Modality:</strong> {modality?.icon} {worksheet.modality}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              <strong>Frequency:</strong> {frequency?.icon} {frequency?.label || worksheet.frequency}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              <strong>Tests:</strong> {worksheet.tests?.length || 0}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Created: {new Date(worksheet.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {/* Machine Assignment Dropdown */}
+                            <select
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  assignWorksheetToMachine(worksheet.id, e.target.value);
+                                  setRefreshKey(prev => prev + 1); // Refresh the page to update sections
+                                  e.target.value = '';
+                                }
+                              }}
+                              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 text-sm focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">Assign to machine...</option>
+                              {machines
+                                .filter(m => m.type === worksheet.modality)
+                                .map(machine => (
+                                  <option key={machine.machineId} value={machine.machineId}>
+                                    {machine.name}
+                                  </option>
+                                ))
+                              }
+                            </select>
+                            
+                            {/* Edit/Delete Actions */}
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => editCustomWorksheet(worksheet)}
+                                className="flex-1 px-2 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to delete "${worksheet.title}"?`)) {
+                                    const worksheets = getWorksheets();
+                                    const updatedWorksheets = worksheets.filter(w => w.id !== worksheet.id);
+                                    localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+                                    setRefreshKey(prev => prev + 1);
+                                    toast.success('Worksheet deleted successfully!');
+                                  }
+                                }}
+                                className="flex-1 px-2 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         </div>
       )}
 
       {/* Custom Worksheet Builder */}
       {viewMode === 'custom' && (
-        <div className="space-y-6">
+        <div key={`custom-${refreshKey}`} className="space-y-6">
           {/* Load Template Dropdown */}
           {(getSavedTemplates().length > 0 || getModalityTemplates().length > 0) && (
             <div className="bg-gray-800 rounded-lg p-6">
@@ -1605,24 +1962,6 @@ const Worksheets = () => {
                       <span>🗂️</span>
                       <span>Manage Templates</span>
                     </button>
-                    {getSavedTemplates().length > 0 && (
-                      <select
-                        className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
-                        onChange={(e) => {
-                          if (e.target.value && window.confirm('Are you sure you want to delete this template?')) {
-                            deleteTemplate(parseInt(e.target.value));
-                            e.target.value = '';
-                          }
-                        }}
-                      >
-                        <option value="">Delete template...</option>
-                        {getSavedTemplates().map(template => (
-                          <option key={template.id} value={template.id}>
-                            {template.title}
-                          </option>
-                        ))}
-                      </select>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1631,7 +1970,7 @@ const Worksheets = () => {
 
           {/* Worksheet Information */}
           <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4">Custom Worksheet Information</h2>
+            <h2 className="text-xl font-semibold text-gray-100 mb-4">Worksheet Information</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
@@ -1800,29 +2139,134 @@ const Worksheets = () => {
               ))}
             </div>
 
-            <div className="mt-6 flex justify-center space-x-4">
-              <button
-                onClick={saveCustomTemplate}
-                className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
-              >
-                <span>💾</span>
-                <span>Save as Custom Template</span>
-              </button>
-              <button
-                onClick={saveAsTemplate}
-                className="px-6 py-3 bg-yellow-600 text-white font-medium rounded-md hover:bg-yellow-700 transition-colors flex items-center space-x-2"
-              >
-                <span>🏷️</span>
-                <span>Save as Modality Template</span>
-              </button>
-              <button
-                onClick={generateCustomWorksheet}
-                className="px-8 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
-              >
-                <span>📋</span>
-                <span>Generate Custom Worksheet</span>
-              </button>
+            <div className="mt-6 space-y-6">
+              
+              {/* Save as Template Section */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-blue-300 mb-3 text-center">📁 Save as Template</h4>
+                <p className="text-sm text-gray-400 mb-4 text-center">
+                  Save this configuration as a reusable template for future worksheets
+                </p>
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={saveCustomTemplate}
+                    className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  >
+                    <span>💾</span>
+                    <span>Save as Custom Template</span>
+                  </button>
+                  <button
+                    onClick={saveAsTemplate}
+                    className="px-6 py-3 bg-yellow-600 text-white font-medium rounded-md hover:bg-yellow-700 transition-colors flex items-center space-x-2"
+                  >
+                    <span>🏷️</span>
+                    <span>Save as Modality Template</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Save to Machine Section */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-purple-300 mb-3 text-center">🖥️ Save to Machine</h4>
+                <p className="text-sm text-gray-400 mb-4 text-center">
+                  Generate a worksheet and assign it to a specific machine for immediate use
+                </p>
+                
+                {/* Check for deviations from template */}
+                {selectedTemplate && (
+                  <div className="mb-4 p-3 bg-yellow-800 bg-opacity-50 rounded-md border border-yellow-600">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-yellow-400">⚠️</span>
+                      <span className="text-sm font-medium text-yellow-200">Template Modifications Detected</span>
+                    </div>
+                    <p className="text-xs text-yellow-300">
+                      This worksheet contains changes from the original template "{selectedTemplate.title}". 
+                      The assigned worksheet will include your custom modifications.
+                    </p>
+                  </div>
+                )}
+                
+                <div className="flex justify-center">
+                  <button
+                    onClick={() => {
+                      const worksheet = {
+                        ...customWorksheetInfo,
+                        tests: customTests,
+                        id: Date.now(),
+                        createdAt: new Date().toISOString(),
+                        isModified: selectedTemplate ? true : false,
+                        sourceTemplate: selectedTemplate ? selectedTemplate.title : null
+                      };
+                      
+                      setWorksheetData(worksheet);
+                      toast.success('Worksheet assigned to machine successfully!');
+                    }}
+                    className="px-8 py-3 bg-purple-600 text-white font-medium rounded-md hover:bg-purple-700 transition-colors flex items-center space-x-2"
+                  >
+                    <span>🖥️</span>
+                    <span>Assign to Machine</span>
+                  </button>
+                </div>
+              </div>
+              
             </div>
+            
+            {/* Delete Template Section - Only show when editing existing template */}
+            {selectedTemplate && (
+              <div className="mt-8 pt-6 border-t border-gray-600">
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-medium text-red-400 mb-3">Danger Zone</h4>
+                  <p className="text-sm text-gray-400 mb-4">
+                    Once you delete a template, there is no going back. Please be certain.
+                  </p>
+                  
+                  <div className="flex items-center space-x-3 mb-4">
+                    <input
+                      type="checkbox"
+                      id="delete-template-confirm"
+                      checked={deleteConfirmation['current'] || false}
+                      onChange={(e) => setDeleteConfirmation(prev => ({
+                        ...prev,
+                        current: e.target.checked
+                      }))}
+                      className="w-4 h-4 text-red-600 bg-gray-600 border-gray-500 rounded focus:ring-red-500"
+                    />
+                    <label 
+                      htmlFor="delete-template-confirm"
+                      className="text-sm text-gray-300 cursor-pointer"
+                    >
+                      I understand this action cannot be undone
+                    </label>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      if (deleteConfirmation['current']) {
+                        deleteModalityTemplate(selectedTemplate.id);
+                        setDeleteConfirmation(prev => ({
+                          ...prev,
+                          current: false
+                        }));
+                        setIsCreatingTemplate(false);
+                        setSelectedTemplate(null);
+                        resetTemplateForm();
+                        toast.success('Template deleted successfully!');
+                      } else {
+                        toast.error('Please confirm that you understand this action cannot be undone');
+                      }
+                    }}
+                    disabled={!deleteConfirmation['current']}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                      deleteConfirmation['current']
+                        ? 'bg-red-600 text-white hover:bg-red-700'
+                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    🗑️ Delete Template Permanently
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1830,9 +2274,19 @@ const Worksheets = () => {
       {/* Worksheet Display - Shared across all modes */}
       {worksheetData && (
         <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">
-            {viewMode === 'view-only' ? 'Worksheet Template' : 'Generated Worksheet'}
-          </h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-100">
+              {worksheetData.isTemplate ? 'Template View (Read-Only)' : 
+               viewMode === 'view-only' ? 'Worksheet Template' : 'Generated Worksheet'}
+            </h3>
+            <button
+              onClick={() => setWorksheetData(null)}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors flex items-center space-x-2"
+            >
+              <span>←</span>
+              <span>Back</span>
+            </button>
+          </div>
           
           {!worksheetData.viewOnly && (
             <div className="flex space-x-4 mb-4">

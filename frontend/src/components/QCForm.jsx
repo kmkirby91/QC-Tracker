@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const QCForm = ({ viewOnly = false }) => {
   const { machineId, frequency, machineType } = useParams();
@@ -14,6 +15,7 @@ const QCForm = ({ viewOnly = false }) => {
   const [existingQCDates, setExistingQCDates] = useState([]);
   const [showReplaceWarning, setShowReplaceWarning] = useState(false);
   const [loadingExistingData, setLoadingExistingData] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchMachineAndTests();
@@ -38,46 +40,88 @@ const QCForm = ({ viewOnly = false }) => {
       }
       setMachine(foundMachine);
 
-      // Check for custom worksheets first
+      // Check for custom worksheets first (both for editing and viewing)
       let testsData = [];
       let hasCustomWorksheet = false;
       
-      if (!viewOnly) {
-        try {
-          const storedWorksheets = localStorage.getItem('qcWorksheets');
-          if (storedWorksheets) {
-            const worksheets = JSON.parse(storedWorksheets);
-            const customWorksheet = worksheets.find(ws => 
-              ws.modality === foundMachine.type && 
-              ws.frequency === frequency && 
-              ws.assignedMachines && 
-              ws.assignedMachines.includes(foundMachine.machineId)
-            );
-            
-            if (customWorksheet) {
-              testsData = customWorksheet.tests.map(test => ({
-                name: test.testName || test.name,
-                testName: test.testName || test.name,
-                tolerance: test.tolerance,
-                units: test.units,
-                notes: test.notes,
-                description: test.description,
-                templateSource: customWorksheet.templateSource,
-                isCustomField: test.isCustomField || false,
-                customFieldType: test.customFieldType || 'template-default'
-              }));
-              hasCustomWorksheet = true;
-            }
+      try {
+        const storedWorksheets = localStorage.getItem('qcWorksheets');
+        if (storedWorksheets) {
+          const worksheets = JSON.parse(storedWorksheets);
+          const customWorksheet = worksheets.find(ws => 
+            ws.modality === foundMachine.type && 
+            ws.frequency === frequency && 
+            ws.assignedMachines && 
+            ws.assignedMachines.includes(foundMachine.machineId) &&
+            ws.isWorksheet === true // Only actual worksheets, not templates
+          );
+          
+          if (customWorksheet) {
+            testsData = customWorksheet.tests.map(test => ({
+              name: test.testName || test.name,
+              testName: test.testName || test.name,
+              tolerance: test.tolerance,
+              units: test.units,
+              notes: test.notes,
+              description: test.description,
+              templateSource: customWorksheet.templateSource,
+              isCustomField: test.isCustomField || false,
+              customFieldType: test.customFieldType || 'template-default'
+            }));
+            hasCustomWorksheet = true;
+            console.log('Found custom worksheet for machine:', foundMachine.machineId, customWorksheet);
           }
-        } catch (error) {
-          console.error('Error loading custom worksheets:', error);
         }
+      } catch (error) {
+        console.error('Error loading custom worksheets:', error);
       }
       
       // Fall back to API templates if no custom worksheet found
       if (!hasCustomWorksheet) {
-        const testsResponse = await axios.get(`/api/worksheets/${foundMachine.type}/${frequency}`);
-        testsData = testsResponse.data;
+        // Check if we're viewing a specific template or worksheet from localStorage
+        const tempTemplate = localStorage.getItem('tempTemplateView');
+        const tempWorksheet = localStorage.getItem('tempWorksheetView');
+        
+        console.log('Checking temp data - tempTemplate:', !!tempTemplate, 'tempWorksheet:', !!tempWorksheet, 'viewOnly:', viewOnly);
+        
+        if (viewOnly && tempTemplate) {
+          console.log('Loading template from tempTemplateView');
+          const templateData = JSON.parse(tempTemplate);
+          testsData = templateData.tests.map(test => ({
+            name: test.testName,
+            testName: test.testName,
+            tolerance: test.tolerance,
+            units: test.units,
+            notes: test.notes,
+            description: test.description || '',
+            testType: test.testType
+          }));
+          // Clear the temporary data
+          localStorage.removeItem('tempTemplateView');
+        } else if (viewOnly && tempWorksheet) {
+          console.log('Loading worksheet from tempWorksheetView');
+          const worksheetData = JSON.parse(tempWorksheet);
+          testsData = worksheetData.tests.map(test => ({
+            name: test.testName,
+            testName: test.testName,
+            tolerance: test.tolerance,
+            units: test.units,
+            notes: test.notes,
+            description: test.description || '',
+            testType: test.testType
+          }));
+          // Clear the temporary data
+          localStorage.removeItem('tempWorksheetView');
+        } else if (!viewOnly) {
+          // For performing QC (not view-only), no worksheet = no QC possible
+          console.log('No worksheet assigned to machine for frequency:', frequency);
+          throw new Error(`No QC worksheet assigned to this machine for ${frequency} frequency. Please assign a worksheet first.`);
+        } else {
+          // For view-only mode, fall back to API templates if no temp data available
+          console.log('Falling back to API for machine type:', foundMachine.type, 'frequency:', frequency);
+          const testsResponse = await axios.get(`/api/worksheets/${foundMachine.type}/${frequency}`);
+          testsData = testsResponse.data;
+        }
       }
       
       setTests(testsData);
@@ -93,17 +137,18 @@ const QCForm = ({ viewOnly = false }) => {
       const initialData = {};
       testsData.forEach(test => {
         initialData[test.name || test.testName] = {
-          value: viewOnly ? test.tolerance || 'Template Value' : '',
-          result: viewOnly ? 'pass' : '',
-          notes: viewOnly ? 'Template notes' : ''
+          value: viewOnly ? (test.tolerance || '') : '',
+          result: viewOnly ? '' : '',
+          notes: viewOnly ? (test.notes || '') : ''
         };
       });
-      initialData.performedBy = viewOnly ? 'Template User' : '';
-      initialData.comments = viewOnly ? 'This is a template view of the worksheet structure.' : '';
+      initialData.performedBy = viewOnly ? '[Template - No User]' : '';
+      initialData.comments = viewOnly ? 'This is a read-only template view showing the structure and parameters for this QC worksheet.' : '';
       setFormData(initialData);
       
     } catch (error) {
       console.error('Error fetching data:', error);
+      setError(error.message || 'Failed to load QC form data');
     } finally {
       setLoading(false);
     }
@@ -290,10 +335,59 @@ const QCForm = ({ viewOnly = false }) => {
     }
   };
 
+  const deleteWorksheet = () => {
+    // Only allow deletion of actual worksheets, not templates
+    if (tests.length > 0 && tests[0].templateSource) {
+      if (window.confirm('Are you sure you want to delete this worksheet? This action cannot be undone.')) {
+        try {
+          const worksheets = JSON.parse(localStorage.getItem('qcWorksheets') || '[]');
+          // Find the worksheet by matching the template source and frequency
+          const updatedWorksheets = worksheets.filter(w => 
+            !(w.modality === machineType && w.frequency === frequency && w.templateSource === tests[0].templateSource)
+          );
+          localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+          toast.success('Worksheet deleted successfully');
+          navigate('/worksheets');
+        } catch (error) {
+          console.error('Error deleting worksheet:', error);
+          toast.error('Failed to delete worksheet');
+        }
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-lg text-gray-400">Loading QC form...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-red-900 border border-red-700 rounded-lg p-4 text-red-200 mb-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <span className="text-xl">⚠️</span>
+            <h2 className="text-lg font-semibold">QC Not Available</h2>
+          </div>
+          <p className="mb-4">{error}</p>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => navigate('/worksheets')}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              📋 Create Worksheet
+            </button>
+            <button
+              onClick={() => navigate(-1)}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+            >
+              ← Go Back
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -582,6 +676,18 @@ const QCForm = ({ viewOnly = false }) => {
                   <span>✏️</span>
                   <span>Edit Worksheet</span>
                 </button>
+
+                {/* Show Delete button only for actual worksheets (not templates) */}
+                {tests.length > 0 && tests[0].templateSource && (
+                  <button
+                    type="button"
+                    onClick={deleteWorksheet}
+                    className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center space-x-2"
+                  >
+                    <span>🗑️</span>
+                    <span>Delete Worksheet</span>
+                  </button>
+                )}
               </div>
             )}
             

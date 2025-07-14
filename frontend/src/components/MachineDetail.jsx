@@ -76,24 +76,93 @@ const MachineDetail = () => {
       ws.assignedMachines && ws.assignedMachines.includes(machineId) && ws.frequency === frequency
     );
   };
+
+  const getWorksheetNamesForFrequency = (machine, frequency) => {
+    const worksheets = [];
+    
+    // Only look for actual worksheets assigned to this machine (NOT templates)
+    const assignedWorksheets = customWorksheets.filter(ws => 
+      ws.modality === machine.type && 
+      ws.frequency === frequency && 
+      ws.assignedMachines && 
+      ws.assignedMachines.includes(machine.machineId) &&
+      ws.isWorksheet === true // Only actual worksheets, not templates
+    );
+    
+    if (assignedWorksheets.length > 0) {
+      worksheets.push(...assignedWorksheets);
+    } else {
+      // If no worksheets are assigned, show that templates are available to create worksheets
+      const modalityTemplates = JSON.parse(localStorage.getItem('qcModalityTemplates') || '[]');
+      const availableTemplates = modalityTemplates.filter(template => 
+        template.modality === machine.type && template.frequency === frequency
+      );
+      
+      if (availableTemplates.length > 0) {
+        worksheets.push({
+          id: `no-worksheet-${frequency}`,
+          title: `No worksheet assigned (${availableTemplates.length} template${availableTemplates.length > 1 ? 's' : ''} available)`,
+          needsWorksheet: true,
+          availableTemplates: availableTemplates.length
+        });
+      } else if (machine.qcSchedule && machine.qcSchedule[frequency]) {
+        // Show that this frequency is scheduled but no worksheet exists
+        worksheets.push({
+          id: `no-worksheet-${frequency}`,
+          title: `No worksheet assigned (QC scheduled)`,
+          needsWorksheet: true,
+          availableTemplates: 0
+        });
+      }
+    }
+    
+    return worksheets;
+  };
   
   const getAssignedFrequencies = (machine) => {
-    // Only return frequencies where the machine has actual worksheets assigned
+    // Return frequencies where the machine has custom worksheets assigned OR has a QC schedule
     const assignedFrequencies = [];
-    if (machine && customWorksheets.length > 0) {
+    if (machine) {
       ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
-        const hasWorksheet = customWorksheets.some(ws => 
+        // Check for custom worksheets first
+        const hasCustomWorksheet = customWorksheets.some(ws => 
           ws.modality === machine.type && 
           ws.frequency === frequency && 
           ws.assignedMachines && 
           ws.assignedMachines.includes(machine.machineId)
         );
-        if (hasWorksheet) {
+        
+        // Fall back to machine's built-in QC schedule
+        const hasScheduledQC = machine.qcSchedule && machine.qcSchedule[frequency];
+        
+        if (hasCustomWorksheet || hasScheduledQC) {
           assignedFrequencies.push(frequency);
         }
       });
     }
     return assignedFrequencies;
+  };
+
+  const getWorksheetAssignedFrequencies = (machine) => {
+    // Return ONLY frequencies where the machine has actual worksheets assigned
+    // No worksheet = no QC can be performed
+    const worksheetFrequencies = [];
+    if (machine) {
+      ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
+        const hasWorksheet = customWorksheets.some(ws => 
+          ws.modality === machine.type && 
+          ws.frequency === frequency && 
+          ws.assignedMachines && 
+          ws.assignedMachines.includes(machine.machineId) &&
+          ws.isWorksheet === true // Only actual worksheets
+        );
+        
+        if (hasWorksheet) {
+          worksheetFrequencies.push(frequency);
+        }
+      });
+    }
+    return worksheetFrequencies;
   };
 
   const getQCTabs = () => {
@@ -386,54 +455,69 @@ const MachineDetail = () => {
 
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">View QC Worksheets</h3>
-            <div className="space-y-2">
-              {getAssignedFrequencies(machine).includes('daily') && (
-                <Link
-                  to={`/qc/view-worksheet/${machine.machineId}/daily`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-blue-500 hover:bg-blue-600 rounded-md transition-colors"
-                >
-                  📋 View Daily Worksheet
-                </Link>
-              )}
-              {getAssignedFrequencies(machine).includes('weekly') && (
-                <Link
-                  to={`/qc/view-worksheet/${machine.machineId}/weekly`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors"
-                >
-                  📋 View Weekly Worksheet
-                </Link>
-              )}
-              {getAssignedFrequencies(machine).includes('monthly') && (
-                <Link
-                  to={`/qc/view-worksheet/${machine.machineId}/monthly`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-yellow-500 hover:bg-yellow-600 rounded-md transition-colors"
-                >
-                  📋 View Monthly Worksheet
-                </Link>
-              )}
-              {getAssignedFrequencies(machine).includes('quarterly') && (
-                <Link
-                  to={`/qc/view-worksheet/${machine.machineId}/quarterly`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-purple-500 hover:bg-purple-600 rounded-md transition-colors"
-                >
-                  📋 View Quarterly Worksheet
-                </Link>
-              )}
-              {getAssignedFrequencies(machine).includes('annual') && (
-                <Link
-                  to={`/qc/view-worksheet/${machine.machineId}/annual`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
-                >
-                  📋 View Annual Worksheet
-                </Link>
-              )}
+            <div className="space-y-3">
+              {getAssignedFrequencies(machine).map(frequency => {
+                const worksheets = getWorksheetNamesForFrequency(machine, frequency);
+                const frequencyColors = {
+                  daily: 'bg-blue-500 hover:bg-blue-600',
+                  weekly: 'bg-green-500 hover:bg-green-600', 
+                  monthly: 'bg-yellow-500 hover:bg-yellow-600',
+                  quarterly: 'bg-purple-500 hover:bg-purple-600',
+                  annual: 'bg-red-500 hover:bg-red-600'
+                };
+                
+                return (
+                  <div key={frequency} className="space-y-1">
+                    <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                      {frequency.charAt(0).toUpperCase() + frequency.slice(1)}
+                    </h4>
+                    {worksheets.map(worksheet => (
+                      <button
+                        key={worksheet.id}
+                        onClick={() => {
+                          if (worksheet.needsWorksheet) {
+                            // No worksheet assigned - redirect to create one
+                            const message = worksheet.availableTemplates > 0 
+                              ? `No QC worksheet assigned for ${frequency} frequency. Please create a worksheet from a template first.`
+                              : `No QC worksheet assigned for ${frequency} frequency. Please create a template and worksheet first.`;
+                            alert(message);
+                            window.location.href = '/qc';
+                          } else {
+                            // Actual worksheet assigned - prepare data and view
+                            const worksheetData = customWorksheets.find(ws => 
+                              ws.modality === machine.type && 
+                              ws.frequency === frequency && 
+                              ws.assignedMachines && 
+                              ws.assignedMachines.includes(machine.machineId) &&
+                              ws.isWorksheet === true
+                            );
+                            if (worksheetData) {
+                              localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
+                              window.location.href = `/qc/view-worksheet/${machine.machineId}/${frequency}`;
+                            } else {
+                              alert('Worksheet not found. Please check worksheet assignments.');
+                            }
+                          }
+                        }}
+                        className={`block w-full px-3 py-2 text-sm font-medium text-center text-white rounded-md transition-colors ${
+                          worksheet.needsWorksheet 
+                            ? 'bg-gray-600 hover:bg-gray-500' 
+                            : frequencyColors[frequency]
+                        }`}
+                      >
+                        {worksheet.needsWorksheet ? '⚠️' : '📋'} {worksheet.title}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">Perform QC</h3>
             <div className="space-y-2">
-              {getAssignedFrequencies(machine).includes('daily') && (
+              {getWorksheetAssignedFrequencies(machine).includes('daily') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/daily`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
@@ -441,7 +525,7 @@ const MachineDetail = () => {
                   ▶️ Perform Daily QC
                 </Link>
               )}
-              {getAssignedFrequencies(machine).includes('weekly') && (
+              {getWorksheetAssignedFrequencies(machine).includes('weekly') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/weekly`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
@@ -449,7 +533,7 @@ const MachineDetail = () => {
                   ▶️ Perform Weekly QC
                 </Link>
               )}
-              {getAssignedFrequencies(machine).includes('monthly') && (
+              {getWorksheetAssignedFrequencies(machine).includes('monthly') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/monthly`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-yellow-600 hover:bg-yellow-700 rounded-md transition-colors"
@@ -457,7 +541,7 @@ const MachineDetail = () => {
                   ▶️ Perform Monthly QC
                 </Link>
               )}
-              {getAssignedFrequencies(machine).includes('quarterly') && (
+              {getWorksheetAssignedFrequencies(machine).includes('quarterly') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/quarterly`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors"
@@ -465,13 +549,26 @@ const MachineDetail = () => {
                   ▶️ Perform Quarterly QC
                 </Link>
               )}
-              {getAssignedFrequencies(machine).includes('annual') && (
+              {getWorksheetAssignedFrequencies(machine).includes('annual') && (
                 <Link
                   to={`/qc/perform/${machine.machineId}/annual`}
                   className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
                 >
                   ▶️ Perform Annual QC
                 </Link>
+              )}
+              
+              {/* Show message when no worksheets are assigned */}
+              {getWorksheetAssignedFrequencies(machine).length === 0 && (
+                <div className="text-center py-4">
+                  <div className="text-sm text-gray-400 mb-2">No QC worksheets assigned</div>
+                  <Link
+                    to="/worksheets"
+                    className="px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-500 transition-colors"
+                  >
+                    📋 Create Worksheets
+                  </Link>
+                </div>
               )}
             </div>
           </div>

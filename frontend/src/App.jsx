@@ -14,6 +14,7 @@ import QCForm from './components/QCForm'
 import OpenFailures from './components/OpenFailures'
 import AddMachine from './components/AddMachine'
 import Worksheets from './components/Worksheets'
+import QCCalendar from './components/QCCalendar'
 import './App.css'
 
 const queryClient = new QueryClient()
@@ -26,9 +27,9 @@ function NavigationDropdown() {
   const navigationItems = [
     { label: 'Dashboard', path: '/', icon: '🏠' },
     { label: 'Machine List', path: '/machines', icon: '🏥' },
+    { label: 'Calendar', path: '/calendar', icon: '📅' },
     { label: 'Worksheets', path: '/worksheets', icon: '📋' },
-    { label: 'Reporting', path: '/reporting', icon: '📊' },
-    { label: 'Schedule', path: '/schedule', icon: '📅' }
+    { label: 'Reporting', path: '/reporting', icon: '📊' }
   ]
 
   const handleNavigation = (path) => {
@@ -115,7 +116,7 @@ function App() {
               <Route path="/machines/add" element={<AddMachine />} />
               <Route path="/worksheets" element={<Worksheets />} />
               <Route path="/reporting" element={<Reporting />} />
-              <Route path="/schedule" element={<Schedule />} />
+              <Route path="/calendar" element={<QCCalendar showOverview={true} />} />
               <Route path="/due-today" element={<DueToday />} />
               <Route path="/open-failures" element={<OpenFailures />} />
               <Route path="/machines/:machineId" element={<MachineDetail />} />
@@ -822,27 +823,5 @@ function Reporting() {
   )
 }
 
-function Schedule() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-100 mb-6">QC Schedule</h1>
-      <div className="bg-gray-800 rounded-lg p-6">
-        <p className="text-gray-400 mb-4">
-          View and manage QC schedules for all machines. This feature is under development.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-gray-100 mb-2">Today's Schedule</h3>
-            <p className="text-gray-400">View QC tasks scheduled for today.</p>
-          </div>
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-gray-100 mb-2">Upcoming QC</h3>
-            <p className="text-gray-400">See upcoming QC requirements and deadlines.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default App
