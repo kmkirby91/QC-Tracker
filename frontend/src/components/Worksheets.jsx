@@ -398,23 +398,7 @@ const Worksheets = () => {
     toast.success('Template saved successfully!');
   };
 
-  const loadCustomTemplate = (template) => {
-    setCustomWorksheetInfo({
-      title: template.title,
-      frequency: template.frequency,
-      machineId: '',
-      description: template.description || ''
-    });
-    setCustomTests(template.tests.map(test => ({
-      ...test,
-      id: test.id || Date.now() + Math.random()
-    })));
-    toast.success('Template loaded successfully!');
-  };
-
-  const getSavedTemplates = () => {
-    return JSON.parse(localStorage.getItem('qcCustomTemplates') || '[]');
-  };
+  // Consolidated template system - using only modality templates
 
   const getModalityTemplates = () => {
     return JSON.parse(localStorage.getItem('qcModalityTemplates') || '[]');
@@ -578,15 +562,27 @@ const Worksheets = () => {
     const worksheets = getWorksheets();
     const worksheetIndex = worksheets.findIndex(w => w.id === worksheetId);
     
+    console.log('Assigning worksheet:', worksheetId, 'to machine:', machineId);
+    console.log('Found worksheet index:', worksheetIndex);
+    
     if (worksheetIndex !== -1) {
       const worksheet = worksheets[worksheetIndex];
+      console.log('Current assigned machines:', worksheet.assignedMachines);
+      
       if (!worksheet.assignedMachines.includes(machineId)) {
         worksheet.assignedMachines.push(machineId);
         worksheet.updatedAt = new Date().toISOString();
         localStorage.setItem('qcWorksheets', JSON.stringify(worksheets));
+        console.log('Worksheet assigned successfully');
         toast.success('Worksheet assigned to machine successfully');
         return true;
+      } else {
+        console.log('Machine already assigned to this worksheet');
+        toast.info('This machine is already assigned to this worksheet');
       }
+    } else {
+      console.log('Worksheet not found');
+      toast.error('Worksheet not found');
     }
     return false;
   };
@@ -606,14 +602,8 @@ const Worksheets = () => {
     return false;
   };
 
-  const generateWorksheetFromTemplate = (templateId, templateType = 'custom') => {
-    let template;
-    
-    if (templateType === 'custom') {
-      template = getSavedTemplates().find(t => t.id === templateId);
-    } else if (templateType === 'modality') {
-      template = getModalityTemplates().find(t => t.id === templateId);
-    }
+  const generateWorksheetFromTemplate = (templateId) => {
+    const template = getModalityTemplates().find(t => t.id === templateId);
     
     if (!template) {
       toast.error('Template not found');
@@ -1525,18 +1515,24 @@ const Worksheets = () => {
             
             {/* Worksheet listing organized by modality, then frequency */}
             <div className="space-y-8">
-              {modalities.map(modality => {
-                // Skip this modality if it doesn't match the filter
-                if (filterModality && modality.value !== filterModality) {
-                  return null;
-                }
-                
-                // Get all worksheets for this modality that are assigned to machines
-                let modalityWorksheets = getWorksheets().filter(w => 
-                  w.modality === modality.value && 
-                  w.assignedMachines && 
-                  w.assignedMachines.length > 0
-                );
+              {(() => {
+                console.log('Rendering worksheets, refreshKey:', refreshKey);
+                const allWorksheets = getWorksheets();
+                console.log('All worksheets:', allWorksheets.length);
+                return modalities.map(modality => {
+                  // Skip this modality if it doesn't match the filter
+                  if (filterModality && modality.value !== filterModality) {
+                    return null;
+                  }
+                  
+                  // Get all worksheets for this modality that are assigned to machines
+                  let modalityWorksheets = allWorksheets.filter(w => 
+                    w.modality === modality.value && 
+                    w.assignedMachines && 
+                    w.assignedMachines.length > 0
+                  );
+                  
+                  console.log(`${modality.value} assigned worksheets:`, modalityWorksheets.length);
                 
                 // Apply frequency filter if set
                 if (filterFrequency) {
@@ -1749,7 +1745,8 @@ const Worksheets = () => {
                     </div>
                   </div>
                 );
-              })}
+                });
+              })()}
               
               {/* Show message if no worksheets exist */}
               {getWorksheets().length === 0 && (
@@ -1832,22 +1829,28 @@ const Worksheets = () => {
                             <select
                               onChange={(e) => {
                                 if (e.target.value) {
-                                  assignWorksheetToMachine(worksheet.id, e.target.value);
-                                  setRefreshKey(prev => prev + 1); // Refresh the page to update sections
+                                  console.log('Dropdown selected:', e.target.value, 'for worksheet:', worksheet.id);
+                                  const success = assignWorksheetToMachine(worksheet.id, e.target.value);
+                                  if (success) {
+                                    setRefreshKey(prev => prev + 1); // Refresh the page to update sections
+                                    // Force a complete re-render by updating the viewMode state
+                                    setViewMode('worksheets');
+                                  }
                                   e.target.value = '';
                                 }
                               }}
                               className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 text-sm focus:ring-2 focus:ring-blue-500"
                             >
                               <option value="">Assign to machine...</option>
-                              {machines
-                                .filter(m => m.type === worksheet.modality)
-                                .map(machine => (
+                              {(() => {
+                                const filteredMachines = machines.filter(m => m.type === worksheet.modality);
+                                console.log('Available machines for', worksheet.modality, ':', filteredMachines.map(m => m.name));
+                                return filteredMachines.map(machine => (
                                   <option key={machine.machineId} value={machine.machineId}>
                                     {machine.name}
                                   </option>
-                                ))
-                              }
+                                ));
+                              })()}
                             </select>
                             
                             {/* Edit/Delete Actions */}
@@ -1889,7 +1892,7 @@ const Worksheets = () => {
       {viewMode === 'custom' && (
         <div key={`custom-${refreshKey}`} className="space-y-6">
           {/* Load Template Dropdown */}
-          {(getSavedTemplates().length > 0 || getModalityTemplates().length > 0) && (
+          {getModalityTemplates().length > 0 && (
             <div className="bg-gray-800 rounded-lg p-6">
               <h2 className="text-xl font-semibold text-gray-100 mb-4">Load from Template</h2>
               
@@ -1903,29 +1906,22 @@ const Worksheets = () => {
                     onChange={(e) => {
                       if (!e.target.value) return;
                       
-                      const [type, id] = e.target.value.split('|');
-                      let template;
+                      const templateId = parseInt(e.target.value);
+                      const template = getModalityTemplates().find(t => t.id === templateId);
                       
-                      if (type === 'modality') {
-                        template = getModalityTemplates().find(t => t.id.toString() === id);
-                        if (template) {
-                          setCustomWorksheetInfo({
-                            title: template.title,
-                            frequency: template.frequency,
-                            machineId: '',
-                            description: template.description || ''
-                          });
-                          setCustomTests(template.tests.map(test => ({
-                            ...test,
-                            id: test.id || Date.now() + Math.random()
-                          })));
-                          toast.success('Modality template loaded!');
-                        }
-                      } else if (type === 'custom') {
-                        template = getSavedTemplates().find(t => t.id.toString() === id);
-                        if (template) {
-                          loadCustomTemplate(template);
-                        }
+                      if (template) {
+                        setCustomWorksheetInfo({
+                          title: template.title,
+                          frequency: template.frequency,
+                          machineId: '',
+                          modality: template.modality,
+                          description: template.description || ''
+                        });
+                        setCustomTests(template.tests.map(test => ({
+                          ...test,
+                          id: test.id || Date.now() + Math.random()
+                        })));
+                        toast.success('Template loaded!');
                       }
                       
                       // Reset dropdown
@@ -1934,25 +1930,11 @@ const Worksheets = () => {
                   >
                     <option value="">Choose a template to load...</option>
                     
-                    {getModalityTemplates().length > 0 && (
-                      <optgroup label="Modality Templates">
-                        {getModalityTemplates().map(template => (
-                          <option key={template.id} value={`modality|${template.id}`}>
-                            {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    
-                    {getSavedTemplates().length > 0 && (
-                      <optgroup label="Custom Worksheet Templates">
-                        {getSavedTemplates().map(template => (
-                          <option key={template.id} value={`custom|${template.id}`}>
-                            {template.title} ({getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
+                    {getModalityTemplates().map(template => (
+                      <option key={template.id} value={template.id}>
+                        {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
+                      </option>
+                    ))}
                   </select>
                 </div>
                 
