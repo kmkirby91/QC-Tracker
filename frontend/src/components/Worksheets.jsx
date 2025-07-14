@@ -13,6 +13,20 @@ const Worksheets = () => {
   const [loading, setLoading] = useState(true);
   const [worksheetData, setWorksheetData] = useState(null);
   const [loadingWorksheet, setLoadingWorksheet] = useState(false);
+  
+  // Wrapper to add debugging to setWorksheetData
+  const setWorksheetDataSafe = (data) => {
+    console.log('Setting worksheetData:', data);
+    if (data && !data.machine && data.machineId) {
+      // Try to find machine data if machineId is provided
+      const machine = machines.find(m => m.machineId === data.machineId);
+      if (machine) {
+        data.machine = machine;
+        console.log('Added machine data to worksheet:', machine);
+      }
+    }
+    setWorksheetData(data);
+  };
   const [viewMode, setViewMode] = useState('overview'); // 'overview', 'worksheets', 'custom', 'templates', or 'view-only'
   const [customTests, setCustomTests] = useState([
     { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '' }
@@ -40,6 +54,9 @@ const Worksheets = () => {
   const [filterMachine, setFilterMachine] = useState('');
   const [filterFrequency, setFilterFrequency] = useState('');
   const [filterModality, setFilterModality] = useState('');
+  // Overview page filters
+  const [overviewFilterLocation, setOverviewFilterLocation] = useState('');
+  const [overviewFilterModality, setOverviewFilterModality] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState({});
 
   const frequencies = [
@@ -59,6 +76,8 @@ const Worksheets = () => {
     { value: 'Ultrasound', label: 'Ultrasound', icon: '🔊' },
     { value: 'Mammography', label: 'Mammography', icon: '🎯' }
   ];
+
+  // Template copying functionality - each machine gets its own worksheet copy
 
   useEffect(() => {
     fetchMachines();
@@ -263,19 +282,39 @@ const Worksheets = () => {
     const assignedFrequencies = [];
     const worksheets = getWorksheets();
     
+    console.log('DEBUG getAssignedFrequencies for machine:', machine?.machineId, machine?.name);
+    console.log('DEBUG Total worksheets:', worksheets.length);
+    console.log('DEBUG Worksheets:', worksheets.map(w => ({
+      id: w.id,
+      title: w.title, 
+      modality: w.modality, 
+      frequency: w.frequency,
+      assignedMachines: w.assignedMachines
+    })));
+    
     if (machine) {
       getAllFrequencies().forEach(frequency => {
+        const matchingWorksheets = worksheets.filter(ws => 
+          ws.modality === machine.type && 
+          ws.frequency === frequency
+        );
+        console.log(`DEBUG Checking frequency ${frequency} for machine type ${machine.type}:`, matchingWorksheets.length, 'matching worksheets');
+        
         const hasWorksheet = worksheets.some(ws => 
           ws.modality === machine.type && 
           ws.frequency === frequency && 
           ws.assignedMachines && 
           ws.assignedMachines.includes(machine.machineId)
         );
+        
         if (hasWorksheet) {
+          console.log(`DEBUG Found assigned worksheet for ${frequency}`);
           assignedFrequencies.push(frequency);
         }
       });
     }
+    
+    console.log('DEBUG Final assigned frequencies:', assignedFrequencies);
     return assignedFrequencies;
   };
 
@@ -547,44 +586,84 @@ const Worksheets = () => {
   };
 
   const deleteWorksheet = (worksheetId) => {
+    console.log('DEBUG: deleteWorksheet called with ID:', worksheetId);
+    
     if (window.confirm('Are you sure you want to delete this worksheet? This action cannot be undone.')) {
       const worksheets = getWorksheets();
+      console.log('DEBUG: Worksheets before deletion:', worksheets.length);
+      console.log('DEBUG: Worksheet to delete:', worksheets.find(w => w.id === worksheetId)?.title);
+      
       const updatedWorksheets = worksheets.filter(w => w.id !== worksheetId);
+      console.log('DEBUG: Worksheets after deletion:', updatedWorksheets.length);
+      
       localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+      console.log('DEBUG: Updated localStorage with', updatedWorksheets.length, 'worksheets');
+      
       toast.success('Worksheet deleted successfully');
       
-      // Force a re-render by updating the component state
-      window.location.reload();
+      // Force multiple refresh mechanisms like other functions
+      setRefreshKey(prev => prev + 1);
+      window.dispatchEvent(new Event('storage'));
+      
+      // Force view mode refresh
+      const currentMode = viewMode;
+      setViewMode('overview');
+      setTimeout(() => {
+        setViewMode(currentMode);
+        setRefreshKey(prev => prev + 1);
+      }, 200);
     }
   };
 
   const assignWorksheetToMachine = (worksheetId, machineId) => {
-    const worksheets = getWorksheets();
-    const worksheetIndex = worksheets.findIndex(w => w.id === worksheetId);
+    console.log('DEBUG: assignWorksheetToMachine called with:', { worksheetId, machineId });
     
-    console.log('Assigning worksheet:', worksheetId, 'to machine:', machineId);
-    console.log('Found worksheet index:', worksheetIndex);
-    
-    if (worksheetIndex !== -1) {
-      const worksheet = worksheets[worksheetIndex];
-      console.log('Current assigned machines:', worksheet.assignedMachines);
+    try {
+      const worksheets = getWorksheets();
+      console.log('DEBUG: Total worksheets found:', worksheets.length);
       
-      if (!worksheet.assignedMachines.includes(machineId)) {
-        worksheet.assignedMachines.push(machineId);
-        worksheet.updatedAt = new Date().toISOString();
-        localStorage.setItem('qcWorksheets', JSON.stringify(worksheets));
-        console.log('Worksheet assigned successfully');
-        toast.success('Worksheet assigned to machine successfully');
-        return true;
-      } else {
-        console.log('Machine already assigned to this worksheet');
-        toast.info('This machine is already assigned to this worksheet');
+      const worksheetIndex = worksheets.findIndex(w => w.id === worksheetId);
+      console.log('DEBUG: Found worksheet index:', worksheetIndex);
+      
+      if (worksheetIndex === -1) {
+        console.log('DEBUG: Worksheet not found');
+        toast.error('Worksheet not found');
+        return false;
       }
-    } else {
-      console.log('Worksheet not found');
-      toast.error('Worksheet not found');
+      
+      const worksheet = worksheets[worksheetIndex];
+      console.log('DEBUG: Worksheet found:', worksheet.title);
+      
+      // Ensure assignedMachines is an array
+      if (!Array.isArray(worksheet.assignedMachines)) {
+        worksheet.assignedMachines = [];
+        console.log('DEBUG: Initialized assignedMachines array');
+      }
+      
+      if (worksheet.assignedMachines.includes(machineId)) {
+        console.log('DEBUG: Machine already assigned');
+        toast.info('This machine is already assigned to this worksheet');
+        return false;
+      }
+      
+      // Add the machine
+      worksheet.assignedMachines.push(machineId);
+      worksheet.updatedAt = new Date().toISOString();
+      
+      // Save to localStorage
+      localStorage.setItem('qcWorksheets', JSON.stringify(worksheets));
+      console.log('DEBUG: Successfully saved to localStorage');
+      console.log('DEBUG: Updated worksheet:', worksheet);
+      console.log('DEBUG: All worksheets after save:', getWorksheets());
+      
+      toast.success('Worksheet assigned successfully');
+      return true;
+      
+    } catch (error) {
+      console.error('DEBUG: Assignment error:', error);
+      toast.error('Failed to assign worksheet');
+      return false;
     }
-    return false;
   };
 
   const unassignWorksheetFromMachine = (worksheetId, machineId) => {
@@ -953,8 +1032,108 @@ const Worksheets = () => {
         <div className="space-y-6">
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl font-semibold text-gray-100 mb-4">All Machines & QC Sheets</h2>
+            
+            {/* Debug Controls */}
+            <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3 mb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-red-300">DEBUG: Assignment Issues</span>
+                <button
+                  onClick={() => {
+                    const worksheets = getWorksheets();
+                    console.log('DEBUG: Current localStorage worksheets:', worksheets);
+                    console.log('DEBUG: Total worksheets:', worksheets.length);
+                    worksheets.forEach(w => {
+                      console.log(`Worksheet: ${w.title} (${w.modality}, ${w.frequency}) -> Assigned to:`, w.assignedMachines, 'SpecificMachine:', w.specificMachine);
+                    });
+                    setRefreshKey(prev => prev + 1);
+                    toast.info('Check console for worksheet data');
+                  }}
+                  className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                >
+                  Debug Worksheets
+                </button>
+              </div>
+            </div>
+            
+            {/* Filter Controls */}
+            <div className="bg-gray-700 rounded-lg p-4 mb-6">
+              <h3 className="text-lg font-medium text-gray-200 mb-3">Filter Machines</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Location</label>
+                  <select
+                    value={overviewFilterLocation}
+                    onChange={(e) => setOverviewFilterLocation(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Locations</option>
+                    {[...new Set(machines.map(m => `${m.location.building} - ${m.location.room}`))].sort().map(location => (
+                      <option key={location} value={location}>
+                        {location}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Modality</label>
+                  <select
+                    value={overviewFilterModality}
+                    onChange={(e) => setOverviewFilterModality(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Modalities</option>
+                    {modalities.map(modality => (
+                      <option key={modality.value} value={modality.value}>
+                        {modality.icon} {modality.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {/* Clear Filters Button */}
+              {(overviewFilterLocation || overviewFilterModality) && (
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setOverviewFilterLocation('');
+                      setOverviewFilterModality('');
+                    }}
+                    className="px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-500 transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              )}
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {machines.map(machine => (
+              {(() => {
+                // Filter machines based on selected filters
+                let filteredMachines = machines;
+                
+                if (overviewFilterLocation) {
+                  filteredMachines = filteredMachines.filter(machine => 
+                    `${machine.location.building} - ${machine.location.room}` === overviewFilterLocation
+                  );
+                }
+                
+                if (overviewFilterModality) {
+                  filteredMachines = filteredMachines.filter(machine => 
+                    machine.type === overviewFilterModality
+                  );
+                }
+                
+                // Sort by modality, then by name
+                filteredMachines.sort((a, b) => {
+                  if (a.type !== b.type) {
+                    return a.type.localeCompare(b.type);
+                  }
+                  return a.name.localeCompare(b.name);
+                });
+                
+                return filteredMachines.map(machine => (
                 <div key={machine.machineId} className="bg-gray-700 rounded-lg p-4 hover:bg-gray-600 transition-colors">
                   <div className="mb-4">
                     <Link 
@@ -1055,7 +1234,7 @@ const Worksheets = () => {
                               </span>
                             </span>
                           ) : (
-                            <span className="text-red-400">No QC worksheets assigned</span>
+                            <span className="text-gray-400">See below to add worksheets</span>
                           )}
                         </div>
                       )}
@@ -1063,25 +1242,30 @@ const Worksheets = () => {
                   </div>
 
                   <div className="space-y-3">
-                    {getAssignedFrequencies(machine).length > 0 ? (
-                      <>
-                        <button
-                          onClick={() => performQC(machine.machineId, getAssignedFrequencies(machine)[0])}
-                          className="w-full px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
-                        >
-                          <span>📝</span>
-                          <span>Add QC</span>
-                        </button>
-                      </>
-                    ) : (
-                      <div className="text-center py-4">
-                        <p className="text-sm text-gray-400 mb-2">No QC worksheets assigned</p>
-                        <p className="text-xs text-gray-500">Configure QC worksheets for this machine to add QC records</p>
-                      </div>
-                    )}
+                    {/* Status Information */}
+                    <div className="text-center py-2">
+                      {getAssignedFrequencies(machine).length > 0 ? (
+                        <p className="text-sm text-green-400">✅ QC worksheets assigned</p>
+                      ) : (
+                        <>
+                          <p className="text-sm text-gray-400 mb-1">No QC worksheets assigned</p>
+                          <p className="text-xs text-gray-500">Configure QC worksheets for this machine to add QC records</p>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Consistent Add Worksheet Button */}
+                    <button
+                      onClick={() => setViewMode('custom')}
+                      className="w-full px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                    >
+                      <span>➕</span>
+                      <span>Add Worksheet</span>
+                    </button>
                   </div>
                 </div>
-              ))}
+                ));
+              })()}
             </div>
           </div>
         </div>
@@ -1717,8 +1901,50 @@ const Worksheets = () => {
                                       <select
                                         onChange={(e) => {
                                           if (e.target.value) {
-                                            assignWorksheetToMachine(worksheet.id, e.target.value);
-                                            setRefreshKey(prev => prev + 1); // Refresh the page to update sections
+                                            console.log('Assignment dropdown triggered');
+                                            
+                                            // Check if machine is already assigned to another worksheet of same type
+                                            const machineId = e.target.value;
+                                            const machine = machines.find(m => m.machineId === machineId);
+                                            const existingWorksheets = getWorksheets();
+                                            const conflictingWorksheet = existingWorksheets.find(w => 
+                                              w.id !== worksheet.id &&
+                                              w.modality === worksheet.modality && 
+                                              w.frequency === worksheet.frequency &&
+                                              w.assignedMachines && 
+                                              w.assignedMachines.includes(machineId)
+                                            );
+                                            
+                                            if (conflictingWorksheet) {
+                                              if (window.confirm(`${machine?.name} is already assigned to another ${worksheet.frequency} ${worksheet.modality} worksheet. Do you want to move it to this worksheet instead?`)) {
+                                                // Remove from old worksheet
+                                                const success1 = unassignWorksheetFromMachine(conflictingWorksheet.id, machineId);
+                                                // Add to new worksheet
+                                                const success2 = assignWorksheetToMachine(worksheet.id, machineId);
+                                                if (success1 && success2) {
+                                                  console.log('Machine moved between worksheets successfully');
+                                                  setRefreshKey(prev => prev + 1);
+                                                  window.dispatchEvent(new Event('storage'));
+                                                  toast.success(`${machine?.name} moved to this worksheet`);
+                                                }
+                                              }
+                                            } else {
+                                              const success = assignWorksheetToMachine(worksheet.id, e.target.value);
+                                              if (success) {
+                                                console.log('Assignment successful, forcing refresh...');
+                                                // Multiple refresh mechanisms
+                                                setRefreshKey(prev => prev + 1);
+                                                // Force re-evaluation of all data
+                                                window.dispatchEvent(new Event('storage'));
+                                                // Force view mode changes to trigger re-render
+                                                const currentMode = viewMode;
+                                                setViewMode('overview');
+                                                setTimeout(() => {
+                                                  setViewMode(currentMode);
+                                                  setRefreshKey(prev => prev + 1);
+                                                }, 200);
+                                              }
+                                            }
                                             e.target.value = '';
                                           }
                                         }}
@@ -1726,7 +1952,7 @@ const Worksheets = () => {
                                       >
                                         <option value="">Assign to machine...</option>
                                         {machines
-                                          .filter(m => m.type === worksheet.modality && !worksheet.assignedMachines.includes(m.machineId))
+                                          .filter(m => m.type === worksheet.modality && !(worksheet.assignedMachines || []).includes(m.machineId))
                                           .map(machine => (
                                             <option key={machine.machineId} value={machine.machineId}>
                                               {machine.name}
@@ -1830,11 +2056,48 @@ const Worksheets = () => {
                               onChange={(e) => {
                                 if (e.target.value) {
                                   console.log('Dropdown selected:', e.target.value, 'for worksheet:', worksheet.id);
-                                  const success = assignWorksheetToMachine(worksheet.id, e.target.value);
-                                  if (success) {
-                                    setRefreshKey(prev => prev + 1); // Refresh the page to update sections
-                                    // Force a complete re-render by updating the viewMode state
-                                    setViewMode('worksheets');
+                                  
+                                  // Check if machine is already assigned to another worksheet of same type
+                                  const machineId = e.target.value;
+                                  const machine = machines.find(m => m.machineId === machineId);
+                                  const existingWorksheets = getWorksheets();
+                                  const conflictingWorksheet = existingWorksheets.find(w => 
+                                    w.id !== worksheet.id &&
+                                    w.modality === worksheet.modality && 
+                                    w.frequency === worksheet.frequency &&
+                                    w.assignedMachines && 
+                                    w.assignedMachines.includes(machineId)
+                                  );
+                                  
+                                  if (conflictingWorksheet) {
+                                    if (window.confirm(`${machine?.name} is already assigned to another ${worksheet.frequency} ${worksheet.modality} worksheet. Do you want to move it to this worksheet instead?`)) {
+                                      // Remove from old worksheet
+                                      const success1 = unassignWorksheetFromMachine(conflictingWorksheet.id, machineId);
+                                      // Add to new worksheet
+                                      const success2 = assignWorksheetToMachine(worksheet.id, machineId);
+                                      if (success1 && success2) {
+                                        console.log('Machine moved between worksheets successfully');
+                                        setRefreshKey(prev => prev + 1);
+                                        window.dispatchEvent(new Event('storage'));
+                                        toast.success(`${machine?.name} moved to this worksheet`);
+                                      }
+                                    }
+                                  } else {
+                                    const success = assignWorksheetToMachine(worksheet.id, e.target.value);
+                                    if (success) {
+                                      console.log('Assignment successful, forcing refresh...');
+                                      // Multiple refresh mechanisms
+                                      setRefreshKey(prev => prev + 1);
+                                      // Force re-evaluation of all data
+                                      window.dispatchEvent(new Event('storage'));
+                                      // Force view mode changes to trigger re-render
+                                      const currentMode = viewMode;
+                                      setViewMode('overview');
+                                      setTimeout(() => {
+                                        setViewMode(currentMode);
+                                        setRefreshKey(prev => prev + 1);
+                                      }, 200);
+                                    }
                                   }
                                   e.target.value = '';
                                 }
@@ -1863,13 +2126,8 @@ const Worksheets = () => {
                               </button>
                               <button
                                 onClick={() => {
-                                  if (window.confirm(`Are you sure you want to delete "${worksheet.title}"?`)) {
-                                    const worksheets = getWorksheets();
-                                    const updatedWorksheets = worksheets.filter(w => w.id !== worksheet.id);
-                                    localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
-                                    setRefreshKey(prev => prev + 1);
-                                    toast.success('Worksheet deleted successfully!');
-                                  }
+                                  console.log('DEBUG: Delete button clicked for worksheet:', worksheet.id);
+                                  deleteWorksheet(worksheet.id);
                                 }}
                                 className="flex-1 px-2 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
                               >
@@ -2177,17 +2435,55 @@ const Worksheets = () => {
                 <div className="flex justify-center">
                   <button
                     onClick={() => {
-                      const worksheet = {
+                      console.log('DEBUG: Assign to Machine clicked');
+                      console.log('DEBUG: customWorksheetInfo:', customWorksheetInfo);
+                      
+                      if (!customWorksheetInfo.machineId) {
+                        toast.error('Please select a machine first');
+                        return;
+                      }
+                      
+                      // Always create a NEW worksheet copy for this machine - templates are immutable
+                      console.log('DEBUG: Creating new worksheet copy for machine');
+                      console.log('DEBUG: Current customTests:', customTests);
+                      
+                      // Create unique worksheet for this specific machine
+                      const machine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
+                      const uniqueWorksheetData = {
                         ...customWorksheetInfo,
-                        tests: customTests,
-                        id: Date.now(),
+                        // Create unique title that includes machine name
+                        title: `${customWorksheetInfo.title} - ${machine?.name || customWorksheetInfo.machineId}`,
+                        tests: [...customTests], // Deep copy of tests
+                        id: `${Date.now()}-${customWorksheetInfo.machineId}`, // Unique ID with machine
                         createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
                         isModified: selectedTemplate ? true : false,
-                        sourceTemplate: selectedTemplate ? selectedTemplate.title : null
+                        sourceTemplate: selectedTemplate ? selectedTemplate.title : null,
+                        isWorksheet: true,
+                        assignedMachines: [customWorksheetInfo.machineId], // Only this machine
+                        specificMachine: customWorksheetInfo.machineId // Track which machine this is for
                       };
                       
-                      setWorksheetData(worksheet);
-                      toast.success('Worksheet assigned to machine successfully!');
+                      console.log('DEBUG: Creating unique worksheet for machine:', uniqueWorksheetData);
+                      
+                      // Save the worksheet to localStorage
+                      const savedWorksheet = saveWorksheet(uniqueWorksheetData);
+                      console.log('DEBUG: Saved worksheet:', savedWorksheet);
+                      
+                      if (savedWorksheet) {
+                        // Force UI refresh
+                        setRefreshKey(prev => prev + 1);
+                        window.dispatchEvent(new Event('storage'));
+                        
+                        toast.success(`New worksheet created and assigned to ${machine?.name || 'machine'} successfully!`);
+                        
+                        // Switch to worksheets view to see the result
+                        setTimeout(() => {
+                          setViewMode('worksheets');
+                        }, 500);
+                      } else {
+                        toast.error('Failed to save worksheet');
+                      }
                     }}
                     className="px-8 py-3 bg-purple-600 text-white font-medium rounded-md hover:bg-purple-700 transition-colors flex items-center space-x-2"
                   >
@@ -2311,7 +2607,7 @@ const Worksheets = () => {
               <h2 className="text-2xl font-bold text-gray-800">QC Worksheet</h2>
               <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
-                  <strong>Machine:</strong> {worksheetData.machine.name} ({worksheetData.machine.machineId})
+                  <strong>Machine:</strong> {worksheetData.machine ? `${worksheetData.machine.name} (${worksheetData.machine.machineId})` : 'Not assigned to specific machine'}
                 </div>
                 <div>
                   <strong>Date:</strong> {new Date().toLocaleDateString()}

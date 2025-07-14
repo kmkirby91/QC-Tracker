@@ -151,7 +151,7 @@ export const checkAndInitializeSampleData = () => {
   return null; // Data already exists
 };
 
-// Force initialization for debugging
+// Force initialization for debugging - updated
 export const forceInitializeSampleData = () => {
   console.log('Forcing sample data initialization...');
   return initializeSampleWorksheets();

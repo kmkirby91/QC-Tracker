@@ -398,26 +398,23 @@ function MachineList() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex flex-col space-y-2">
-                      <Link
-                        to={`/machines/${machine.machineId}`}
-                        className="text-blue-400 hover:text-blue-300 text-xs"
-                      >
-                        View Details
-                      </Link>
+                      {/* Machine Actions */}
+                      <div className="flex space-x-2">
+                        <Link
+                          to={`/machines/${machine.machineId}`}
+                          className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                        >
+                          📊 Details
+                        </Link>
+                      </div>
                       
                       {/* Assigned Worksheets */}
                       {(() => {
                         const assignedFrequencies = getAssignedFrequencies(machine);
                         if (assignedFrequencies.length === 0) {
                           return (
-                            <div className="space-y-1">
-                              <span className="text-xs text-gray-500">No custom worksheets assigned</span>
-                              <Link
-                                to="/worksheets"
-                                className="text-xs text-blue-400 hover:text-blue-300"
-                              >
-                                Create worksheets
-                              </Link>
+                            <div className="text-xs text-gray-500 italic">
+                              No QC worksheets assigned
                             </div>
                           );
                         } else {
