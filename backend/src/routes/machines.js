@@ -132,20 +132,20 @@ const mockMachines = [
       room: 'Emergency CT'
     },
     installationDate: '2023-02-28',
-    status: 'critical',
+    status: 'operational',
     lastQC: {
-      date: '2024-01-03',
-      result: 'fail',
-      performedBy: 'Tom Brown',
-      notes: 'Detector calibration issue detected'
+      date: null,
+      result: null,
+      performedBy: null,
+      notes: 'QC worksheet assigned - ready for daily QC'
     },
-    nextQCDue: '2024-01-04',
+    nextQCDue: new Date().toISOString().split('T')[0], // Today - QC due
     qcSchedule: {
       daily: true,
       weekly: false,
-      monthly: true,
+      monthly: false,
       quarterly: false,
-      annual: true
+      annual: false
     }
   },
   {

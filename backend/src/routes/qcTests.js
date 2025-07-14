@@ -108,8 +108,21 @@ const generateQCHistory = (machineType, machineId) => {
     annual: []
   };
 
-  // Generate daily QC for last 30 days (only if machine has daily tests)
-  if (tests.daily && tests.daily.length > 0) {
+  // IMPORTANT: Only generate history for machines that actually have worksheets assigned
+  // In real implementation, this would check the database for assigned worksheets
+  // For demo purposes: Only CT-GON-001 (SOMATOM Force) has a daily QC worksheet assigned
+  const hasWorksheetAssigned = (machine, frequency) => {
+    // In a real app, this would check the database for worksheet assignments
+    // For demo: only SOMATOM Force CT has daily QC worksheet
+    if (machine === 'CT-GON-001' && frequency === 'daily') {
+      return true;
+    }
+    // All other machines have no worksheets = no QC history
+    return false;
+  };
+
+  // Generate daily QC for last 30 days (only if machine has daily tests AND worksheet assigned)
+  if (tests.daily && tests.daily.length > 0 && hasWorksheetAssigned(machineId, 'daily')) {
     for (let i = 0; i < 30; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -253,8 +266,8 @@ const generateQCHistory = (machineType, machineId) => {
     }
   }
 
-  // Generate weekly QC for last 12 weeks (for MRI machines)
-  if (tests.weekly) {
+  // Generate weekly QC for last 12 weeks (only if worksheet assigned)
+  if (tests.weekly && hasWorksheetAssigned(machineId, 'weekly')) {
     for (let i = 0; i < 12; i++) {
       const date = new Date();
       date.setDate(date.getDate() - (i * 7)); // Go back by weeks
@@ -285,8 +298,8 @@ const generateQCHistory = (machineType, machineId) => {
     }
   }
 
-  // Generate monthly QC for last 12 months (only if machine has monthly tests)
-  if (tests.monthly && tests.monthly.length > 0) {
+  // Generate monthly QC for last 12 months (only if machine has monthly tests AND worksheet assigned)
+  if (tests.monthly && tests.monthly.length > 0 && hasWorksheetAssigned(machineId, 'monthly')) {
     for (let i = 0; i < 12; i++) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
@@ -342,8 +355,8 @@ const generateQCHistory = (machineType, machineId) => {
     }
   }
 
-  // Generate quarterly QC for last 8 quarters (2 years)
-  if (tests.quarterly && tests.quarterly.length > 0) {
+  // Generate quarterly QC for last 8 quarters (only if worksheet assigned)
+  if (tests.quarterly && tests.quarterly.length > 0 && hasWorksheetAssigned(machineId, 'quarterly')) {
     for (let i = 0; i < 8; i++) {
       const date = new Date();
       const currentQuarter = Math.floor(date.getMonth() / 3);
@@ -385,8 +398,8 @@ const generateQCHistory = (machineType, machineId) => {
     }
   }
 
-  // Generate annual QC for last 3 years
-  if (tests.annual && tests.annual.length > 0) {
+  // Generate annual QC for last 3 years (only if worksheet assigned)
+  if (tests.annual && tests.annual.length > 0 && hasWorksheetAssigned(machineId, 'annual')) {
     for (let i = 0; i < 3; i++) {
       const date = new Date();
       const year = date.getFullYear() - i;
@@ -522,75 +535,25 @@ router.get('/due-tasks', async (req, res) => {
     const twoDaysAgo = new Date(today);
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
+    // CONSISTENT DATA: Only show due tasks for machines that actually have worksheets assigned
+    // In real implementation, this would check database for worksheet assignments
+    // For demo: Only SOMATOM Force CT has a daily QC worksheet assigned
     const dueTasks = {
-      dailyOverdue: [
+      dailyOverdue: [],
+      dailyDueToday: [
         {
           machineId: 'CT-GON-001',
           machineName: 'Siemens SOMATOM Force',
           type: 'CT',
           location: 'Gonzales - Emergency CT',
-          daysOverdue: 2,
-          nextDue: twoDaysAgo.toISOString().split('T')[0],
-          lastQC: twoDaysAgo.toISOString().split('T')[0],
-          priority: 'high'
-        },
-        {
-          machineId: 'PET-WOM-001',
-          machineName: 'Philips Vereos PET/CT',
-          type: 'PET',
-          location: "Woman's - Nuclear Medicine Suite",
-          daysOverdue: 1,
-          nextDue: yesterday.toISOString().split('T')[0],
-          lastQC: yesterday.toISOString().split('T')[0],
-          priority: 'high'
-        }
-      ],
-      dailyDueToday: [
-        {
-          machineId: 'MRI-ESS-001',
-          machineName: 'Siemens MAGNETOM Vida',
-          type: 'MRI',
-          location: 'Essen - MRI Suite 1',
           daysOverdue: 0,
           nextDue: today.toISOString().split('T')[0],
-          lastQC: yesterday.toISOString().split('T')[0],
-          priority: 'medium'
-        },
-        {
-          machineId: 'CT-ESS-001',
-          machineName: 'GE Revolution CT',
-          type: 'CT',
-          location: 'Essen - CT Room 1',
-          daysOverdue: 0,
-          nextDue: today.toISOString().split('T')[0],
-          lastQC: yesterday.toISOString().split('T')[0],
+          lastQC: null, // No previous QC - this is the first QC after worksheet assignment
           priority: 'medium'
         }
       ],
-      monthlyOverdue: [
-        {
-          machineId: 'PET-WOM-001',
-          machineName: 'Philips Vereos PET/CT',
-          type: 'PET',
-          location: "Woman's - Nuclear Medicine Suite",
-          daysOverdue: 30,
-          nextDue: '2025-06-01',
-          lastQC: '2025-05-15',
-          priority: 'critical'
-        }
-      ],
-      monthlyDueThisMonth: [
-        {
-          machineId: 'MRI-WOM-001',
-          machineName: 'Philips Ingenia 1.5T',
-          type: 'MRI',
-          location: "Woman's - MRI Room 2",
-          daysOverdue: 0,
-          nextDue: '2025-07-01',
-          lastQC: '2025-06-15',
-          priority: 'medium'
-        }
-      ],
+      monthlyOverdue: [],
+      monthlyDueThisMonth: [],
       quarterlyOverdue: [],
       quarterlyDueThisQuarter: [],
       annualOverdue: [],
@@ -663,83 +626,12 @@ router.get('/test-templates/:machineType/:frequency', (req, res) => {
 // Get open failures
 router.get('/open-failures', async (req, res) => {
   try {
-    // Mock open failures data
+    // CONSISTENT DATA: Only show failures for machines that actually have worksheets assigned
+    // In real implementation, failures would only exist for machines with active QC programs
+    // For demo: Only SOMATOM Force CT has worksheets, so only show general maintenance issues (not QC failures)
     const openFailures = [
-      {
-        id: 'F-001',
-        machineId: 'CT-GON-001',
-        machineName: 'Siemens SOMATOM Force',
-        type: 'CT',
-        location: 'Gonzales - Emergency CT',
-        testName: 'Noise Measurement',
-        failureDate: '2025-07-05',
-        daysOpen: 2,
-        severity: 'high',
-        description: 'Noise levels exceeding tolerance (8.2 HU vs 6.0 HU limit)',
-        assignedTo: 'Engineering Team',
-        status: 'investigating',
-        priority: 'high'
-      },
-      {
-        id: 'F-002',
-        machineId: 'MRI-ESS-001',
-        machineName: 'Siemens MAGNETOM Vida',
-        type: 'MRI',
-        location: 'Essen - MRI Suite 1',
-        testName: 'Center Frequency',
-        failureDate: '2025-07-04',
-        daysOpen: 3,
-        severity: 'medium',
-        description: 'Frequency drift detected (+4.2 ppm vs ±3 ppm tolerance)',
-        assignedTo: 'Service Team',
-        status: 'scheduled',
-        priority: 'medium'
-      },
-      {
-        id: 'F-003',
-        machineId: 'PET-WOM-001',
-        machineName: 'Philips Vereos PET/CT',
-        type: 'PET',
-        location: "Woman's - Nuclear Medicine Suite",
-        testName: 'Daily Normalization',
-        failureDate: '2025-07-06',
-        daysOpen: 1,
-        severity: 'critical',
-        description: 'Normalization scan failed - detector ring issue suspected',
-        assignedTo: 'Philips Service',
-        status: 'urgent',
-        priority: 'critical'
-      },
-      {
-        id: 'F-004',
-        machineId: 'CT-WOM-001',
-        machineName: 'Canon Aquilion ONE',
-        type: 'CT',
-        location: "Woman's - CT Suite B",
-        testName: 'Spatial Resolution',
-        failureDate: '2025-07-03',
-        daysOpen: 4,
-        severity: 'low',
-        description: 'Slight degradation in spatial resolution (0.8mm vs 0.6mm)',
-        assignedTo: 'QC Team',
-        status: 'monitoring',
-        priority: 'low'
-      },
-      {
-        id: 'F-005',
-        machineId: 'MRI-WOM-001',
-        machineName: 'Philips Ingenia 1.5T',
-        type: 'MRI',
-        location: "Woman's - MRI Room 2",
-        testName: 'RF Safety Assessment',
-        failureDate: '2025-07-01',
-        daysOpen: 6,
-        severity: 'medium',
-        description: 'RF door interlock delayed response (3.2s vs 2.0s limit)',
-        assignedTo: 'Safety Team',
-        status: 'parts_ordered',
-        priority: 'medium'
-      }
+      // No QC-related failures since most machines don't have QC worksheets assigned
+      // Only general equipment issues that don't require QC worksheets to identify
     ];
 
     res.json(openFailures);

@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import axios from 'axios'
+import { checkAndInitializeSampleData } from './utils/sampleWorksheets'
 import MachineCard from './components/MachineCard'
 import StatusSummary from './components/StatusSummary'
 import FilterBar from './components/FilterBar'
@@ -31,6 +32,17 @@ function NavigationDropdown() {
     { label: 'Worksheets', path: '/worksheets', icon: '📋' },
     { label: 'Reporting', path: '/reporting', icon: '📊' }
   ]
+
+  const handleReloadSampleData = () => {
+    // Clear existing data and reload sample data
+    localStorage.removeItem('qcWorksheets')
+    localStorage.removeItem('qcModalityTemplates')
+    const result = checkAndInitializeSampleData()
+    if (result) {
+      alert('Sample data reloaded! SOMATOM Force CT now has daily QC worksheet assigned.')
+      window.location.reload() // Refresh to show updated data
+    }
+  }
 
   const handleNavigation = (path) => {
     navigate(path)
@@ -76,6 +88,18 @@ function NavigationDropdown() {
                 <span>{item.label}</span>
               </button>
             ))}
+            <div className="border-t border-gray-700 my-1"></div>
+            <button
+              onClick={() => {
+                handleReloadSampleData()
+                setIsOpen(false)
+              }}
+              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors flex items-center space-x-2 text-gray-400"
+              title="Reset to sample data: SOMATOM Force CT with daily QC only"
+            >
+              <span>🔄</span>
+              <span>Reset Sample Data</span>
+            </button>
           </div>
         </div>
       )}
@@ -146,6 +170,8 @@ function Dashboard() {
 
   useEffect(() => {
     fetchMachines()
+    // Initialize sample worksheets on app load
+    checkAndInitializeSampleData()
   }, [])
 
   useEffect(() => {

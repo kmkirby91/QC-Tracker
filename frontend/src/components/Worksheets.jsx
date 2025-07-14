@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { checkAndInitializeSampleData } from '../utils/sampleWorksheets';
 
 const Worksheets = () => {
   const navigate = useNavigate();
@@ -61,6 +62,11 @@ const Worksheets = () => {
 
   useEffect(() => {
     fetchMachines();
+    // Initialize sample data if needed (SOMATOM Force CT with daily QC only)
+    const sampleDataResult = checkAndInitializeSampleData();
+    if (sampleDataResult) {
+      toast.success('Sample QC worksheets loaded for demonstration');
+    }
     initializeSampleTemplates();
   }, []);
 
