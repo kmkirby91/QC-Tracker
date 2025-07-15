@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import DICOMAnalysis from './DICOMAnalysis';
 
 const QCForm = ({ viewOnly = false }) => {
   const { machineId, frequency, machineType } = useParams();
@@ -16,6 +17,8 @@ const QCForm = ({ viewOnly = false }) => {
   const [showReplaceWarning, setShowReplaceWarning] = useState(false);
   const [loadingExistingData, setLoadingExistingData] = useState(false);
   const [error, setError] = useState(null);
+  const [showDICOMAnalysis, setShowDICOMAnalysis] = useState(false);
+  const [dicomAnalysisResults, setDicomAnalysisResults] = useState(null);
 
   useEffect(() => {
     fetchMachineAndTests();
@@ -531,6 +534,33 @@ const QCForm = ({ viewOnly = false }) => {
               </div>
             </div>
           </div>
+
+          {/* DICOM Analysis Integration */}
+          {!viewOnly && machine && (machine.type === 'CT' || machine.type === 'MRI') && (
+            <DICOMAnalysis 
+              machineId={machineId}
+              frequency={frequency}
+              worksheetData={{ modality: machine.type, tests }}
+              onAnalysisComplete={(results) => {
+                setDicomAnalysisResults(results);
+                // Auto-populate form fields with DICOM analysis results
+                if (results && results.measurements) {
+                  const newFormData = { ...formData };
+                  Object.entries(results.measurements).forEach(([testName, measurement]) => {
+                    if (newFormData[testName]) {
+                      newFormData[testName] = {
+                        ...newFormData[testName],
+                        value: measurement.value,
+                        result: measurement.status
+                      };
+                    }
+                  });
+                  setFormData(newFormData);
+                  toast.success('QC values populated from DICOM analysis');
+                }
+              }}
+            />
+          )}
 
           {/* QC Tests */}
           <div>

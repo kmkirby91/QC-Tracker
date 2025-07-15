@@ -229,6 +229,151 @@ const TechDashboard = () => {
         </div>
       </div>
 
+      {/* Due Today and Overdue Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Due Today */}
+        <div className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-yellow-400 flex items-center">
+              ⚠️ Due Today
+            </h3>
+            <span className="text-yellow-300 text-sm font-medium">
+              {dailyQCTasks.filter(t => 
+                t.dailyDueStatus === 'due' || 
+                t.quarterlyDueStatus === 'due' || 
+                t.annualDueStatus === 'due'
+              ).length} tasks
+            </span>
+          </div>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {dailyQCTasks.filter(t => 
+              t.dailyDueStatus === 'due' || 
+              t.quarterlyDueStatus === 'due' || 
+              t.annualDueStatus === 'due'
+            ).map(task => (
+              <div key={task.id} className="bg-yellow-800/30 rounded p-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-yellow-100">{task.machine.name}</span>
+                    <span className="text-yellow-300 ml-2">({task.machine.type})</span>
+                  </div>
+                  <div className="flex space-x-1">
+                    {task.dailyDueStatus === 'due' && (
+                      <button
+                        onClick={() => handlePerformQC(task, 'daily')}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        title="Perform Daily QC"
+                      >
+                        Daily QC
+                      </button>
+                    )}
+                    {task.quarterlyDueStatus === 'due' && (
+                      <button
+                        onClick={() => handlePerformQC(task, 'quarterly')}
+                        className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                        title="Perform Quarterly QC"
+                      >
+                        Quarterly QC
+                      </button>
+                    )}
+                    {task.annualDueStatus === 'due' && (
+                      <button
+                        onClick={() => handlePerformQC(task, 'annual')}
+                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                        title="Perform Annual QC"
+                      >
+                        Annual QC
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {dailyQCTasks.filter(t => 
+              t.dailyDueStatus === 'due' || 
+              t.quarterlyDueStatus === 'due' || 
+              t.annualDueStatus === 'due'
+            ).length === 0 && (
+              <div className="text-center py-4 text-yellow-300">
+                <span className="text-2xl">✅</span>
+                <p className="text-sm mt-1">No QC tasks due today</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Overdue */}
+        <div className="bg-red-900/20 border border-red-600 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-red-400 flex items-center">
+              🚨 Overdue
+            </h3>
+            <span className="text-red-300 text-sm font-medium">
+              {dailyQCTasks.filter(t => 
+                t.dailyDueStatus === 'overdue' || 
+                t.quarterlyDueStatus === 'overdue' || 
+                t.annualDueStatus === 'overdue'
+              ).length} tasks
+            </span>
+          </div>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {dailyQCTasks.filter(t => 
+              t.dailyDueStatus === 'overdue' || 
+              t.quarterlyDueStatus === 'overdue' || 
+              t.annualDueStatus === 'overdue'
+            ).map(task => (
+              <div key={task.id} className="bg-red-800/30 rounded p-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-red-100">{task.machine.name}</span>
+                    <span className="text-red-300 ml-2">({task.machine.type})</span>
+                  </div>
+                  <div className="flex space-x-1">
+                    {task.dailyDueStatus === 'overdue' && (
+                      <button
+                        onClick={() => handlePerformQC(task, 'daily')}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        title="Perform Daily QC"
+                      >
+                        Daily QC
+                      </button>
+                    )}
+                    {task.quarterlyDueStatus === 'overdue' && (
+                      <button
+                        onClick={() => handlePerformQC(task, 'quarterly')}
+                        className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                        title="Perform Quarterly QC"
+                      >
+                        Quarterly QC
+                      </button>
+                    )}
+                    {task.annualDueStatus === 'overdue' && (
+                      <button
+                        onClick={() => handlePerformQC(task, 'annual')}
+                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                        title="Perform Annual QC"
+                      >
+                        Annual QC
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {dailyQCTasks.filter(t => 
+              t.dailyDueStatus === 'overdue' || 
+              t.quarterlyDueStatus === 'overdue' || 
+              t.annualDueStatus === 'overdue'
+            ).length === 0 && (
+              <div className="text-center py-4 text-red-300">
+                <span className="text-2xl">✅</span>
+                <p className="text-sm mt-1">No overdue QC tasks</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* QC Tasks Table */}
       <div className="bg-gray-800 rounded-lg shadow-lg">
         <div className="p-6 border-b border-gray-700">
@@ -238,9 +383,9 @@ const TechDashboard = () => {
             </h2>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2 text-sm">
-                <span className="text-green-400">✅ {dailyQCTasks.filter(t => t.dailyDueStatus === 'due' || t.quarterlyDueStatus === 'due' || t.annualDueStatus === 'due').length} Due</span>
-                <span className="text-yellow-400">⚠️ {dailyQCTasks.filter(t => t.dailyDueStatus === 'overdue' || t.quarterlyDueStatus === 'overdue' || t.annualDueStatus === 'overdue').length} Overdue</span>
-                <span className="text-gray-400">📋 {dailyQCTasks.filter(t => t.dailyDueStatus === 'current' && t.quarterlyDueStatus === 'current' && t.annualDueStatus === 'current').length} Current</span>
+                <span className="text-green-400">✅ {dailyQCTasks.filter(t => t.dailyDueStatus === 'current' && t.quarterlyDueStatus === 'current' && t.annualDueStatus === 'current').length} Current</span>
+                <span className="text-yellow-400">⚠️ {dailyQCTasks.filter(t => t.dailyDueStatus === 'due' || t.quarterlyDueStatus === 'due' || t.annualDueStatus === 'due').length} Due</span>
+                <span className="text-red-400">🚨 {dailyQCTasks.filter(t => t.dailyDueStatus === 'overdue' || t.quarterlyDueStatus === 'overdue' || t.annualDueStatus === 'overdue').length} Overdue</span>
               </div>
             </div>
           </div>
@@ -297,6 +442,15 @@ const TechDashboard = () => {
                       {task.dailyWorksheet ? (
                         <div>
                           <div className="flex items-center space-x-2 mb-1">
+                            {(task.dailyDueStatus === 'due' || task.dailyDueStatus === 'overdue') && (
+                              <button
+                                onClick={() => handlePerformQC(task, 'daily')}
+                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                title="Perform QC"
+                              >
+                                Perform QC
+                              </button>
+                            )}
                             <input 
                               type="checkbox" 
                               checked={task.dailyDueStatus === 'current'}
@@ -319,15 +473,6 @@ const TechDashboard = () => {
                                 ✏️
                               </button>
                             )}
-                            {(task.dailyDueStatus === 'due' || task.dailyDueStatus === 'overdue') && (
-                              <button
-                                onClick={() => handlePerformQC(task, 'daily')}
-                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                title="Perform QC"
-                              >
-                                Perform QC
-                              </button>
-                            )}
                           </div>
                           <div className="text-xs text-gray-400">{task.dailyWorksheet.title}</div>
                         </div>
@@ -339,6 +484,15 @@ const TechDashboard = () => {
                       {task.quarterlyWorksheet ? (
                         <div>
                           <div className="flex items-center space-x-2 mb-1">
+                            {(task.quarterlyDueStatus === 'due' || task.quarterlyDueStatus === 'overdue') && (
+                              <button
+                                onClick={() => handlePerformQC(task, 'quarterly')}
+                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                title="Perform QC"
+                              >
+                                Perform QC
+                              </button>
+                            )}
                             <input 
                               type="checkbox" 
                               checked={task.quarterlyDueStatus === 'current'}
@@ -361,15 +515,6 @@ const TechDashboard = () => {
                                 ✏️
                               </button>
                             )}
-                            {(task.quarterlyDueStatus === 'due' || task.quarterlyDueStatus === 'overdue') && (
-                              <button
-                                onClick={() => handlePerformQC(task, 'quarterly')}
-                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                title="Perform QC"
-                              >
-                                Perform QC
-                              </button>
-                            )}
                           </div>
                           <div className="text-xs text-gray-400">{task.quarterlyWorksheet.title}</div>
                         </div>
@@ -381,6 +526,15 @@ const TechDashboard = () => {
                       {task.annualWorksheet ? (
                         <div>
                           <div className="flex items-center space-x-2 mb-1">
+                            {(task.annualDueStatus === 'due' || task.annualDueStatus === 'overdue') && (
+                              <button
+                                onClick={() => handlePerformQC(task, 'annual')}
+                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                title="Perform QC"
+                              >
+                                Perform QC
+                              </button>
+                            )}
                             <input 
                               type="checkbox" 
                               checked={task.annualDueStatus === 'current'}
@@ -401,15 +555,6 @@ const TechDashboard = () => {
                                 title="Edit QC"
                               >
                                 ✏️
-                              </button>
-                            )}
-                            {(task.annualDueStatus === 'due' || task.annualDueStatus === 'overdue') && (
-                              <button
-                                onClick={() => handlePerformQC(task, 'annual')}
-                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                title="Perform QC"
-                              >
-                                Perform QC
                               </button>
                             )}
                           </div>
