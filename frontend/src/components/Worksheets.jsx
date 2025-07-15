@@ -1660,9 +1660,9 @@ const Worksheets = () => {
                     className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">All Locations</option>
-                    {[...new Set(machines.map(m => `${m.location.building} - ${m.location.room}`))].sort().map(location => (
-                      <option key={location} value={location}>
-                        {location}
+                    {[...new Set(machines.map(m => m.location.building))].sort().map(building => (
+                      <option key={building} value={building}>
+                        {building}
                       </option>
                     ))}
                   </select>
@@ -1708,7 +1708,7 @@ const Worksheets = () => {
                 
                 if (overviewFilterLocation) {
                   filteredMachines = filteredMachines.filter(machine => 
-                    `${machine.location.building} - ${machine.location.room}` === overviewFilterLocation
+                    machine.location.building === overviewFilterLocation
                   );
                 }
                 
