@@ -3172,7 +3172,16 @@ const Worksheets = () => {
                           templateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null // Legacy support
                         };
                         
-                        console.log('DEBUG: Updating worksheet with data:', updatedWorksheetData);
+                        console.log('DEBUG: Updating worksheet with data:', {
+                          updatedWorksheetData: updatedWorksheetData,
+                          templateInfo: {
+                            hasSelectedTemplate: !!selectedTemplate,
+                            matchedToTemplate: matchedToTemplate,
+                            originalSourceTemplateId: worksheetData.sourceTemplateId,
+                            newSourceTemplateId: updatedWorksheetData.sourceTemplateId,
+                            willShowTemplateDialog: !!(updatedWorksheetData.sourceTemplateId || updatedWorksheetData.sourceTemplateName)
+                          }
+                        });
                         
                         // Update the existing worksheet
                         const updatedWorksheet = updateWorksheet(updatedWorksheetData);
@@ -3222,10 +3231,12 @@ const Worksheets = () => {
                           uniqueWorksheetData: uniqueWorksheetData,
                           templateInfo: {
                             hasSelectedTemplate: !!selectedTemplate,
+                            matchedToTemplate: matchedToTemplate,
                             templateId: selectedTemplate?.id,
                             templateTitle: selectedTemplate?.title,
                             sourceTemplateId: uniqueWorksheetData.sourceTemplateId,
-                            sourceTemplateName: uniqueWorksheetData.sourceTemplateName
+                            sourceTemplateName: uniqueWorksheetData.sourceTemplateName,
+                            willShowTemplateDialog: !!(uniqueWorksheetData.sourceTemplateId || uniqueWorksheetData.sourceTemplateName)
                           }
                         });
                         
