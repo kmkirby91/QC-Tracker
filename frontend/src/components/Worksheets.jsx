@@ -61,6 +61,7 @@ const Worksheets = () => {
   const [deleteConfirmation, setDeleteConfirmation] = useState({});
   const [realTimeModifications, setRealTimeModifications] = useState([]);
   const [hasRealTimeModifications, setHasRealTimeModifications] = useState(false);
+  const [matchedToTemplate, setMatchedToTemplate] = useState(false);
 
   const frequencies = [
     { value: 'daily', label: 'Daily QC', icon: '📅' },
@@ -77,7 +78,8 @@ const Worksheets = () => {
     { value: 'PET-CT', label: 'PET-CT', icon: '🔬' },
     { value: 'X-Ray', label: 'X-Ray', icon: '📱' },
     { value: 'Ultrasound', label: 'Ultrasound', icon: '🔊' },
-    { value: 'Mammography', label: 'Mammography', icon: '🎯' }
+    { value: 'Mammography', label: 'Mammography', icon: '🎯' },
+    { value: 'Dose Calibrator', label: 'Dose Calibrator', icon: '⚗️' }
   ];
 
   // Template copying functionality - each machine gets its own worksheet copy
@@ -97,6 +99,7 @@ const Worksheets = () => {
     console.log('DEBUG: Real-time detection useEffect triggered', {
       hasSelectedTemplate: !!selectedTemplate,
       templateJustLoaded: templateJustLoaded,
+      matchedToTemplate: matchedToTemplate,
       customTestsLength: customTests.length,
       templateTestsLength: selectedTemplate?.tests?.length || 0,
       customTitle: customWorksheetInfo.title,
@@ -105,7 +108,7 @@ const Worksheets = () => {
       templateDescription: selectedTemplate?.description
     });
 
-    if (selectedTemplate) {
+    if (selectedTemplate && matchedToTemplate) {
       // Calculate modifications based on current form state
       const titleChanged = customWorksheetInfo.title !== selectedTemplate.title;
       const descriptionChanged = (customWorksheetInfo.description || '').trim() !== (selectedTemplate.description || '').trim();
@@ -140,9 +143,9 @@ const Worksheets = () => {
       // Clear modifications if no template selected
       setRealTimeModifications([]);
       setHasRealTimeModifications(false);
-      console.log('DEBUG: No template selected, clearing modifications');
+      console.log('DEBUG: No template selected or not matched to template, clearing modifications');
     }
-  }, [selectedTemplate, templateJustLoaded, customWorksheetInfo.title, customWorksheetInfo.description, customTests]);
+  }, [selectedTemplate, templateJustLoaded, matchedToTemplate, customWorksheetInfo.title, customWorksheetInfo.description, customTests]);
 
   useEffect(() => {
     // Handle URL parameters for editing
@@ -327,7 +330,8 @@ const Worksheets = () => {
       'PET-CT': ['daily', 'weekly', 'monthly', 'quarterly', 'annual'],
       'X-Ray': ['daily', 'weekly', 'monthly', 'quarterly', 'annual'],
       'Ultrasound': ['daily', 'weekly', 'monthly', 'quarterly', 'annual'],
-      'Mammography': ['daily', 'weekly', 'monthly', 'quarterly', 'annual']
+      'Mammography': ['daily', 'weekly', 'monthly', 'quarterly', 'annual'],
+      'Dose Calibrator': ['quarterly', 'annual']
     };
     return typeFrequencies[machineType] || [];
   };
@@ -435,19 +439,19 @@ const Worksheets = () => {
       isCustom: true
     };
 
-    // Calculate modifications if created from template
-    const baseTemplate = selectedTemplate;
+    // Calculate modifications if created from template AND matched to template
+    const baseTemplate = selectedTemplate && matchedToTemplate ? selectedTemplate : null;
     const modifications = baseTemplate ? calculateModifications(baseTemplate, customTests.filter(test => test.testName.trim() !== '')) : [];
 
-    // Prepare tests with custom field tracking
+    // Prepare tests with custom field tracking (only if matched to template)
     const processedTests = customTests.filter(test => test.testName.trim() !== '').map(test => {
-      const isCustomField = selectedTemplate ? 
+      const isCustomField = (selectedTemplate && matchedToTemplate) ? 
         !selectedTemplate.tests.some(templateTest => templateTest.testName === test.testName) : 
         true;
       
       return {
         ...test,
-        templateSource: selectedTemplate ? selectedTemplate.title : null,
+        templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
         isCustomField: isCustomField,
         customFieldType: isCustomField ? 'user-added' : 'template-default'
       };
@@ -460,19 +464,25 @@ const Worksheets = () => {
       modality: selectedMachineData.type,
       frequency: customWorksheetInfo.frequency,
       tests: processedTests,
-      templateSource: selectedTemplate ? selectedTemplate.title : null,
-      templateId: selectedTemplate ? selectedTemplate.id : null,
+      templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
+      templateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
       baseTemplate: baseTemplate,
       modifications: modifications
     });
 
     // Auto-assign to the selected machine
     if (savedWorksheet) {
-      assignWorksheetToMachine(savedWorksheet.id, selectedMachineData.machineId);
+      const assignmentSuccess = assignWorksheetToMachine(savedWorksheet.id, selectedMachineData.machineId);
+      if (assignmentSuccess) {
+        // Force refresh to show updated assignments
+        setRefreshKey(prev => prev + 1);
+        // Trigger storage event for other components
+        window.dispatchEvent(new Event('storage'));
+      }
     }
 
     setWorksheetData(customWorksheetData);
-    setViewMode('templates');
+    setViewMode('overview'); // Switch to overview to see the newly assigned worksheet
     toast.success(`Custom worksheet saved and assigned to ${selectedMachineData.name}!`);
   };
 
@@ -572,82 +582,160 @@ const Worksheets = () => {
     const baseTests = baseTemplate.tests;
     const filteredCustomTests = customTests.filter(test => test.testName.trim() !== '');
     
-    // First pass: Compare by position for modified tests (most common case)
-    const modifiedTests = [];
-    const usedCustomIndices = new Set();
-    const usedBaseIndices = new Set();
+    // Normalize strings for comparison
+    const normalizeString = (str) => (str || '').trim();
     
-    // Compare tests by position first (handles field modifications better)
-    const maxLength = Math.max(baseTests.length, filteredCustomTests.length);
-    for (let i = 0; i < Math.min(baseTests.length, filteredCustomTests.length); i++) {
-      const baseTest = baseTests[i];
+    // Create a map to track which base tests have been matched
+    const baseTestMatched = new Array(baseTests.length).fill(false);
+    const customTestMatched = new Array(filteredCustomTests.length).fill(false);
+    
+    // First pass: Try to match tests by name (exact matches)
+    for (let i = 0; i < filteredCustomTests.length; i++) {
       const customTest = filteredCustomTests[i];
+      const customTestName = normalizeString(customTest.testName);
       
-      if (baseTest && customTest) {
-        const changes = [];
+      if (customTestName) {
+        // Look for exact name match in base tests
+        const baseIndex = baseTests.findIndex((baseTest, idx) => 
+          !baseTestMatched[idx] && 
+          normalizeString(baseTest.testName) === customTestName
+        );
         
-        // Normalize strings for comparison
-        const normalizeString = (str) => (str || '').trim();
-        
-        // Check each field for changes
-        if (normalizeString(baseTest.testName) !== normalizeString(customTest.testName)) {
-          changes.push(`name: "${baseTest.testName}" → "${customTest.testName}"`);
+        if (baseIndex !== -1) {
+          // Found exact match - check for field modifications
+          const baseTest = baseTests[baseIndex];
+          const changes = [];
+          
+          // Check each field for changes (name already matches)
+          if (normalizeString(baseTest.testType) !== normalizeString(customTest.testType)) {
+            changes.push(`type: "${baseTest.testType}" → "${customTest.testType}"`);
+          }
+          if (normalizeString(baseTest.tolerance) !== normalizeString(customTest.tolerance)) {
+            changes.push(`tolerance: "${baseTest.tolerance}" → "${customTest.tolerance}"`);
+          }
+          if (normalizeString(baseTest.units) !== normalizeString(customTest.units)) {
+            changes.push(`units: "${baseTest.units}" → "${customTest.units}"`);
+          }
+          if (normalizeString(baseTest.notes) !== normalizeString(customTest.notes)) {
+            changes.push(`notes: "${baseTest.notes}" → "${customTest.notes}"`);
+          }
+          if (normalizeString(baseTest.description) !== normalizeString(customTest.description)) {
+            changes.push(`description: "${baseTest.description}" → "${customTest.description}"`);
+          }
+          
+          if (changes.length > 0) {
+            if (changes.length <= 2) {
+              modifications.push(`Test "${baseTest.testName}": ${changes.join(', ')}`);
+            } else {
+              modifications.push(`Test "${baseTest.testName}": ${changes.length} fields changed`);
+            }
+          }
+          
+          // Mark both as matched
+          baseTestMatched[baseIndex] = true;
+          customTestMatched[i] = true;
         }
-        if (normalizeString(baseTest.testType) !== normalizeString(customTest.testType)) {
-          changes.push(`type: "${baseTest.testType}" → "${customTest.testType}"`);
-        }
-        if (normalizeString(baseTest.tolerance) !== normalizeString(customTest.tolerance)) {
-          changes.push(`tolerance: "${baseTest.tolerance}" → "${customTest.tolerance}"`);
-        }
-        if (normalizeString(baseTest.units) !== normalizeString(customTest.units)) {
-          changes.push(`units: "${baseTest.units}" → "${customTest.units}"`);
-        }
-        if (normalizeString(baseTest.notes) !== normalizeString(customTest.notes)) {
-          changes.push(`notes: "${baseTest.notes}" → "${customTest.notes}"`);
-        }
-        if (normalizeString(baseTest.description) !== normalizeString(customTest.description)) {
-          changes.push(`description: "${baseTest.description}" → "${customTest.description}"`);
-        }
-        
-        if (changes.length > 0) {
-          const originalName = baseTest.testName || `Test ${i + 1}`;
-          modifiedTests.push({
-            position: i + 1,
-            originalName: originalName,
-            changes: changes
-          });
-        }
-        
-        usedCustomIndices.add(i);
-        usedBaseIndices.add(i);
       }
     }
     
-    // Add modification details
-    if (modifiedTests.length > 0) {
-      modifiedTests.forEach(mod => {
-        if (mod.changes.length <= 2) {
-          // Show specific changes for 1-2 changes
-          modifications.push(`Test ${mod.position} (${mod.originalName}): ${mod.changes.join(', ')}`);
-        } else {
-          // Summarize if many changes
-          modifications.push(`Test ${mod.position} (${mod.originalName}): ${mod.changes.length} fields changed`);
+    // Second pass: Try to match remaining tests by position
+    let customIndex = 0;
+    let baseIndex = 0;
+    
+    while (customIndex < filteredCustomTests.length && baseIndex < baseTests.length) {
+      // Skip already matched tests
+      while (customIndex < filteredCustomTests.length && customTestMatched[customIndex]) {
+        customIndex++;
+      }
+      while (baseIndex < baseTests.length && baseTestMatched[baseIndex]) {
+        baseIndex++;
+      }
+      
+      if (customIndex < filteredCustomTests.length && baseIndex < baseTests.length) {
+        const customTest = filteredCustomTests[customIndex];
+        const baseTest = baseTests[baseIndex];
+        
+        // Check if this looks like a name change (other fields similar)
+        const customTestName = normalizeString(customTest.testName);
+        const baseTestName = normalizeString(baseTest.testName);
+        
+        if (customTestName && baseTestName && customTestName !== baseTestName) {
+          // Check if other fields are similar (likely a name change)
+          const typeMatch = normalizeString(baseTest.testType) === normalizeString(customTest.testType);
+          const toleranceMatch = normalizeString(baseTest.tolerance) === normalizeString(customTest.tolerance);
+          const unitsMatch = normalizeString(baseTest.units) === normalizeString(customTest.units);
+          
+          const similarityCount = [typeMatch, toleranceMatch, unitsMatch].filter(Boolean).length;
+          
+          if (similarityCount >= 2) {
+            // Likely a name change - check for all modifications
+            const changes = [];
+            
+            changes.push(`name: "${baseTest.testName}" → "${customTest.testName}"`);
+            
+            if (!typeMatch) {
+              changes.push(`type: "${baseTest.testType}" → "${customTest.testType}"`);
+            }
+            if (!toleranceMatch) {
+              changes.push(`tolerance: "${baseTest.tolerance}" → "${customTest.tolerance}"`);
+            }
+            if (!unitsMatch) {
+              changes.push(`units: "${baseTest.units}" → "${customTest.units}"`);
+            }
+            if (normalizeString(baseTest.notes) !== normalizeString(customTest.notes)) {
+              changes.push(`notes: "${baseTest.notes}" → "${customTest.notes}"`);
+            }
+            if (normalizeString(baseTest.description) !== normalizeString(customTest.description)) {
+              changes.push(`description: "${baseTest.description}" → "${customTest.description}"`);
+            }
+            
+            if (changes.length <= 2) {
+              modifications.push(`Test "${baseTest.testName}": ${changes.join(', ')}`);
+            } else {
+              modifications.push(`Test "${baseTest.testName}": ${changes.length} fields changed`);
+            }
+            
+            baseTestMatched[baseIndex] = true;
+            customTestMatched[customIndex] = true;
+          }
         }
-      });
+        
+        customIndex++;
+        baseIndex++;
+      }
     }
     
-    // Check for removed tests (tests that were in template but not in current)
-    if (filteredCustomTests.length < baseTests.length) {
-      const removedCount = baseTests.length - filteredCustomTests.length;
-      const removedTestNames = baseTests.slice(filteredCustomTests.length).map(t => t.testName || 'Unnamed').join(', ');
-      modifications.push(`Removed ${removedCount} test(s): ${removedTestNames}`);
+    // Third pass: Identify removed tests
+    const removedTests = [];
+    for (let i = 0; i < baseTests.length; i++) {
+      if (!baseTestMatched[i]) {
+        removedTests.push(baseTests[i].testName || `Test ${i + 1}`);
+      }
     }
     
-    // Check for added tests (more tests than original template)
-    if (filteredCustomTests.length > baseTests.length) {
-      const addedCount = filteredCustomTests.length - baseTests.length;
-      const addedTestNames = filteredCustomTests.slice(baseTests.length).map(t => t.testName || 'Unnamed').join(', ');
-      modifications.push(`Added ${addedCount} test(s): ${addedTestNames}`);
+    if (removedTests.length > 0) {
+      if (removedTests.length === 1) {
+        modifications.push(`Removed test: ${removedTests[0]}`);
+      } else {
+        modifications.push(`Removed ${removedTests.length} tests: ${removedTests.join(', ')}`);
+      }
+    }
+    
+    // Fourth pass: Identify added tests
+    const addedTests = [];
+    for (let i = 0; i < filteredCustomTests.length; i++) {
+      if (!customTestMatched[i]) {
+        const testName = filteredCustomTests[i].testName || `Test ${i + 1}`;
+        addedTests.push(testName);
+      }
+    }
+    
+    if (addedTests.length > 0) {
+      if (addedTests.length === 1) {
+        modifications.push(`Added test: ${addedTests[0]}`);
+      } else {
+        modifications.push(`Added ${addedTests.length} tests: ${addedTests.join(', ')}`);
+      }
     }
     
     return modifications;
@@ -1090,6 +1178,9 @@ const Worksheets = () => {
       console.log('DEBUG: Updated worksheet:', worksheet);
       console.log('DEBUG: All worksheets after save:', getWorksheets());
       
+      // Force component refresh by updating the refreshKey
+      setRefreshKey(prev => prev + 1);
+      
       toast.success('Worksheet assigned successfully');
       return true;
       
@@ -1387,6 +1478,7 @@ const Worksheets = () => {
     // Clear any cached state that might prevent refresh
     setWorksheetData(null);
     setSelectedTemplate(null);
+    setMatchedToTemplate(false);
     setIsCreatingTemplate(false);
     
     // Reset all internal tab states to defaults
@@ -2743,6 +2835,7 @@ const Worksheets = () => {
                         // IMPORTANT: Set selectedTemplate for proper template tracking
                         setSelectedTemplate(template);
                         setTemplateJustLoaded(true); // Flag that template was just loaded
+                        setMatchedToTemplate(true); // Auto-check the "matched to template" checkbox
                         
                         // Clear real-time modifications since template was just loaded
                         setRealTimeModifications([]);
@@ -2782,6 +2875,34 @@ const Worksheets = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Template Matching Control */}
+          {selectedTemplate && (
+            <div className="bg-gray-800 rounded-lg p-6 mb-6">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="matchedToTemplate"
+                  checked={matchedToTemplate}
+                  onChange={(e) => {
+                    setMatchedToTemplate(e.target.checked);
+                    // Clear modifications when unchecked
+                    if (!e.target.checked) {
+                      setRealTimeModifications([]);
+                      setHasRealTimeModifications(false);
+                    }
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <label htmlFor="matchedToTemplate" className="text-sm font-medium text-gray-300">
+                  📋 Matched to template: "{selectedTemplate.title}"
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 mt-2 ml-7">
+                When checked, modifications from the template will be tracked. Uncheck this if you want to treat this worksheet as created from scratch.
+              </p>
             </div>
           )}
 
@@ -3128,6 +3249,96 @@ const Worksheets = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Delete Worksheet Section - Only show when editing existing worksheet */}
+              {worksheetData && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-medium text-red-400 mb-3">🗑️ Delete Worksheet</h4>
+                  <p className="text-sm text-gray-400 mb-4">
+                    Delete this worksheet permanently. This action cannot be undone.
+                  </p>
+                  
+                  <div className="flex items-center space-x-3 mb-4">
+                    <input
+                      type="checkbox"
+                      id="delete-worksheet-confirm"
+                      checked={deleteConfirmation['worksheet'] || false}
+                      onChange={(e) => setDeleteConfirmation(prev => ({
+                        ...prev,
+                        worksheet: e.target.checked
+                      }))}
+                      className="w-4 h-4 text-red-600 bg-gray-600 border-gray-500 rounded focus:ring-red-500"
+                    />
+                    <label 
+                      htmlFor="delete-worksheet-confirm"
+                      className="text-sm text-gray-300 cursor-pointer"
+                    >
+                      I understand this action cannot be undone
+                    </label>
+                  </div>
+                  
+                  <div className="flex justify-center">
+                    <button
+                      onClick={() => {
+                        if (deleteConfirmation['worksheet']) {
+                          console.log('DEBUG: Deleting worksheet:', worksheetData);
+                          
+                          // Delete the worksheet using the same logic as in the worksheets view
+                          try {
+                            const existingWorksheets = JSON.parse(localStorage.getItem('qcWorksheets') || '[]');
+                            const updatedWorksheets = existingWorksheets.filter(ws => ws.id !== worksheetData.id);
+                            localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+                            
+                            // Clear the worksheet data and reset form
+                            setWorksheetData(null);
+                            setDeleteConfirmation(prev => ({
+                              ...prev,
+                              worksheet: false
+                            }));
+                            
+                            // Reset custom form
+                            setCustomWorksheetInfo({
+                              title: '',
+                              frequency: 'daily',
+                              machineId: '',
+                              modality: '',
+                              description: ''
+                            });
+                            setCustomTests([
+                              { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '' }
+                            ]);
+                            
+                            // Force UI refresh
+                            setRefreshKey(prev => prev + 1);
+                            window.dispatchEvent(new Event('storage'));
+                            
+                            toast.success(`Worksheet "${worksheetData.title}" deleted successfully!`);
+                            
+                            // Switch to worksheets view
+                            setTimeout(() => {
+                              setViewMode('worksheets');
+                            }, 500);
+                          } catch (error) {
+                            console.error('Error deleting worksheet:', error);
+                            toast.error('Failed to delete worksheet');
+                          }
+                        } else {
+                          toast.error('Please confirm that you understand this action cannot be undone');
+                        }
+                      }}
+                      disabled={!deleteConfirmation['worksheet']}
+                      className={`px-6 py-3 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
+                        deleteConfirmation['worksheet']
+                          ? 'bg-red-600 text-white hover:bg-red-700'
+                          : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <span>🗑️</span>
+                      <span>Delete Worksheet Permanently</span>
+                    </button>
+                  </div>
+                </div>
+              )}
               
             </div>
             

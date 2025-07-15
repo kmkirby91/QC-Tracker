@@ -337,8 +337,142 @@ export const createACRTemplates = () => {
     updatedAt: new Date().toISOString()
   };
   
+  // ================== QUARTERLY DOSE CALIBRATOR QC TEMPLATE ==================
+  const doseCalQuarterlyTemplate = {
+    id: Date.now() + 5,
+    title: 'Dose Calibrator Quarterly QC Protocol',
+    modality: 'Dose Calibrator',
+    frequency: 'quarterly',
+    description: 'Quarterly quality control tests for dose calibrators following NRC and FDA requirements',
+    tests: [
+      {
+        id: 1,
+        testName: 'Linearity Test',
+        testType: 'value',
+        tolerance: '±5%',
+        units: '%',
+        notes: 'Use decay series or shielded sources. Test from 10 μCi to highest setting. Plot activity vs time.',
+        description: 'Verify linearity of response across full range of activities'
+      },
+      {
+        id: 2,
+        testName: 'Accuracy Test',
+        testType: 'value',
+        tolerance: '±5%',
+        units: '%',
+        notes: 'Use NIST-traceable reference sources. Test multiple isotopes (Tc-99m, I-131, F-18).',
+        description: 'Verify accuracy against known reference standards'
+      },
+      {
+        id: 3,
+        testName: 'Precision Test',
+        testType: 'value',
+        tolerance: 'CV ≤5%',
+        units: '%',
+        notes: 'Perform 10 repeated measurements. Calculate coefficient of variation.',
+        description: 'Assess measurement precision and repeatability'
+      },
+      {
+        id: 4,
+        testName: 'Geometry Test',
+        testType: 'value',
+        tolerance: '±5%',
+        units: '%',
+        notes: 'Test various sample volumes and geometries. Document correction factors.',
+        description: 'Verify consistent response for different sample configurations'
+      },
+      {
+        id: 5,
+        testName: 'Background Radiation Check',
+        testType: 'value',
+        tolerance: 'Document',
+        units: 'μCi',
+        notes: 'Measure background with empty chamber. Should be <5 μCi or <1% of measurement.',
+        description: 'Monitor background radiation levels'
+      }
+    ],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  
+  // ================== ANNUAL DOSE CALIBRATOR QC TEMPLATE ==================
+  const doseCalAnnualTemplate = {
+    id: Date.now() + 6,
+    title: 'Dose Calibrator Annual QC Protocol',
+    modality: 'Dose Calibrator',
+    frequency: 'annual',
+    description: 'Annual quality control tests for dose calibrators following NRC regulatory requirements',
+    tests: [
+      {
+        id: 1,
+        testName: 'Comprehensive Linearity Test',
+        testType: 'value',
+        tolerance: '±5%',
+        units: '%',
+        notes: 'Extended linearity test covering full range. Use multiple isotopes and decay series.',
+        description: 'Comprehensive linearity verification across all operating ranges'
+      },
+      {
+        id: 2,
+        testName: 'Accuracy Verification',
+        testType: 'value',
+        tolerance: '±5%',
+        units: '%',
+        notes: 'Use multiple NIST-traceable sources. Test all commonly used isotopes.',
+        description: 'Annual verification of measurement accuracy'
+      },
+      {
+        id: 3,
+        testName: 'Constancy Check',
+        testType: 'value',
+        tolerance: '±5%',
+        units: '%',
+        notes: 'Long-term stability assessment. Compare with historical data.',
+        description: 'Evaluate long-term measurement stability'
+      },
+      {
+        id: 4,
+        testName: 'Voltage Stability Test',
+        testType: 'value',
+        tolerance: '±2%',
+        units: '%',
+        notes: 'Test operating voltage variations. Verify stable operation across range.',
+        description: 'Assess voltage stability and regulation'
+      },
+      {
+        id: 5,
+        testName: 'Environmental Conditions',
+        testType: 'value',
+        tolerance: 'Document',
+        units: '°C, %RH',
+        notes: 'Document temperature and humidity during testing. Verify within specifications.',
+        description: 'Record environmental conditions during QC testing'
+      },
+      {
+        id: 6,
+        testName: 'Calibration Verification',
+        testType: 'passfail',
+        tolerance: 'Pass',
+        units: '',
+        notes: 'Verify calibration settings for all isotopes. Update if necessary.',
+        description: 'Annual verification of all isotope calibration factors'
+      },
+      {
+        id: 7,
+        testName: 'Safety Systems Check',
+        testType: 'passfail',
+        tolerance: 'Pass',
+        units: '',
+        notes: 'Test all safety interlocks, alarms, and emergency procedures.',
+        description: 'Comprehensive safety systems verification'
+      }
+    ],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  
   // Add all templates to array
-  templates.push(ctDailyTemplate, mrDailyTemplate, ctAnnualTemplate, mrAnnualTemplate);
+  templates.push(ctDailyTemplate, mrDailyTemplate, ctAnnualTemplate, mrAnnualTemplate, doseCalQuarterlyTemplate, doseCalAnnualTemplate);
   
   // Save templates to localStorage
   localStorage.setItem('qcModalityTemplates', JSON.stringify(templates));
@@ -348,18 +482,22 @@ export const createACRTemplates = () => {
   console.log('   📅 Daily MR QC (6 tests)');
   console.log('   📊 Annual CT QC (8 tests)');
   console.log('   📊 Annual MR QC (9 tests)');
-  console.log('📋 All templates follow ACR standards');
+  console.log('   📊 Quarterly Dose Calibrator QC (5 tests)');
+  console.log('   📊 Annual Dose Calibrator QC (7 tests)');
+  console.log('📋 All templates follow ACR and NRC standards');
   console.log('🏥 No worksheets assigned - templates ready for use');
   
   return {
-    templatesCreated: 4,
+    templatesCreated: 6,
     worksheetsCreated: 0,
     machinesWithWorksheets: [],
     templates: [
       'ACR CT Daily QC Protocol',
       'ACR MR Daily QC Protocol', 
       'ACR CT Annual QC Protocol',
-      'ACR MR Annual QC Protocol'
+      'ACR MR Annual QC Protocol',
+      'Dose Calibrator Quarterly QC Protocol',
+      'Dose Calibrator Annual QC Protocol'
     ]
   };
 };

@@ -62,6 +62,35 @@ const mockMachines = [
     }
   },
   {
+    machineId: 'DC-ESS-001',
+    name: 'Capintec CRC-15R',
+    type: 'Dose Calibrator',
+    manufacturer: 'Capintec',
+    model: 'CRC-15R',
+    serialNumber: 'SN-DC-2020-001',
+    location: {
+      building: 'Essen',
+      floor: '1',
+      room: 'Hot Lab'
+    },
+    installationDate: '2020-08-15',
+    status: 'operational',
+    lastQC: {
+      date: '2023-10-15',
+      result: 'pass',
+      performedBy: 'Sarah Wilson',
+      notes: 'Quarterly linearity and accuracy tests completed'
+    },
+    nextQCDue: '2024-01-15',
+    qcSchedule: {
+      daily: false,
+      weekly: false,
+      monthly: false,
+      quarterly: true,
+      annual: true
+    }
+  },
+  {
     machineId: 'PET-WOM-001',
     name: 'Philips Vereos PET/CT',
     type: 'PET',

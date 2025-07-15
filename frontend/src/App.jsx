@@ -17,6 +17,7 @@ import OpenFailures from './components/OpenFailures'
 import AddMachine from './components/AddMachine'
 import Worksheets from './components/Worksheets'
 import Locations from './components/Locations'
+import TechDashboard from './components/TechDashboard'
 import QCCalendar from './components/QCCalendar'
 import './App.css'
 
@@ -29,6 +30,7 @@ function NavigationDropdown() {
 
   const navigationItems = [
     { label: 'Dashboard', path: '/', icon: '🏠' },
+    { label: 'Tech Dashboard', path: '/tech-dashboard', icon: '⚙️' },
     { label: 'Machine List', path: '/machines', icon: '🏥' },
     { label: 'Locations', path: '/locations', icon: '🏢' },
     { label: 'Calendar', path: '/calendar', icon: '📅' },
@@ -137,6 +139,7 @@ function App() {
           <main className="container mx-auto px-4 py-6">
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/tech-dashboard" element={<TechDashboard />} />
               <Route path="/machines" element={<MachineList />} />
               <Route path="/machines/add" element={<AddMachine />} />
               <Route path="/locations" element={<Locations />} />
