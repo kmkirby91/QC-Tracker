@@ -3163,7 +3163,13 @@ const Worksheets = () => {
                           frequency: customWorksheetInfo.frequency,
                           tests: [...customTests], // Updated tests
                           assignedMachines: [customWorksheetInfo.machineId], // Update machine assignment
-                          specificMachine: customWorksheetInfo.machineId
+                          specificMachine: customWorksheetInfo.machineId,
+                          // Update template tracking based on current "matched to template" state
+                          isModified: (selectedTemplate && matchedToTemplate) ? true : false,
+                          sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
+                          sourceTemplateName: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
+                          templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null, // Legacy support
+                          templateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null // Legacy support
                         };
                         
                         console.log('DEBUG: Updating worksheet with data:', updatedWorksheetData);
@@ -3201,11 +3207,12 @@ const Worksheets = () => {
                           id: `${Date.now()}-${customWorksheetInfo.machineId}`, // Unique ID with machine
                           createdAt: new Date().toISOString(),
                           updatedAt: new Date().toISOString(),
-                          isModified: selectedTemplate ? true : false,
-                          sourceTemplateId: selectedTemplate ? selectedTemplate.id : null,
-                          sourceTemplateName: selectedTemplate ? selectedTemplate.title : null,
-                          templateSource: selectedTemplate ? selectedTemplate.title : null, // Legacy support
-                          templateId: selectedTemplate ? selectedTemplate.id : null, // Legacy support
+                          // Only include template tracking if "matched to template" is checked
+                          isModified: (selectedTemplate && matchedToTemplate) ? true : false,
+                          sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
+                          sourceTemplateName: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
+                          templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null, // Legacy support
+                          templateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null, // Legacy support
                           isWorksheet: true,
                           assignedMachines: [customWorksheetInfo.machineId], // Only this machine
                           specificMachine: customWorksheetInfo.machineId // Track which machine this is for
