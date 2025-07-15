@@ -577,16 +577,37 @@ const MachineDetail = () => {
                         {frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC
                       </h3>
                       
-                      {worksheets.filter(ws => !ws.needsWorksheet).map(worksheet => (
-                        <div key={worksheet.id} className="mb-2 last:mb-0">
-                          <p className="text-sm text-gray-200">{worksheet.title}</p>
-                          {worksheet.templateSource && (
-                            <p className="text-xs text-gray-400">
-                              📋 Based on: {worksheet.templateSource}
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                      {worksheets.filter(ws => !ws.needsWorksheet).map(worksheet => {
+                        // Find the actual worksheet data to check modification status
+                        const worksheetData = customWorksheets.find(ws => 
+                          ws.modality === machine.type && 
+                          ws.frequency === frequency && 
+                          ws.assignedMachines && 
+                          ws.assignedMachines.includes(machine.machineId) &&
+                          ws.isWorksheet === true
+                        );
+                        
+                        const isModified = worksheetData && (
+                          worksheetData.isModified || 
+                          (worksheetData.modifications && worksheetData.modifications.length > 0) ||
+                          (worksheetData.customizations && worksheetData.customizations.length > 0)
+                        );
+                        
+                        return (
+                          <div key={worksheet.id} className="mb-2 last:mb-0">
+                            <p className="text-sm text-gray-200">{worksheet.title}</p>
+                            {worksheetData && (worksheetData.templateSource || worksheetData.sourceTemplateName) && (
+                              <p className="text-xs text-gray-400">
+                                {isModified ? (
+                                  <span className="text-amber-400">🔧 Modified</span>
+                                ) : (
+                                  <span className="text-green-400">✓ Unmodified</span>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                     
                     <div className="flex space-x-2 ml-4">
