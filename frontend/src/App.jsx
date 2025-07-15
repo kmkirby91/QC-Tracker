@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import axios from 'axios'
-import { checkAndInitializeSampleData, forceInitializeSampleData } from './utils/sampleWorksheets'
+import { checkAndInitializeSampleData, forceInitializeACRTemplates } from './utils/sampleWorksheets'
 import { checkSomatumForceStatus, quickFixSomatumForce } from './utils/diagnostics'
 import MachineCard from './components/MachineCard'
 import StatusSummary from './components/StatusSummary'
@@ -35,12 +35,10 @@ function NavigationDropdown() {
   ]
 
   const handleReloadSampleData = () => {
-    // Clear existing data and force reload sample data
-    localStorage.removeItem('qcWorksheets')
-    localStorage.removeItem('qcModalityTemplates')
-    const result = forceInitializeSampleData()
+    // Clear existing data and create ACR-standard templates
+    const result = forceInitializeACRTemplates()
     if (result) {
-      alert(`Sample data reloaded! SOMATOM Force CT now has daily QC worksheet assigned.\n\nCreated: ${result.templatesCreated} template(s)\nWorksheets: ${result.worksheetsCreated} worksheet(s)\nAssigned to: ${result.machinesWithWorksheets.join(', ')}`)
+      alert(`ACR-Standard QC Templates Created!\n\n✅ All existing QC data cleared\n📋 Templates Created: ${result.templatesCreated}\n🏥 Worksheets Created: ${result.worksheetsCreated}\n\nTemplates ready for assignment:\n• ${result.templates.join('\n• ')}\n\nNo worksheets assigned - templates are ready for use!`)
       window.location.reload() // Refresh to show updated data
     }
   }
@@ -96,10 +94,10 @@ function NavigationDropdown() {
                 setIsOpen(false)
               }}
               className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors flex items-center space-x-2 text-gray-400"
-              title="Reset to sample data: SOMATOM Force CT with daily QC only"
+              title="Clear all QC data and create ACR-standard templates"
             >
               <span>🔄</span>
-              <span>Reset Sample Data</span>
+              <span>Load ACR Templates</span>
             </button>
           </div>
         </div>
