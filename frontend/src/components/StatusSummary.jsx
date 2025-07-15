@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import PostItNote from './PostItNote';
 
 const StatusSummary = ({ machines }) => {
   const [openFailures, setOpenFailures] = useState([]);
@@ -86,18 +87,7 @@ const StatusSummary = ({ machines }) => {
         </div>
       </div>
 
-      <div className="bg-gray-800 rounded-lg shadow-lg p-6">
-        <h3 className="text-sm font-medium text-gray-400 mb-2">Total Machines</h3>
-        <p className="text-3xl font-bold text-gray-100">{machines.length}</p>
-        <div className="mt-3 text-xs space-y-1">
-          {Object.entries(typeCounts).map(([type, count]) => (
-            <div key={type} className="flex justify-between">
-              <span className="text-gray-400">{type}:</span>
-              <span className="font-medium text-gray-100">{count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <PostItNote />
 
       <div className="bg-gray-800 rounded-lg shadow-lg p-6">
         <h3 className="text-sm font-medium text-gray-400 mb-2">QC Schedule</h3>

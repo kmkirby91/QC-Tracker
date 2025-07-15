@@ -41,6 +41,7 @@ const Worksheets = () => {
   const [templateMode, setTemplateMode] = useState('manage'); // 'manage'
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [selectedTemplateForGeneration, setSelectedTemplateForGeneration] = useState('');
+  const [templateJustLoaded, setTemplateJustLoaded] = useState(false);
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
   const [expandedMachines, setExpandedMachines] = useState(new Set());
   const [modalityTemplateInfo, setModalityTemplateInfo] = useState({
@@ -58,6 +59,8 @@ const Worksheets = () => {
   const [overviewFilterLocation, setOverviewFilterLocation] = useState('');
   const [overviewFilterModality, setOverviewFilterModality] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState({});
+  const [realTimeModifications, setRealTimeModifications] = useState([]);
+  const [hasRealTimeModifications, setHasRealTimeModifications] = useState(false);
 
   const frequencies = [
     { value: 'daily', label: 'Daily QC', icon: '📅' },
@@ -88,6 +91,58 @@ const Worksheets = () => {
     }
     initializeSampleTemplates();
   }, []);
+
+  // Real-time modification detection
+  useEffect(() => {
+    console.log('DEBUG: Real-time detection useEffect triggered', {
+      hasSelectedTemplate: !!selectedTemplate,
+      templateJustLoaded: templateJustLoaded,
+      customTestsLength: customTests.length,
+      templateTestsLength: selectedTemplate?.tests?.length || 0,
+      customTitle: customWorksheetInfo.title,
+      templateTitle: selectedTemplate?.title,
+      customDescription: customWorksheetInfo.description,
+      templateDescription: selectedTemplate?.description
+    });
+
+    if (selectedTemplate) {
+      // Calculate modifications based on current form state
+      const titleChanged = customWorksheetInfo.title !== selectedTemplate.title;
+      const descriptionChanged = (customWorksheetInfo.description || '').trim() !== (selectedTemplate.description || '').trim();
+      const modifications = calculateModifications(selectedTemplate, customTests.filter(test => test.testName.trim() !== ''));
+      
+      // Add title and description changes to modifications
+      const allModifications = [...modifications];
+      if (titleChanged) {
+        allModifications.unshift(`Title changed from "${selectedTemplate.title}" to "${customWorksheetInfo.title}"`);
+      }
+      if (descriptionChanged) {
+        allModifications.unshift('Description modified');
+      }
+      
+      // If there are any modifications and template was just loaded, clear the just loaded flag
+      if (allModifications.length > 0 && templateJustLoaded) {
+        console.log('DEBUG: User made changes, clearing templateJustLoaded flag');
+        setTemplateJustLoaded(false);
+      }
+      
+      // Only show modifications if template wasn't just loaded OR if user has made changes
+      if (!templateJustLoaded || allModifications.length > 0) {
+        setRealTimeModifications(allModifications);
+        setHasRealTimeModifications(allModifications.length > 0);
+        console.log('DEBUG: Setting real-time modifications:', allModifications);
+      } else {
+        setRealTimeModifications([]);
+        setHasRealTimeModifications(false);
+        console.log('DEBUG: Template just loaded, not showing modifications yet');
+      }
+    } else {
+      // Clear modifications if no template selected
+      setRealTimeModifications([]);
+      setHasRealTimeModifications(false);
+      console.log('DEBUG: No template selected, clearing modifications');
+    }
+  }, [selectedTemplate, templateJustLoaded, customWorksheetInfo.title, customWorksheetInfo.description, customTests]);
 
   useEffect(() => {
     // Handle URL parameters for editing
@@ -333,17 +388,23 @@ const Worksheets = () => {
 
   const removeCustomTest = (id) => {
     if (customTests.length > 1) {
-      setCustomTests(customTests.filter(test => test.id !== id));
+      console.log('DEBUG: Removing test with id:', id, 'from', customTests.length, 'tests');
+      const newTests = customTests.filter(test => test.id !== id);
+      setCustomTests(newTests);
+      console.log('DEBUG: Tests after removal:', newTests.length);
     }
   };
 
   const updateCustomTest = (id, field, value) => {
-    setCustomTests(customTests.map(test => 
+    console.log('DEBUG: Updating test', id, 'field', field, 'to value:', value);
+    const newTests = customTests.map(test => 
       test.id === id ? { ...test, [field]: value } : test
-    ));
+    );
+    setCustomTests(newTests);
   };
 
   const updateCustomWorksheetInfo = (field, value) => {
+    console.log('DEBUG: Updating worksheet info', field, 'to:', value);
     setCustomWorksheetInfo(prev => ({ ...prev, [field]: value }));
   };
 
@@ -508,39 +569,85 @@ const Worksheets = () => {
       return modifications;
     }
     
-    // Check for added tests
-    const baseTestNames = baseTemplate.tests.map(t => t.testName);
-    const customTestNames = customTests.map(t => t.testName);
+    const baseTests = baseTemplate.tests;
+    const filteredCustomTests = customTests.filter(test => test.testName.trim() !== '');
     
-    const addedTests = customTests.filter(t => !baseTestNames.includes(t.testName));
-    const removedTests = baseTemplate.tests.filter(t => !customTestNames.includes(t.testName));
-    
-    if (addedTests.length > 0) {
-      modifications.push(`Added ${addedTests.length} test(s): ${addedTests.map(t => t.testName).join(', ')}`);
-    }
-    
-    if (removedTests.length > 0) {
-      modifications.push(`Removed ${removedTests.length} test(s): ${removedTests.map(t => t.testName).join(', ')}`);
-    }
-    
-    // Check for modified tests
+    // First pass: Compare by position for modified tests (most common case)
     const modifiedTests = [];
-    customTests.forEach(customTest => {
-      const baseTest = baseTemplate.tests.find(t => t.testName === customTest.testName);
-      if (baseTest) {
+    const usedCustomIndices = new Set();
+    const usedBaseIndices = new Set();
+    
+    // Compare tests by position first (handles field modifications better)
+    const maxLength = Math.max(baseTests.length, filteredCustomTests.length);
+    for (let i = 0; i < Math.min(baseTests.length, filteredCustomTests.length); i++) {
+      const baseTest = baseTests[i];
+      const customTest = filteredCustomTests[i];
+      
+      if (baseTest && customTest) {
         const changes = [];
-        if (baseTest.tolerance !== customTest.tolerance) changes.push('tolerance');
-        if (baseTest.units !== customTest.units) changes.push('units');
-        if (baseTest.notes !== customTest.notes) changes.push('notes');
+        
+        // Normalize strings for comparison
+        const normalizeString = (str) => (str || '').trim();
+        
+        // Check each field for changes
+        if (normalizeString(baseTest.testName) !== normalizeString(customTest.testName)) {
+          changes.push(`name: "${baseTest.testName}" → "${customTest.testName}"`);
+        }
+        if (normalizeString(baseTest.testType) !== normalizeString(customTest.testType)) {
+          changes.push(`type: "${baseTest.testType}" → "${customTest.testType}"`);
+        }
+        if (normalizeString(baseTest.tolerance) !== normalizeString(customTest.tolerance)) {
+          changes.push(`tolerance: "${baseTest.tolerance}" → "${customTest.tolerance}"`);
+        }
+        if (normalizeString(baseTest.units) !== normalizeString(customTest.units)) {
+          changes.push(`units: "${baseTest.units}" → "${customTest.units}"`);
+        }
+        if (normalizeString(baseTest.notes) !== normalizeString(customTest.notes)) {
+          changes.push(`notes: "${baseTest.notes}" → "${customTest.notes}"`);
+        }
+        if (normalizeString(baseTest.description) !== normalizeString(customTest.description)) {
+          changes.push(`description: "${baseTest.description}" → "${customTest.description}"`);
+        }
         
         if (changes.length > 0) {
-          modifiedTests.push(`${customTest.testName} (${changes.join(', ')})`);
+          const originalName = baseTest.testName || `Test ${i + 1}`;
+          modifiedTests.push({
+            position: i + 1,
+            originalName: originalName,
+            changes: changes
+          });
         }
+        
+        usedCustomIndices.add(i);
+        usedBaseIndices.add(i);
       }
-    });
+    }
     
+    // Add modification details
     if (modifiedTests.length > 0) {
-      modifications.push(`Modified tests: ${modifiedTests.join(', ')}`);
+      modifiedTests.forEach(mod => {
+        if (mod.changes.length <= 2) {
+          // Show specific changes for 1-2 changes
+          modifications.push(`Test ${mod.position} (${mod.originalName}): ${mod.changes.join(', ')}`);
+        } else {
+          // Summarize if many changes
+          modifications.push(`Test ${mod.position} (${mod.originalName}): ${mod.changes.length} fields changed`);
+        }
+      });
+    }
+    
+    // Check for removed tests (tests that were in template but not in current)
+    if (filteredCustomTests.length < baseTests.length) {
+      const removedCount = baseTests.length - filteredCustomTests.length;
+      const removedTestNames = baseTests.slice(filteredCustomTests.length).map(t => t.testName || 'Unnamed').join(', ');
+      modifications.push(`Removed ${removedCount} test(s): ${removedTestNames}`);
+    }
+    
+    // Check for added tests (more tests than original template)
+    if (filteredCustomTests.length > baseTests.length) {
+      const addedCount = filteredCustomTests.length - baseTests.length;
+      const addedTestNames = filteredCustomTests.slice(baseTests.length).map(t => t.testName || 'Unnamed').join(', ');
+      modifications.push(`Added ${addedCount} test(s): ${addedTestNames}`);
     }
     
     return modifications;
@@ -548,8 +655,70 @@ const Worksheets = () => {
 
   const saveWorksheet = (worksheetData) => {
     const worksheets = getWorksheets();
+    
+    console.log('DEBUG: saveWorksheet called with:', {
+      worksheetData: worksheetData,
+      selectedTemplate: selectedTemplate,
+      hasSelectedTemplate: !!selectedTemplate,
+      sourceTemplateId: worksheetData.sourceTemplateId
+    });
+    
+    // If created from template, detect and track modifications
+    let modifications = [];
+    let isModified = false;
+    
+    if (selectedTemplate) {
+      console.log('DEBUG: Processing template modification detection', {
+        templateJustLoaded: templateJustLoaded,
+        hasRealTimeModifications: hasRealTimeModifications,
+        realTimeModifications: realTimeModifications
+      });
+      
+      // If template was just loaded and hasn't been modified, don't flag as modified
+      if (templateJustLoaded) {
+        console.log('DEBUG: Template just loaded, skipping modification detection');
+        modifications = [];
+        isModified = false;
+        // Clear the flag so future saves will detect modifications
+        setTemplateJustLoaded(false);
+      } else if (hasRealTimeModifications && realTimeModifications.length > 0) {
+        // Use real-time modifications if available (they're more accurate)
+        console.log('DEBUG: Using real-time modifications');
+        modifications = realTimeModifications;
+        isModified = true;
+      } else {
+        // Fallback to calculating modifications
+        console.log('DEBUG: Calculating modifications as fallback');
+        const originalTemplate = selectedTemplate;
+        
+        // Create worksheet data for comparison that matches the template structure
+        const cleanWorksheetData = {
+          title: worksheetData.title,
+          description: worksheetData.description,
+          modality: worksheetData.modality,
+          frequency: worksheetData.frequency,
+          tests: worksheetData.tests || []
+        };
+        
+        const modificationResult = detectTemplateModifications(cleanWorksheetData, originalTemplate);
+        modifications = modificationResult.modifications;
+        isModified = modificationResult.isModified;
+      }
+      
+      console.log('DEBUG: Final modification status:', { isModified, modifications });
+      
+      // Ensure we have proper template tracking metadata
+      worksheetData.sourceTemplateId = selectedTemplate.id;
+      worksheetData.sourceTemplateName = selectedTemplate.title;
+    } else {
+      console.log('DEBUG: No template detected for modification tracking', {
+        hasSelectedTemplate: !!selectedTemplate,
+        hasSourceTemplateId: !!worksheetData.sourceTemplateId
+      });
+    }
+    
     const newWorksheet = {
-      id: Date.now(),
+      id: worksheetData.id || Date.now(),
       title: worksheetData.title,
       description: worksheetData.description,
       modality: worksheetData.modality,
@@ -562,10 +731,12 @@ const Worksheets = () => {
       templateSource: worksheetData.templateSource || worksheetData.sourceTemplateName || null,
       templateId: worksheetData.templateId || worksheetData.sourceTemplateId || null,
       baseTemplate: worksheetData.baseTemplate || null,
-      modifications: worksheetData.modifications || [],
+      modifications: modifications,
+      isModified: isModified,
       createdAt: worksheetData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      assignedMachines: worksheetData.assignedMachines || [] // Array of machine IDs this worksheet is assigned to
+      assignedMachines: worksheetData.assignedMachines || [], // Array of machine IDs this worksheet is assigned to
+      specificMachine: worksheetData.specificMachine || null // Track specific machine assignment
     };
     
     // Always add new worksheet
@@ -573,6 +744,197 @@ const Worksheets = () => {
     
     localStorage.setItem('qcWorksheets', JSON.stringify(worksheets));
     return newWorksheet;
+  };
+
+  // Shared function to detect modifications between worksheet and template
+  const detectTemplateModifications = (worksheetData, originalTemplate) => {
+    const detectedChanges = [];
+    
+    console.log('DEBUG: Comparing worksheet with template:', {
+      originalTitle: originalTemplate.title,
+      currentTitle: worksheetData.title,
+      originalDescription: originalTemplate.description,
+      currentDescription: worksheetData.description,
+      templateJustLoaded: templateJustLoaded
+    });
+    
+    // If template was just loaded, don't detect any modifications
+    if (templateJustLoaded) {
+      console.log('DEBUG: Template just loaded flag is true, returning no modifications');
+      return {
+        modifications: [],
+        isModified: false
+      };
+    }
+    
+    // Normalize strings for comparison (trim and handle null/undefined)
+    const normalizeString = (str) => (str || '').trim();
+    
+    // Check title changes - only flag if user actually changed the title
+    // Templates loaded should keep same title unless user explicitly modifies it
+    const originalTitle = normalizeString(originalTemplate.title);
+    const currentTitle = normalizeString(worksheetData.title);
+    
+    // Only consider it changed if titles are meaningfully different
+    // (not just whitespace or empty vs null differences)
+    if (originalTitle && currentTitle && originalTitle !== currentTitle) {
+      // Remove machine name suffix pattern to compare base title
+      const baseCurrentTitle = currentTitle.replace(/ - [^-]+$/, '').trim();
+      if (baseCurrentTitle !== originalTitle) {
+        detectedChanges.push(`Title changed from "${originalTitle}" to "${baseCurrentTitle}"`);
+      }
+    }
+    
+    // Check description changes - only if meaningfully different
+    const originalDesc = normalizeString(originalTemplate.description);
+    const currentDesc = normalizeString(worksheetData.description);
+    
+    // Only flag if there's actual content difference (not empty to empty)
+    if (originalDesc !== currentDesc && (originalDesc || currentDesc)) {
+      detectedChanges.push(`Description modified`);
+    }
+    
+    // Check test count changes
+    const originalTests = originalTemplate.tests || [];
+    const currentTests = worksheetData.tests || [];
+    
+    if (currentTests.length !== originalTests.length) {
+      if (currentTests.length > originalTests.length) {
+        detectedChanges.push(`Added ${currentTests.length - originalTests.length} test(s)`);
+      } else {
+        detectedChanges.push(`Removed ${originalTests.length - currentTests.length} test(s)`);
+      }
+    }
+    
+    // Comprehensive test content comparison - only for meaningful changes
+    const testModifications = [];
+    
+    // Compare tests by position (only if same count to avoid false positives)
+    if (originalTests.length === currentTests.length) {
+      originalTests.forEach((originalTest, index) => {
+        const currentTest = currentTests[index];
+        if (currentTest && originalTest) {
+          const changes = [];
+          
+          // Compare all significant test properties with normalization
+          if (normalizeString(currentTest.testName) !== normalizeString(originalTest.testName)) {
+            changes.push('name');
+          }
+          if (normalizeString(currentTest.testType) !== normalizeString(originalTest.testType)) {
+            changes.push('type');
+          }
+          if (normalizeString(currentTest.tolerance) !== normalizeString(originalTest.tolerance)) {
+            changes.push('tolerance');
+          }
+          if (normalizeString(currentTest.units) !== normalizeString(originalTest.units)) {
+            changes.push('units');
+          }
+          if (normalizeString(currentTest.notes) !== normalizeString(originalTest.notes)) {
+            changes.push('notes');
+          }
+          if (normalizeString(currentTest.description) !== normalizeString(originalTest.description)) {
+            changes.push('description');
+          }
+          
+          if (changes.length > 0) {
+            testModifications.push(`Test ${index + 1} (${originalTest.testName || 'Unnamed'}): ${changes.join(', ')} modified`);
+          }
+        }
+      });
+    }
+    
+    // Add test modification details
+    if (testModifications.length > 0) {
+      if (testModifications.length <= 3) {
+        // Show all modifications if 3 or fewer
+        detectedChanges.push(...testModifications);
+      } else {
+        // Summarize if more than 3
+        detectedChanges.push(`${testModifications.length} test(s) modified`);
+      }
+    }
+    
+    // Check for new tests beyond original count
+    if (currentTests.length > originalTests.length) {
+      const newTests = currentTests.slice(originalTests.length);
+      newTests.forEach((test, index) => {
+        const testName = normalizeString(test.testName);
+        if (testName) { // Only add if test has actual content
+          detectedChanges.push(`Added new test: ${testName}`);
+        }
+      });
+    }
+    
+    console.log('DEBUG: Detected changes after filtering:', detectedChanges);
+    
+    return {
+      modifications: detectedChanges,
+      isModified: detectedChanges.length > 0
+    };
+  };
+
+  const updateWorksheet = (worksheetData) => {
+    const worksheets = getWorksheets();
+    const existingIndex = worksheets.findIndex(w => w.id === worksheetData.id);
+    
+    if (existingIndex === -1) {
+      console.error('Worksheet not found for update:', worksheetData.id);
+      return null;
+    }
+    
+    // Preserve original template tracking and creation date
+    const existingWorksheet = worksheets[existingIndex];
+    
+    // If this worksheet was created from a template, re-detect modifications
+    let modifications = existingWorksheet.modifications || [];
+    let isModified = existingWorksheet.isModified || false;
+    
+    if (existingWorksheet.sourceTemplateId) {
+      // Try to find the original template to compare against
+      const templates = getModalityTemplates();
+      const originalTemplate = templates.find(t => t.id === existingWorksheet.sourceTemplateId);
+      
+      if (originalTemplate) {
+        console.log('DEBUG: Re-detecting modifications for updated worksheet');
+        const modificationResult = detectTemplateModifications(worksheetData, originalTemplate);
+        modifications = modificationResult.modifications;
+        isModified = modificationResult.isModified;
+      } else {
+        console.log('DEBUG: Original template not found, keeping existing modification status');
+        // Template not found, assume modified if any edits were made
+        isModified = true;
+        if (modifications.length === 0) {
+          modifications = ['Template source no longer available - worksheet has been edited'];
+        }
+      }
+    }
+    
+    // Update the worksheet with new data while preserving key metadata
+    const updatedWorksheet = {
+      ...existingWorksheet, // Preserve original data
+      title: worksheetData.title,
+      description: worksheetData.description,
+      modality: worksheetData.modality,
+      frequency: worksheetData.frequency,
+      tests: worksheetData.tests,
+      assignedMachines: worksheetData.assignedMachines || existingWorksheet.assignedMachines || [],
+      specificMachine: worksheetData.specificMachine || existingWorksheet.specificMachine,
+      updatedAt: new Date().toISOString(),
+      // Keep original template tracking
+      sourceTemplateId: existingWorksheet.sourceTemplateId,
+      sourceTemplateName: existingWorksheet.sourceTemplateName,
+      templateSource: existingWorksheet.templateSource,
+      templateId: existingWorksheet.templateId,
+      // Update modification tracking
+      isModified: isModified,
+      modifications: modifications
+    };
+    
+    // Replace the worksheet in the array
+    worksheets[existingIndex] = updatedWorksheet;
+    
+    localStorage.setItem('qcWorksheets', JSON.stringify(worksheets));
+    return updatedWorksheet;
   };
 
   const getWorksheets = () => {
@@ -583,6 +945,78 @@ const Worksheets = () => {
       console.error('Error loading worksheets:', error);
       return [];
     }
+  };
+
+  // Function to retroactively match worksheets to templates
+  const clearAllModificationFlags = () => {
+    const worksheets = getWorksheets();
+    console.log('DEBUG: Clearing modification flags for all worksheets');
+    
+    const updatedWorksheets = worksheets.map(worksheet => ({
+      ...worksheet,
+      isModified: false,
+      modifications: []
+    }));
+    
+    localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+    console.log('DEBUG: Cleared modification flags for', updatedWorksheets.length, 'worksheets');
+    toast.success('Cleared all modification flags');
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const fixWorksheetTemplateTracking = () => {
+    const worksheets = getWorksheets();
+    const templates = getModalityTemplates();
+    let updatedCount = 0;
+
+    console.log('DEBUG: Fixing worksheet template tracking...');
+    console.log('DEBUG: Found worksheets:', worksheets.length);
+    console.log('DEBUG: Found templates:', templates.length);
+
+    const updatedWorksheets = worksheets.map(worksheet => {
+      // Skip if already has template tracking
+      if (worksheet.sourceTemplateId || worksheet.sourceTemplateName) {
+        console.log(`DEBUG: Worksheet "${worksheet.title}" already has template tracking`);
+        return worksheet;
+      }
+
+      // Try to match worksheet to a template based on modality and frequency
+      const matchingTemplate = templates.find(template => 
+        template.modality === worksheet.modality && 
+        template.frequency === worksheet.frequency
+      );
+
+      if (matchingTemplate) {
+        console.log(`DEBUG: Found matching template for "${worksheet.title}":`, matchingTemplate.title);
+        updatedCount++;
+        
+        return {
+          ...worksheet,
+          sourceTemplateId: matchingTemplate.id,
+          sourceTemplateName: matchingTemplate.title,
+          templateSource: matchingTemplate.title, // Legacy support
+          templateId: matchingTemplate.id, // Legacy support
+          isModified: false, // Assume unmodified unless we detect changes
+          modifications: []
+        };
+      } else {
+        console.log(`DEBUG: No matching template found for "${worksheet.title}" (${worksheet.modality} ${worksheet.frequency})`);
+        return worksheet;
+      }
+    });
+
+    if (updatedCount > 0) {
+      localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+      console.log(`DEBUG: Updated ${updatedCount} worksheets with template tracking`);
+      toast.success(`Fixed template tracking for ${updatedCount} worksheet(s)`);
+      setRefreshKey(prev => prev + 1);
+      window.dispatchEvent(new Event('storage'));
+    } else {
+      console.log('DEBUG: No worksheets needed template tracking updates');
+      toast.info('All worksheets already have proper template tracking');
+    }
+
+    return updatedCount;
   };
 
   const deleteWorksheet = (worksheetId) => {
@@ -805,18 +1239,27 @@ const Worksheets = () => {
   const editCustomWorksheet = (worksheet) => {
     console.log('editCustomWorksheet called with worksheet:', worksheet);
     
-    // Load worksheet data into the custom worksheet form
+    // Load worksheet data into the custom worksheet form for editing
     setCustomWorksheetInfo({
       title: worksheet.title,
       frequency: worksheet.frequency,
-      machineId: '',
+      machineId: worksheet.assignedMachines && worksheet.assignedMachines.length > 0 ? worksheet.assignedMachines[0] : '',
       modality: worksheet.modality,
       description: worksheet.description || ''
     });
+    
+    // Load the tests from the worksheet
     setCustomTests(worksheet.tests || []);
-    setWorksheetData(null);
-    setSelectedTemplate(worksheet); // Set as selected to enable editing
+    
+    // Set the worksheet data for editing (NOT template)
+    setWorksheetData(worksheet);
+    
+    // Clear template selection since we're editing a worksheet, not a template
+    setSelectedTemplate(null);
+    
+    // Set to custom mode for editing
     setViewMode('custom');
+    
     toast.success(`Editing worksheet: ${worksheet.title}`);
   };
 
@@ -870,6 +1313,8 @@ const Worksheets = () => {
   };
 
   const createWorksheetFromTemplate = (template) => {
+    console.log('DEBUG: createWorksheetFromTemplate called with:', template.title);
+    
     // Load template data into custom worksheet form
     setCustomWorksheetInfo({
       title: template.title,
@@ -883,6 +1328,13 @@ const Worksheets = () => {
       id: test.id || Date.now() + Math.random()
     })));
     setSelectedTemplate(template);
+    setTemplateJustLoaded(true); // Flag that template was just loaded
+    
+    // Clear real-time modifications since template was just loaded
+    setRealTimeModifications([]);
+    setHasRealTimeModifications(false);
+    
+    console.log('DEBUG: Set templateJustLoaded to true, selectedTemplate:', template.title);
     
     // Switch to custom worksheet tab with template loaded
     setViewMode('custom');
@@ -903,6 +1355,11 @@ const Worksheets = () => {
     setSelectedTemplate(null);
     setSelectedTemplateForGeneration('');
     setIsCreatingTemplate(false);
+    setTemplateJustLoaded(false);
+    
+    // Clear real-time modifications
+    setRealTimeModifications([]);
+    setHasRealTimeModifications(false);
   };
 
   const deleteTemplate = (templateId) => {
@@ -1037,21 +1494,58 @@ const Worksheets = () => {
             <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3 mb-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-red-300">DEBUG: Assignment Issues</span>
-                <button
-                  onClick={() => {
-                    const worksheets = getWorksheets();
-                    console.log('DEBUG: Current localStorage worksheets:', worksheets);
-                    console.log('DEBUG: Total worksheets:', worksheets.length);
-                    worksheets.forEach(w => {
-                      console.log(`Worksheet: ${w.title} (${w.modality}, ${w.frequency}) -> Assigned to:`, w.assignedMachines, 'SpecificMachine:', w.specificMachine);
-                    });
-                    setRefreshKey(prev => prev + 1);
-                    toast.info('Check console for worksheet data');
-                  }}
-                  className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-                >
-                  Debug Worksheets
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const worksheets = getWorksheets();
+                      console.log('DEBUG: Current localStorage worksheets:', worksheets);
+                      console.log('DEBUG: Total worksheets:', worksheets.length);
+                      worksheets.forEach(w => {
+                        console.log(`Worksheet: ${w.title} (${w.modality}, ${w.frequency}) -> Assigned to:`, w.assignedMachines, 'SpecificMachine:', w.specificMachine);
+                      });
+                      setRefreshKey(prev => prev + 1);
+                      toast.info('Check console for worksheet data');
+                    }}
+                    className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                  >
+                    Debug Worksheets
+                  </button>
+                  <button
+                    onClick={() => {
+                      const worksheets = getWorksheets();
+                      console.log('DEBUG: Template tracking analysis');
+                      console.log('DEBUG: Total worksheets:', worksheets.length);
+                      worksheets.forEach(w => {
+                        console.log(`Template: ${w.title}`);
+                        console.log(`  - Template ID: ${w.templateId || 'MISSING'}`);
+                        console.log(`  - Template Source: ${w.templateSource || 'MISSING'}`);
+                        console.log(`  - Is Template: ${w.isTemplate || false}`);
+                        console.log(`  - Created From: ${w.createdFromTemplate || 'N/A'}`);
+                        console.log(`  - Modality: ${w.modality}, Frequency: ${w.frequency}`);
+                      });
+                      toast.info('Check console for template tracking data');
+                    }}
+                    className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700"
+                  >
+                    Debug Templates
+                  </button>
+                  <button
+                    onClick={() => {
+                      fixWorksheetTemplateTracking();
+                    }}
+                    className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                  >
+                    Fix Template Tracking
+                  </button>
+                  <button
+                    onClick={() => {
+                      clearAllModificationFlags();
+                    }}
+                    className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                  >
+                    Clear Modification Flags
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -1393,7 +1887,13 @@ const Worksheets = () => {
                               </div>
                             </div>
                             
-                            <div className="flex justify-center">
+                            <div className="flex justify-center space-x-2">
+                              <button
+                                onClick={() => createWorksheetFromTemplate(template)}
+                                className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+                              >
+                                📝 Create Worksheet
+                              </button>
                               <button
                                 onClick={() => loadTemplateForEditing(template)}
                                 className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
@@ -1782,32 +2282,6 @@ const Worksheets = () => {
                               {/* Show individual worksheets */}
                               {frequencyWorksheets.map((worksheet) => (
                                 <div key={worksheet.id} className="bg-gray-900 rounded-lg p-4 border-l-4 border-blue-500">
-                                  {/* Template Source Header */}
-                                  {worksheet.templateSource && (
-                                    <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-2 mb-3">
-                                      <div className="text-xs text-blue-300 font-medium mb-1">
-                                        📋 Based on: {worksheet.templateSource}
-                                      </div>
-                                      {worksheet.modifications && worksheet.modifications.length > 0 ? (
-                                        <div className="text-xs text-amber-300">
-                                          <div className="font-medium mb-1">🔧 Modified:</div>
-                                          <ul className="list-disc list-inside space-y-1">
-                                            {worksheet.modifications.slice(0, 2).map((mod, modIndex) => (
-                                              <li key={modIndex} className="text-amber-200">{mod}</li>
-                                            ))}
-                                            {worksheet.modifications.length > 2 && (
-                                              <li className="text-amber-300">... and {worksheet.modifications.length - 2} more</li>
-                                            )}
-                                          </ul>
-                                        </div>
-                                      ) : (
-                                        <div className="text-xs text-green-300">
-                                          ✓ Unmodified from template
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  
                                   <div className="flex items-center justify-between mb-3">
                                     <h5 className="font-medium text-gray-100 text-sm">
                                       {worksheet.title}
@@ -1816,6 +2290,53 @@ const Worksheets = () => {
                                       Worksheet
                                     </span>
                                   </div>
+                                  
+                                  {/* Template Source Info - Moved below title */}
+                                  {(worksheet.templateSource || worksheet.sourceTemplateName) && (
+                                    <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-2 mb-3">
+                                      <div className="text-xs text-blue-300 font-medium mb-1">
+                                        📋 Based on: {worksheet.sourceTemplateName || worksheet.templateSource}
+                                      </div>
+                                      {(() => {
+                                        // Check if worksheet has been modified from template
+                                        const isModified = worksheet.isModified || 
+                                                         (worksheet.modifications && worksheet.modifications.length > 0) ||
+                                                         (worksheet.customizations && worksheet.customizations.length > 0);
+                                        
+                                        if (isModified) {
+                                          const modifications = worksheet.modifications || worksheet.customizations || [];
+                                          return (
+                                            <div className="text-xs text-amber-300">
+                                              <div className="font-medium mb-1 flex items-center">
+                                                <span className="mr-1">🔧</span>
+                                                <span>Modified from template</span>
+                                                <span className="ml-1 px-1 py-0.5 bg-amber-800/50 rounded text-amber-200">
+                                                  {modifications.length > 0 ? `${modifications.length} changes` : 'customized'}
+                                                </span>
+                                              </div>
+                                              {modifications.length > 0 && (
+                                                <ul className="list-disc list-inside space-y-1 mt-1">
+                                                  {modifications.slice(0, 2).map((mod, modIndex) => (
+                                                    <li key={modIndex} className="text-amber-200">{mod}</li>
+                                                  ))}
+                                                  {modifications.length > 2 && (
+                                                    <li className="text-amber-300">... and {modifications.length - 2} more changes</li>
+                                                  )}
+                                                </ul>
+                                              )}
+                                            </div>
+                                          );
+                                        } else {
+                                          return (
+                                            <div className="text-xs text-green-300 flex items-center">
+                                              <span className="mr-1">✓</span>
+                                              <span>Unmodified from template</span>
+                                            </div>
+                                          );
+                                        }
+                                      })()}
+                                    </div>
+                                  )}
                                   
                                   <div className="space-y-2 mb-4">
                                     <div className="text-xs text-gray-300">
@@ -2035,6 +2556,45 @@ const Worksheets = () => {
                             </span>
                           </div>
                           
+                          {/* Template Source Info - Moved below title */}
+                          {(worksheet.templateSource || worksheet.sourceTemplateName) && (
+                            <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-2 mb-3">
+                              <div className="text-xs text-blue-300 font-medium mb-1">
+                                📋 Based on: {worksheet.sourceTemplateName || worksheet.templateSource}
+                              </div>
+                              {(() => {
+                                // Check if worksheet has been modified from template
+                                const isModified = worksheet.isModified || 
+                                                 (worksheet.modifications && worksheet.modifications.length > 0) ||
+                                                 (worksheet.customizations && worksheet.customizations.length > 0);
+                                
+                                if (isModified) {
+                                  const modifications = worksheet.modifications || worksheet.customizations || [];
+                                  return (
+                                    <div className="text-xs text-amber-300">
+                                      <div className="font-medium flex items-center">
+                                        <span className="mr-1">🔧</span>
+                                        <span>Modified from template</span>
+                                        {modifications.length > 0 && (
+                                          <span className="ml-1 px-1 py-0.5 bg-amber-800/50 rounded text-amber-200">
+                                            {modifications.length} changes
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                } else {
+                                  return (
+                                    <div className="text-xs text-green-300 flex items-center">
+                                      <span className="mr-1">✓</span>
+                                      <span>Unmodified from template</span>
+                                    </div>
+                                  );
+                                }
+                              })()}
+                            </div>
+                          )}
+                          
                           <div className="space-y-2 mb-4">
                             <div className="text-xs text-gray-300">
                               <strong>Modality:</strong> {modality?.icon} {worksheet.modality}
@@ -2179,6 +2739,17 @@ const Worksheets = () => {
                           ...test,
                           id: test.id || Date.now() + Math.random()
                         })));
+                        
+                        // IMPORTANT: Set selectedTemplate for proper template tracking
+                        setSelectedTemplate(template);
+                        setTemplateJustLoaded(true); // Flag that template was just loaded
+                        
+                        // Clear real-time modifications since template was just loaded
+                        setRealTimeModifications([]);
+                        setHasRealTimeModifications(false);
+                        
+                        console.log('DEBUG: Template loaded via dropdown, selectedTemplate set:', template);
+                        
                         toast.success('Template loaded!');
                       }
                       
@@ -2418,8 +2989,8 @@ const Worksheets = () => {
                   Generate a worksheet and assign it to a specific machine for immediate use
                 </p>
                 
-                {/* Check for deviations from template */}
-                {selectedTemplate && (
+                {/* Check for deviations from template - Real-time detection */}
+                {selectedTemplate && !templateJustLoaded && hasRealTimeModifications && (
                   <div className="mb-4 p-3 bg-yellow-800 bg-opacity-50 rounded-md border border-yellow-600">
                     <div className="flex items-center space-x-2 mb-2">
                       <span className="text-yellow-400">⚠️</span>
@@ -2429,6 +3000,19 @@ const Worksheets = () => {
                       This worksheet contains changes from the original template "{selectedTemplate.title}". 
                       The assigned worksheet will include your custom modifications.
                     </p>
+                    {realTimeModifications.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-yellow-200 font-medium">Changes:</p>
+                        <ul className="text-xs text-yellow-300 list-disc list-inside">
+                          {realTimeModifications.slice(0, 3).map((mod, index) => (
+                            <li key={index}>{mod}</li>
+                          ))}
+                          {realTimeModifications.length > 3 && (
+                            <li>... and {realTimeModifications.length - 3} more changes</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
                 
@@ -2436,6 +3020,7 @@ const Worksheets = () => {
                   <button
                     onClick={() => {
                       console.log('DEBUG: Assign to Machine clicked');
+                      console.log('DEBUG: worksheetData (edit mode):', worksheetData);
                       console.log('DEBUG: customWorksheetInfo:', customWorksheetInfo);
                       
                       if (!customWorksheetInfo.machineId) {
@@ -2443,60 +3028,111 @@ const Worksheets = () => {
                         return;
                       }
                       
-                      // Always create a NEW worksheet copy for this machine - templates are immutable
-                      console.log('DEBUG: Creating new worksheet copy for machine');
-                      console.log('DEBUG: Current customTests:', customTests);
-                      
-                      // Create unique worksheet for this specific machine
                       const machine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
-                      const uniqueWorksheetData = {
-                        ...customWorksheetInfo,
-                        // Create unique title that includes machine name
-                        title: `${customWorksheetInfo.title} - ${machine?.name || customWorksheetInfo.machineId}`,
-                        tests: [...customTests], // Deep copy of tests
-                        id: `${Date.now()}-${customWorksheetInfo.machineId}`, // Unique ID with machine
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                        isModified: selectedTemplate ? true : false,
-                        sourceTemplate: selectedTemplate ? selectedTemplate.title : null,
-                        isWorksheet: true,
-                        assignedMachines: [customWorksheetInfo.machineId], // Only this machine
-                        specificMachine: customWorksheetInfo.machineId // Track which machine this is for
-                      };
                       
-                      console.log('DEBUG: Creating unique worksheet for machine:', uniqueWorksheetData);
-                      
-                      // Save the worksheet to localStorage
-                      const savedWorksheet = saveWorksheet(uniqueWorksheetData);
-                      console.log('DEBUG: Saved worksheet:', savedWorksheet);
-                      
-                      if (savedWorksheet) {
-                        // Force UI refresh
-                        setRefreshKey(prev => prev + 1);
-                        window.dispatchEvent(new Event('storage'));
+                      if (worksheetData) {
+                        // EDITING EXISTING WORKSHEET
+                        console.log('DEBUG: Updating existing worksheet');
                         
-                        toast.success(`New worksheet created and assigned to ${machine?.name || 'machine'} successfully!`);
+                        const updatedWorksheetData = {
+                          ...worksheetData, // Preserve original worksheet data
+                          title: customWorksheetInfo.title,
+                          description: customWorksheetInfo.description,
+                          modality: customWorksheetInfo.modality,
+                          frequency: customWorksheetInfo.frequency,
+                          tests: [...customTests], // Updated tests
+                          assignedMachines: [customWorksheetInfo.machineId], // Update machine assignment
+                          specificMachine: customWorksheetInfo.machineId
+                        };
                         
-                        // Switch to worksheets view to see the result
-                        setTimeout(() => {
-                          setViewMode('worksheets');
-                        }, 500);
+                        console.log('DEBUG: Updating worksheet with data:', updatedWorksheetData);
+                        
+                        // Update the existing worksheet
+                        const updatedWorksheet = updateWorksheet(updatedWorksheetData);
+                        console.log('DEBUG: Updated worksheet:', updatedWorksheet);
+                        
+                        if (updatedWorksheet) {
+                          // Force UI refresh
+                          setRefreshKey(prev => prev + 1);
+                          window.dispatchEvent(new Event('storage'));
+                          
+                          toast.success(`Worksheet "${updatedWorksheet.title}" updated successfully!`);
+                          
+                          // Switch to worksheets view to see the result
+                          setTimeout(() => {
+                            setViewMode('worksheets');
+                          }, 500);
+                        } else {
+                          toast.error('Failed to update worksheet');
+                        }
                       } else {
-                        toast.error('Failed to save worksheet');
+                        // CREATING NEW WORKSHEET
+                        console.log('DEBUG: Creating new worksheet copy for machine');
+                        console.log('DEBUG: Current customTests:', customTests);
+                        console.log('DEBUG: selectedTemplate at time of creation:', selectedTemplate);
+                        
+                        // Create unique worksheet for this specific machine
+                        const uniqueWorksheetData = {
+                          ...customWorksheetInfo,
+                          // Create unique title that includes machine name
+                          title: `${customWorksheetInfo.title} - ${machine?.name || customWorksheetInfo.machineId}`,
+                          tests: [...customTests], // Deep copy of tests
+                          id: `${Date.now()}-${customWorksheetInfo.machineId}`, // Unique ID with machine
+                          createdAt: new Date().toISOString(),
+                          updatedAt: new Date().toISOString(),
+                          isModified: selectedTemplate ? true : false,
+                          sourceTemplateId: selectedTemplate ? selectedTemplate.id : null,
+                          sourceTemplateName: selectedTemplate ? selectedTemplate.title : null,
+                          templateSource: selectedTemplate ? selectedTemplate.title : null, // Legacy support
+                          templateId: selectedTemplate ? selectedTemplate.id : null, // Legacy support
+                          isWorksheet: true,
+                          assignedMachines: [customWorksheetInfo.machineId], // Only this machine
+                          specificMachine: customWorksheetInfo.machineId // Track which machine this is for
+                        };
+                        
+                        console.log('DEBUG: Creating unique worksheet for machine with template tracking:', {
+                          uniqueWorksheetData: uniqueWorksheetData,
+                          templateInfo: {
+                            hasSelectedTemplate: !!selectedTemplate,
+                            templateId: selectedTemplate?.id,
+                            templateTitle: selectedTemplate?.title,
+                            sourceTemplateId: uniqueWorksheetData.sourceTemplateId,
+                            sourceTemplateName: uniqueWorksheetData.sourceTemplateName
+                          }
+                        });
+                        
+                        // Save the worksheet to localStorage
+                        const savedWorksheet = saveWorksheet(uniqueWorksheetData);
+                        console.log('DEBUG: Saved worksheet:', savedWorksheet);
+                        
+                        if (savedWorksheet) {
+                          // Force UI refresh
+                          setRefreshKey(prev => prev + 1);
+                          window.dispatchEvent(new Event('storage'));
+                          
+                          toast.success(`New worksheet created and assigned to ${machine?.name || 'machine'} successfully!`);
+                          
+                          // Switch to worksheets view to see the result
+                          setTimeout(() => {
+                            setViewMode('worksheets');
+                          }, 500);
+                        } else {
+                          toast.error('Failed to save worksheet');
+                        }
                       }
                     }}
                     className="px-8 py-3 bg-purple-600 text-white font-medium rounded-md hover:bg-purple-700 transition-colors flex items-center space-x-2"
                   >
                     <span>🖥️</span>
-                    <span>Assign to Machine</span>
+                    <span>{worksheetData ? 'Update Worksheet' : 'Assign to Machine'}</span>
                   </button>
                 </div>
               </div>
               
             </div>
             
-            {/* Delete Template Section - Only show when editing existing template */}
-            {selectedTemplate && (
+            {/* Delete Template Section - Only show when editing existing template in Templates tab */}
+            {selectedTemplate && viewMode === 'templates' && isCreatingTemplate && (
               <div className="mt-8 pt-6 border-t border-gray-600">
                 <div className="bg-gray-700 rounded-lg p-4">
                   <h4 className="text-lg font-medium text-red-400 mb-3">Danger Zone</h4>
