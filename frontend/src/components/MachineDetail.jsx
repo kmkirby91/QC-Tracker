@@ -454,64 +454,27 @@ const MachineDetail = () => {
           </div>
 
           <div>
-            <h3 className="font-semibold text-gray-300 mb-2">View QC Worksheets</h3>
-            <div className="space-y-3">
-              {getAssignedFrequencies(machine).map(frequency => {
-                const worksheets = getWorksheetNamesForFrequency(machine, frequency);
-                const frequencyColors = {
-                  daily: 'bg-blue-500 hover:bg-blue-600',
-                  weekly: 'bg-green-500 hover:bg-green-600', 
-                  monthly: 'bg-yellow-500 hover:bg-yellow-600',
-                  quarterly: 'bg-purple-500 hover:bg-purple-600',
-                  annual: 'bg-red-500 hover:bg-red-600'
-                };
-                
-                return (
-                  <div key={frequency} className="space-y-1">
-                    <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-                      {frequency.charAt(0).toUpperCase() + frequency.slice(1)}
-                    </h4>
-                    {worksheets.map(worksheet => (
-                      <button
-                        key={worksheet.id}
-                        onClick={() => {
-                          if (worksheet.needsWorksheet) {
-                            // No worksheet assigned - redirect to create one
-                            const message = worksheet.availableTemplates > 0 
-                              ? `No QC worksheet assigned for ${frequency} frequency. Please create a worksheet from a template first.`
-                              : `No QC worksheet assigned for ${frequency} frequency. Please create a template and worksheet first.`;
-                            alert(message);
-                            window.location.href = '/qc';
-                          } else {
-                            // Actual worksheet assigned - prepare data and view
-                            const worksheetData = customWorksheets.find(ws => 
-                              ws.modality === machine.type && 
-                              ws.frequency === frequency && 
-                              ws.assignedMachines && 
-                              ws.assignedMachines.includes(machine.machineId) &&
-                              ws.isWorksheet === true
-                            );
-                            if (worksheetData) {
-                              localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
-                              window.location.href = `/qc/view-worksheet/${machine.machineId}/${frequency}`;
-                            } else {
-                              alert('Worksheet not found. Please check worksheet assignments.');
-                            }
-                          }
-                        }}
-                        className={`block w-full px-3 py-2 text-sm font-medium text-center text-white rounded-md transition-colors ${
-                          worksheet.needsWorksheet 
-                            ? 'bg-gray-600 hover:bg-gray-500' 
-                            : frequencyColors[frequency]
-                        }`}
-                      >
-                        {worksheet.needsWorksheet ? '⚠️' : '📋'} {worksheet.title}
-                      </button>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
+            <h3 className="font-semibold text-gray-300 mb-2">Last QC</h3>
+            <dl className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Date:</dt>
+                <dd className="font-medium">{machine.lastQC?.date ? new Date(machine.lastQC.date).toLocaleDateString() : 'N/A'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Result:</dt>
+                <dd className={`font-medium ${machine.lastQC?.result === 'pass' ? 'text-green-400' : machine.lastQC?.result === 'fail' ? 'text-red-400' : 'text-gray-400'}`}>
+                  {machine.lastQC?.result ? machine.lastQC.result.toUpperCase() : 'N/A'}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-400">Performed By:</dt>
+                <dd className="font-medium">{machine.lastQC?.performedBy || 'N/A'}</dd>
+              </div>
+              <div className="flex flex-col">
+                <dt className="text-gray-400">Notes:</dt>
+                <dd className="font-medium text-xs mt-1">{machine.lastQC?.notes || 'N/A'}</dd>
+              </div>
+            </dl>
           </div>
 
           <div>
@@ -573,6 +536,89 @@ const MachineDetail = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Assigned QC Worksheets */}
+      <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-100 mb-4">Assigned QC Worksheets</h2>
+        
+        {getWorksheetAssignedFrequencies(machine).length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">📋</div>
+            <h3 className="text-lg font-medium text-gray-300 mb-2">No QC worksheets assigned</h3>
+            <p className="text-gray-400 mb-4">Create and assign worksheets to enable QC tracking for this machine.</p>
+            <Link
+              to="/worksheets"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Create Worksheets
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {getAssignedFrequencies(machine).map(frequency => {
+              const worksheets = getWorksheetNamesForFrequency(machine, frequency);
+              const hasWorksheet = worksheets.some(ws => !ws.needsWorksheet);
+              const frequencyColors = {
+                daily: 'border-blue-500',
+                weekly: 'border-green-500', 
+                monthly: 'border-yellow-500',
+                quarterly: 'border-purple-500',
+                annual: 'border-red-500'
+              };
+              
+              if (!hasWorksheet) return null; // Skip frequencies without actual worksheets
+              
+              return (
+                <div key={frequency} className={`bg-gray-700 rounded-lg p-4 border-l-4 ${frequencyColors[frequency]}`}>
+                  <h3 className="text-lg font-medium text-gray-100 mb-3">
+                    {frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC
+                  </h3>
+                  
+                  {worksheets.filter(ws => !ws.needsWorksheet).map(worksheet => (
+                    <div key={worksheet.id} className="mb-4 last:mb-0">
+                      <h4 className="text-sm font-medium text-gray-200 mb-2">{worksheet.title}</h4>
+                      
+                      {worksheet.templateSource && (
+                        <p className="text-xs text-gray-400 mb-3">
+                          📋 Based on: {worksheet.templateSource}
+                        </p>
+                      )}
+                      
+                      <div className="flex flex-col space-y-2">
+                        <Link
+                          to={`/qc/view-worksheet/${machine.machineId}/${frequency}`}
+                          onClick={() => {
+                            const worksheetData = customWorksheets.find(ws => 
+                              ws.modality === machine.type && 
+                              ws.frequency === frequency && 
+                              ws.assignedMachines && 
+                              ws.assignedMachines.includes(machine.machineId) &&
+                              ws.isWorksheet === true
+                            );
+                            if (worksheetData) {
+                              localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
+                            }
+                          }}
+                          className="px-3 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-500 transition-colors text-center"
+                        >
+                          👁️ View Worksheet
+                        </Link>
+                        
+                        <Link
+                          to={`/qc/perform/${machine.machineId}/${frequency}`}
+                          className="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors text-center"
+                        >
+                          ▶️ Perform QC
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* QC Status Dashboard */}
