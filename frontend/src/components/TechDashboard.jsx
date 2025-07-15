@@ -310,9 +310,17 @@ const TechDashboard = () => {
                               {task.dailyDueStatus === 'current' ? 'Up to Date' : 
                                task.dailyDueStatus === 'overdue' ? 'Overdue' : 'Due Today'}
                             </span>
+                            {task.dailyDueStatus === 'current' && (
+                              <button
+                                onClick={() => handlePerformQC(task, 'daily')}
+                                className="text-xs text-gray-400 hover:text-blue-400 transition-colors"
+                                title="Edit QC"
+                              >
+                                ✏️
+                              </button>
+                            )}
                           </div>
                           <div className="text-xs text-gray-400">{task.dailyWorksheet.title}</div>
-                          <div className="text-xs text-gray-500">{task.dailyWorksheet.tests?.length || 0} tests</div>
                         </div>
                       ) : (
                         <div className="text-sm text-gray-500 italic">Not assigned</div>
@@ -335,9 +343,17 @@ const TechDashboard = () => {
                               {task.quarterlyDueStatus === 'current' ? 'Up to Date' : 
                                task.quarterlyDueStatus === 'overdue' ? 'Overdue' : 'Due Today'}
                             </span>
+                            {task.quarterlyDueStatus === 'current' && (
+                              <button
+                                onClick={() => handlePerformQC(task, 'quarterly')}
+                                className="text-xs text-gray-400 hover:text-blue-400 transition-colors"
+                                title="Edit QC"
+                              >
+                                ✏️
+                              </button>
+                            )}
                           </div>
                           <div className="text-xs text-gray-400">{task.quarterlyWorksheet.title}</div>
-                          <div className="text-xs text-gray-500">{task.quarterlyWorksheet.tests?.length || 0} tests</div>
                         </div>
                       ) : (
                         <div className="text-sm text-gray-500 italic">Not assigned</div>
@@ -360,9 +376,17 @@ const TechDashboard = () => {
                               {task.annualDueStatus === 'current' ? 'Up to Date' : 
                                task.annualDueStatus === 'overdue' ? 'Overdue' : 'Due Today'}
                             </span>
+                            {task.annualDueStatus === 'current' && (
+                              <button
+                                onClick={() => handlePerformQC(task, 'annual')}
+                                className="text-xs text-gray-400 hover:text-blue-400 transition-colors"
+                                title="Edit QC"
+                              >
+                                ✏️
+                              </button>
+                            )}
                           </div>
                           <div className="text-xs text-gray-400">{task.annualWorksheet.title}</div>
-                          <div className="text-xs text-gray-500">{task.annualWorksheet.tests?.length || 0} tests</div>
                         </div>
                       ) : (
                         <div className="text-sm text-gray-500 italic">Not assigned</div>
