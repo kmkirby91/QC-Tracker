@@ -296,25 +296,21 @@ const TechDashboard = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {task.dailyWorksheet ? (
                         <div>
-                          {task.dailyDueStatus === 'due' || task.dailyDueStatus === 'overdue' ? (
-                            <button
-                              onClick={() => handlePerformQC(task, 'daily')}
-                              className={`px-2 py-1 text-xs rounded transition-colors mb-1 ${
-                                task.dailyDueStatus === 'overdue' 
-                                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
-                                  : 'bg-green-600 hover:bg-green-700 text-white'
-                              }`}
-                            >
-                              {task.dailyDueStatus === 'overdue' ? '⚠️ Overdue' : '✅ Due Today'}
-                            </button>
-                          ) : (
-                            <div className={`flex items-center space-x-1 mb-1 ${getDueStatusColor(task.dailyDueStatus)}`}>
-                              <span>{getDueStatusIcon(task.dailyDueStatus)}</span>
-                              <span className="text-sm font-medium">
-                                {task.dailyDueStatus.charAt(0).toUpperCase() + task.dailyDueStatus.slice(1)}
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex items-center space-x-2 mb-1">
+                            <input 
+                              type="checkbox" 
+                              checked={task.dailyDueStatus === 'current'}
+                              onChange={() => handlePerformQC(task, 'daily')}
+                              className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                            />
+                            <span className={`text-sm font-medium ${
+                              task.dailyDueStatus === 'current' ? 'text-green-400' : 
+                              task.dailyDueStatus === 'overdue' ? 'text-red-400' : 'text-yellow-400'
+                            }`}>
+                              {task.dailyDueStatus === 'current' ? 'Up to Date' : 
+                               task.dailyDueStatus === 'overdue' ? 'Overdue' : 'Due Today'}
+                            </span>
+                          </div>
                           <div className="text-xs text-gray-400">{task.dailyWorksheet.title}</div>
                           <div className="text-xs text-gray-500">{task.dailyWorksheet.tests?.length || 0} tests</div>
                         </div>
@@ -325,25 +321,21 @@ const TechDashboard = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {task.quarterlyWorksheet ? (
                         <div>
-                          {task.quarterlyDueStatus === 'due' || task.quarterlyDueStatus === 'overdue' ? (
-                            <button
-                              onClick={() => handlePerformQC(task, 'quarterly')}
-                              className={`px-2 py-1 text-xs rounded transition-colors mb-1 ${
-                                task.quarterlyDueStatus === 'overdue' 
-                                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
-                                  : 'bg-green-600 hover:bg-green-700 text-white'
-                              }`}
-                            >
-                              {task.quarterlyDueStatus === 'overdue' ? '⚠️ Overdue' : '✅ Due Soon'}
-                            </button>
-                          ) : (
-                            <div className={`flex items-center space-x-1 mb-1 ${getDueStatusColor(task.quarterlyDueStatus)}`}>
-                              <span>{getDueStatusIcon(task.quarterlyDueStatus)}</span>
-                              <span className="text-sm font-medium">
-                                {task.quarterlyDueStatus.charAt(0).toUpperCase() + task.quarterlyDueStatus.slice(1)}
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex items-center space-x-2 mb-1">
+                            <input 
+                              type="checkbox" 
+                              checked={task.quarterlyDueStatus === 'current'}
+                              onChange={() => handlePerformQC(task, 'quarterly')}
+                              className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                            />
+                            <span className={`text-sm font-medium ${
+                              task.quarterlyDueStatus === 'current' ? 'text-green-400' : 
+                              task.quarterlyDueStatus === 'overdue' ? 'text-red-400' : 'text-yellow-400'
+                            }`}>
+                              {task.quarterlyDueStatus === 'current' ? 'Up to Date' : 
+                               task.quarterlyDueStatus === 'overdue' ? 'Overdue' : 'Due Today'}
+                            </span>
+                          </div>
                           <div className="text-xs text-gray-400">{task.quarterlyWorksheet.title}</div>
                           <div className="text-xs text-gray-500">{task.quarterlyWorksheet.tests?.length || 0} tests</div>
                         </div>
@@ -354,25 +346,21 @@ const TechDashboard = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {task.annualWorksheet ? (
                         <div>
-                          {task.annualDueStatus === 'due' || task.annualDueStatus === 'overdue' ? (
-                            <button
-                              onClick={() => handlePerformQC(task, 'annual')}
-                              className={`px-2 py-1 text-xs rounded transition-colors mb-1 ${
-                                task.annualDueStatus === 'overdue' 
-                                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
-                                  : 'bg-green-600 hover:bg-green-700 text-white'
-                              }`}
-                            >
-                              {task.annualDueStatus === 'overdue' ? '⚠️ Overdue' : '✅ Due Soon'}
-                            </button>
-                          ) : (
-                            <div className={`flex items-center space-x-1 mb-1 ${getDueStatusColor(task.annualDueStatus)}`}>
-                              <span>{getDueStatusIcon(task.annualDueStatus)}</span>
-                              <span className="text-sm font-medium">
-                                {task.annualDueStatus.charAt(0).toUpperCase() + task.annualDueStatus.slice(1)}
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex items-center space-x-2 mb-1">
+                            <input 
+                              type="checkbox" 
+                              checked={task.annualDueStatus === 'current'}
+                              onChange={() => handlePerformQC(task, 'annual')}
+                              className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                            />
+                            <span className={`text-sm font-medium ${
+                              task.annualDueStatus === 'current' ? 'text-green-400' : 
+                              task.annualDueStatus === 'overdue' ? 'text-red-400' : 'text-yellow-400'
+                            }`}>
+                              {task.annualDueStatus === 'current' ? 'Up to Date' : 
+                               task.annualDueStatus === 'overdue' ? 'Overdue' : 'Due Today'}
+                            </span>
+                          </div>
                           <div className="text-xs text-gray-400">{task.annualWorksheet.title}</div>
                           <div className="text-xs text-gray-500">{task.annualWorksheet.tests?.length || 0} tests</div>
                         </div>
