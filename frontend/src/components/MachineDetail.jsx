@@ -555,65 +555,68 @@ const MachineDetail = () => {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-4">
             {getAssignedFrequencies(machine).map(frequency => {
               const worksheets = getWorksheetNamesForFrequency(machine, frequency);
               const hasWorksheet = worksheets.some(ws => !ws.needsWorksheet);
               const frequencyColors = {
-                daily: 'border-blue-500',
-                weekly: 'border-green-500', 
-                monthly: 'border-yellow-500',
-                quarterly: 'border-purple-500',
-                annual: 'border-red-500'
+                daily: 'text-blue-400',
+                weekly: 'text-green-400', 
+                monthly: 'text-yellow-400',
+                quarterly: 'text-purple-400',
+                annual: 'text-red-400'
               };
               
               if (!hasWorksheet) return null; // Skip frequencies without actual worksheets
               
               return (
-                <div key={frequency} className={`bg-gray-700 rounded-lg p-4 border-l-4 ${frequencyColors[frequency]}`}>
-                  <h3 className="text-lg font-medium text-gray-100 mb-3">
-                    {frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC
-                  </h3>
-                  
-                  {worksheets.filter(ws => !ws.needsWorksheet).map(worksheet => (
-                    <div key={worksheet.id} className="mb-4 last:mb-0">
-                      <h4 className="text-sm font-medium text-gray-200 mb-2">{worksheet.title}</h4>
+                <div key={frequency} className="border border-gray-600 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className={`text-sm font-medium ${frequencyColors[frequency]} mb-1`}>
+                        {frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC
+                      </h3>
                       
-                      {worksheet.templateSource && (
-                        <p className="text-xs text-gray-400 mb-3">
-                          📋 Based on: {worksheet.templateSource}
-                        </p>
-                      )}
-                      
-                      <div className="flex flex-col space-y-2">
-                        <Link
-                          to={`/qc/view-worksheet/${machine.machineId}/${frequency}`}
-                          onClick={() => {
-                            const worksheetData = customWorksheets.find(ws => 
-                              ws.modality === machine.type && 
-                              ws.frequency === frequency && 
-                              ws.assignedMachines && 
-                              ws.assignedMachines.includes(machine.machineId) &&
-                              ws.isWorksheet === true
-                            );
-                            if (worksheetData) {
-                              localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
-                            }
-                          }}
-                          className="px-3 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-500 transition-colors text-center"
-                        >
-                          👁️ View Worksheet
-                        </Link>
-                        
-                        <Link
-                          to={`/qc/perform/${machine.machineId}/${frequency}`}
-                          className="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors text-center"
-                        >
-                          ▶️ Perform QC
-                        </Link>
-                      </div>
+                      {worksheets.filter(ws => !ws.needsWorksheet).map(worksheet => (
+                        <div key={worksheet.id} className="mb-2 last:mb-0">
+                          <p className="text-sm text-gray-200">{worksheet.title}</p>
+                          {worksheet.templateSource && (
+                            <p className="text-xs text-gray-400">
+                              📋 Based on: {worksheet.templateSource}
+                            </p>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                    
+                    <div className="flex space-x-2 ml-4">
+                      <Link
+                        to={`/qc/view-worksheet/${machine.machineId}/${frequency}`}
+                        onClick={() => {
+                          const worksheetData = customWorksheets.find(ws => 
+                            ws.modality === machine.type && 
+                            ws.frequency === frequency && 
+                            ws.assignedMachines && 
+                            ws.assignedMachines.includes(machine.machineId) &&
+                            ws.isWorksheet === true
+                          );
+                          if (worksheetData) {
+                            localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
+                          }
+                        }}
+                        className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
+                      >
+                        👁️ View
+                      </Link>
+                      
+                      <Link
+                        to={`/qc/perform/${machine.machineId}/${frequency}`}
+                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        ▶️ Perform
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               );
             })}
