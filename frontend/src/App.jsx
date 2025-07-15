@@ -16,6 +16,7 @@ import QCForm from './components/QCForm'
 import OpenFailures from './components/OpenFailures'
 import AddMachine from './components/AddMachine'
 import Worksheets from './components/Worksheets'
+import Locations from './components/Locations'
 import QCCalendar from './components/QCCalendar'
 import './App.css'
 
@@ -29,6 +30,7 @@ function NavigationDropdown() {
   const navigationItems = [
     { label: 'Dashboard', path: '/', icon: '🏠' },
     { label: 'Machine List', path: '/machines', icon: '🏥' },
+    { label: 'Locations', path: '/locations', icon: '🏢' },
     { label: 'Calendar', path: '/calendar', icon: '📅' },
     { label: 'Worksheets', path: '/worksheets', icon: '📋' },
     { label: 'Reporting', path: '/reporting', icon: '📊' }
@@ -137,6 +139,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/machines" element={<MachineList />} />
               <Route path="/machines/add" element={<AddMachine />} />
+              <Route path="/locations" element={<Locations />} />
               <Route path="/worksheets" element={<Worksheets />} />
               <Route path="/reporting" element={<Reporting />} />
               <Route path="/calendar" element={<QCCalendar showOverview={true} />} />
