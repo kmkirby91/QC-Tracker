@@ -751,11 +751,11 @@ const Worksheets = () => {
       sourceTemplateId: worksheetData.sourceTemplateId
     });
     
-    // If created from template, detect and track modifications
+    // If created from template AND user wants template tracking, detect and track modifications
     let modifications = [];
     let isModified = false;
     
-    if (selectedTemplate) {
+    if (selectedTemplate && matchedToTemplate) {
       console.log('DEBUG: Processing template modification detection', {
         templateJustLoaded: templateJustLoaded,
         hasRealTimeModifications: hasRealTimeModifications,
@@ -795,14 +795,21 @@ const Worksheets = () => {
       
       console.log('DEBUG: Final modification status:', { isModified, modifications });
       
-      // Ensure we have proper template tracking metadata
+      // Only set template tracking metadata if user wants template tracking
       worksheetData.sourceTemplateId = selectedTemplate.id;
       worksheetData.sourceTemplateName = selectedTemplate.title;
     } else {
-      console.log('DEBUG: No template detected for modification tracking', {
+      console.log('DEBUG: No template tracking requested', {
         hasSelectedTemplate: !!selectedTemplate,
+        matchedToTemplate: matchedToTemplate,
         hasSourceTemplateId: !!worksheetData.sourceTemplateId
       });
+      
+      // Ensure template tracking is cleared if not wanted
+      worksheetData.sourceTemplateId = null;
+      worksheetData.sourceTemplateName = null;
+      worksheetData.templateSource = null;
+      worksheetData.templateId = null;
     }
     
     const newWorksheet = {
