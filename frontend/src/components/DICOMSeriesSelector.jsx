@@ -452,21 +452,21 @@ const DICOMSeriesSelector = ({
                 </div>
               </div>
             )}
-          </>
-        )}
+        </>
+      )}
 
-        {/* Future Enhancement Notice */}
-        <div className="mt-6 p-4 bg-gray-700 rounded-lg">
-          <h4 className="text-gray-100 font-medium mb-2">🚧 Planned Enhancements</h4>
-          <ul className="text-sm text-gray-300 space-y-1">
-            <li>• Real-time DICOM image preview and ROI visualization</li>
-            <li>• Automatic series recommendation based on QC protocol</li>
-            <li>• Multi-vendor DICOM format support</li>
-            <li>• Series quality validation before analysis</li>
-            <li>• Integration with PACS worklist and study routing</li>
-          </ul>
-        </div>
+      {/* Future Enhancement Notice */}
+      <div className="mt-6 p-4 bg-gray-700 rounded-lg">
+        <h4 className="text-gray-100 font-medium mb-2">🚧 Planned Enhancements</h4>
+        <ul className="text-sm text-gray-300 space-y-1">
+          <li>• Real-time DICOM image preview and ROI visualization</li>
+          <li>• Automatic series recommendation based on QC protocol</li>
+          <li>• Multi-vendor DICOM format support</li>
+          <li>• Series quality validation before analysis</li>
+          <li>• Integration with PACS worklist and study routing</li>
+        </ul>
       </div>
+    </div>
     );
 };
 
