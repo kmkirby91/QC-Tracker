@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { checkAndInitializeSampleData } from '../utils/sampleWorksheets';
+import DICOMSeriesSelector from './DICOMSeriesSelector';
 
 const Worksheets = () => {
   const navigate = useNavigate();
@@ -2095,6 +2096,21 @@ const Worksheets = () => {
                 </div>
               </div>
 
+              {/* DICOM Series Selection for Templates */}
+              {customWorksheetInfo.modality && (
+                <DICOMSeriesSelector
+                  machineId="TEMPLATE_PLACEHOLDER"
+                  frequency={customWorksheetInfo.frequency}
+                  modality={customWorksheetInfo.modality}
+                  selectedDate={new Date().toISOString().split('T')[0]}
+                  onSeriesSelection={(series) => {
+                    console.log('Template DICOM series selection:', series);
+                    // Store series selection in template data for future use
+                  }}
+                  viewOnly={false}
+                />
+              )}
+
               {/* Test Builder */}
               <div className="bg-gray-900 rounded-lg p-6">
                 <div className="flex justify-between items-center mb-4">
@@ -2983,6 +2999,21 @@ const Worksheets = () => {
             </div>
           </div>
 
+          {/* DICOM Series Selection for Worksheets */}
+          {customWorksheetInfo.modality && customWorksheetInfo.machineId && (
+            <DICOMSeriesSelector
+              machineId={customWorksheetInfo.machineId}
+              frequency={customWorksheetInfo.frequency}
+              modality={customWorksheetInfo.modality}
+              selectedDate={new Date().toISOString().split('T')[0]}
+              onSeriesSelection={(series) => {
+                console.log('Worksheet DICOM series selection:', series);
+                // Store series selection in worksheet data for future use
+              }}
+              viewOnly={false}
+            />
+          )}
+
           {/* Test Builder */}
           <div className="bg-gray-800 rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
@@ -3470,6 +3501,21 @@ const Worksheets = () => {
                 </button>
               )}
             </div>
+          )}
+
+          {/* DICOM Series Selection for Worksheet View */}
+          {worksheetData && worksheetData.modality && (
+            <DICOMSeriesSelector
+              machineId={worksheetData.machine?.machineId || "WORKSHEET_VIEW"}
+              frequency={worksheetData.frequency}
+              modality={worksheetData.modality}
+              selectedDate={new Date().toISOString().split('T')[0]}
+              onSeriesSelection={(series) => {
+                console.log('Worksheet view DICOM series selection:', series);
+                // Store series selection for worksheet context
+              }}
+              viewOnly={worksheetData.viewOnly || false}
+            />
           )}
 
           {/* Worksheet Content */}
