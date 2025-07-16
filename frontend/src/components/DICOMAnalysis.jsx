@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const DICOMAnalysis = ({ machineId, frequency, worksheetData, onAnalysisComplete }) => {
+const DICOMAnalysis = ({ machineId, frequency, worksheetData, selectedSeries = [], onAnalysisComplete }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResults, setAnalysisResults] = useState(null);
   const [availableStudies, setAvailableStudies] = useState([]);
@@ -67,8 +67,8 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, onAnalysisComplete
   };
 
   const analyzeSelectedStudy = async () => {
-    if (!selectedStudy) {
-      toast.error('Please select a study to analyze');
+    if (selectedSeries.length === 0) {
+      toast.error('Please select DICOM series to analyze');
       return;
     }
 
@@ -76,7 +76,7 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, onAnalysisComplete
     try {
       // TODO: Implement actual DICOM analysis
       // const response = await axios.post('/api/dicom/analyze', {
-      //   studyId: selectedStudy,
+      //   selectedSeries: selectedSeries,
       //   machineId: machineId,
       //   analysisType: frequency,
       //   tests: worksheetData?.tests || []
@@ -85,8 +85,8 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, onAnalysisComplete
       // Simulate analysis delay
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Mock analysis results based on modality
-      const mockResults = generateMockAnalysisResults(worksheetData?.modality || 'CT');
+      // Mock analysis results based on selected series and modality
+      const mockResults = generateMockAnalysisResults(worksheetData?.modality || 'CT', selectedSeries);
       
       setAnalysisResults(mockResults);
       
@@ -106,11 +106,12 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, onAnalysisComplete
     }
   };
 
-  const generateMockAnalysisResults = (modality) => {
+  const generateMockAnalysisResults = (modality, series = []) => {
     const baseResults = {
-      studyId: selectedStudy,
+      seriesAnalyzed: series.map(s => s.seriesInstanceUID),
       analysisDate: new Date().toISOString(),
-      modality: modality
+      modality: modality,
+      seriesCount: series.length
     };
 
     switch (modality) {
@@ -195,139 +196,99 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, onAnalysisComplete
     <div className="bg-gray-800 rounded-lg p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-100 flex items-center">
-          🏥 DICOM Analysis
+          🔬 Automated QC Analysis
         </h3>
-        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-          connectionStatus === 'connected' ? 'bg-green-900 text-green-200' :
-          connectionStatus === 'connecting' ? 'bg-yellow-900 text-yellow-200' :
-          'bg-red-900 text-red-200'
-        }`}>
-          {connectionStatus === 'connected' ? '🟢 Connected' :
-           connectionStatus === 'connecting' ? '🟡 Connecting...' :
-           '🔴 Disconnected'}
+        <div className="text-sm text-gray-400">
+          {selectedSeries.length} series selected for analysis
         </div>
       </div>
 
-      {connectionStatus === 'disconnected' && (
-        <div className="bg-red-900/20 border border-red-600 rounded-lg p-4 mb-4">
-          <div className="flex items-center">
-            <span className="text-red-400 text-2xl mr-3">⚠️</span>
-            <div>
-              <h4 className="text-red-400 font-medium">DICOM Database Not Connected</h4>
-              <p className="text-red-300 text-sm mt-1">
-                This feature requires connection to a DICOM database for automatic QC value calculation.
-                Contact your IT administrator to configure DICOM connectivity.
-              </p>
-            </div>
-          </div>
-          <div className="mt-3">
-            <button
-              onClick={checkDICOMConnection}
-              className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-            >
-              🔄 Retry Connection
-            </button>
-          </div>
-        </div>
-      )}
-
-      {connectionStatus === 'connected' && (
-        <>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Available QC Studies
-              </label>
-              <div className="flex space-x-2">
-                <select
-                  value={selectedStudy}
-                  onChange={(e) => setSelectedStudy(e.target.value)}
-                  className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select a study...</option>
-                  {availableStudies.map(study => (
-                    <option key={study.id} value={study.id}>
-                      {study.description} - {study.studyDate} {study.studyTime}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={fetchAvailableStudies}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                  title="Refresh Studies"
-                >
-                  🔄
-                </button>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-gray-400">
-                {selectedStudy && (
-                  <span>Selected: {availableStudies.find(s => s.id === selectedStudy)?.description}</span>
-                )}
-              </div>
-              <button
-                onClick={analyzeSelectedStudy}
-                disabled={!selectedStudy || isAnalyzing}
-                className={`px-6 py-2 rounded font-medium transition-colors ${
-                  !selectedStudy || isAnalyzing
-                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                {isAnalyzing ? (
-                  <span className="flex items-center">
-                    <span className="animate-spin mr-2">⚙️</span>
-                    Analyzing DICOM...
-                  </span>
-                ) : (
-                  '🔬 Analyze QC Values'
-                )}
-              </button>
-            </div>
-          </div>
-
-          {analysisResults && (
-            <div className="mt-6 bg-gray-700 rounded-lg p-4">
-              <h4 className="text-lg font-medium text-gray-100 mb-3">Analysis Results</h4>
-              <div className="space-y-3">
-                {Object.entries(analysisResults.measurements).map(([testName, result]) => (
-                  <div key={testName} className="flex items-center justify-between bg-gray-800 rounded p-3">
-                    <div>
-                      <span className="font-medium text-gray-100">{testName}</span>
-                      <div className="text-sm text-gray-400">
-                        Tolerance: {result.tolerance}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`font-medium ${
-                        result.status === 'pass' ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {result.value} {result.units}
-                      </div>
-                      <div className={`text-sm ${
-                        result.status === 'pass' ? 'text-green-300' : 'text-red-300'
-                      }`}>
-                        {result.status === 'pass' ? '✅ Pass' : '❌ Fail'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mt-4 p-3 bg-blue-900/20 border border-blue-600 rounded">
-                <div className="flex items-center text-blue-400 text-sm">
-                  <span className="mr-2">💡</span>
-                  <span>
-                    These values have been automatically calculated from DICOM images. 
-                    Review and accept to populate your QC worksheet.
-                  </span>
+      {/* Selected Series Summary */}
+      <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-4 mb-4">
+        <h4 className="text-blue-300 font-medium mb-2">📋 Selected Series for Analysis</h4>
+        <div className="space-y-2">
+          {selectedSeries.map((series, index) => (
+            <div key={series.seriesInstanceUID} className="flex items-center justify-between bg-blue-800/30 rounded p-2">
+              <div>
+                <span className="text-blue-200 font-medium">
+                  Series {series.seriesNumber}: {series.seriesDescription}
+                </span>
+                <div className="text-xs text-blue-300">
+                  {series.imageCount} images • {series.analysisType} analysis
                 </div>
               </div>
+              <div className="text-xs text-blue-300">
+                {series.requiredFor?.length || 0} QC tests
+              </div>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Analysis Controls */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-sm text-gray-400">
+          Ready to analyze {selectedSeries.length} DICOM series for automated QC measurements
+        </div>
+        <button
+          onClick={analyzeSelectedStudy}
+          disabled={selectedSeries.length === 0 || isAnalyzing}
+          className={`px-6 py-2 rounded font-medium transition-colors ${
+            selectedSeries.length === 0 || isAnalyzing
+              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              : 'bg-green-600 text-white hover:bg-green-700'
+          }`}
+        >
+          {isAnalyzing ? (
+            <span className="flex items-center">
+              <span className="animate-spin mr-2">⚙️</span>
+              Analyzing DICOM...
+            </span>
+          ) : (
+            '🔬 Run Automated Analysis'
           )}
-        </>
+        </button>
+      </div>
+
+      {/* Analysis Results */}
+      {analysisResults && (
+        <div className="bg-gray-700 rounded-lg p-4">
+          <h4 className="text-lg font-medium text-gray-100 mb-3">Analysis Results</h4>
+          <div className="space-y-3">
+            {Object.entries(analysisResults.measurements).map(([testName, result]) => (
+              <div key={testName} className="flex items-center justify-between bg-gray-800 rounded p-3">
+                <div>
+                  <span className="font-medium text-gray-100">{testName}</span>
+                  <div className="text-sm text-gray-400">
+                    Tolerance: {result.tolerance}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className={`font-medium ${
+                    result.status === 'pass' ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {result.value} {result.units}
+                  </div>
+                  <div className={`text-sm ${
+                    result.status === 'pass' ? 'text-green-300' : 'text-red-300'
+                  }`}>
+                    {result.status === 'pass' ? '✅ Pass' : '❌ Fail'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-4 p-3 bg-blue-900/20 border border-blue-600 rounded">
+            <div className="flex items-center text-blue-400 text-sm">
+              <span className="mr-2">💡</span>
+              <span>
+                These values have been automatically calculated from {selectedSeries.length} DICOM series. 
+                Review and accept to populate your QC worksheet.
+              </span>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="mt-6 p-4 bg-gray-700 rounded-lg">

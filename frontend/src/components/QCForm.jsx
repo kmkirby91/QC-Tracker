@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DICOMAnalysis from './DICOMAnalysis';
+import DICOMSeriesSelector from './DICOMSeriesSelector';
 
 const QCForm = ({ viewOnly = false }) => {
   const { machineId, frequency, machineType } = useParams();
@@ -19,6 +20,7 @@ const QCForm = ({ viewOnly = false }) => {
   const [error, setError] = useState(null);
   const [showDICOMAnalysis, setShowDICOMAnalysis] = useState(false);
   const [dicomAnalysisResults, setDicomAnalysisResults] = useState(null);
+  const [selectedDICOMSeries, setSelectedDICOMSeries] = useState([]);
 
   useEffect(() => {
     fetchMachineAndTests();
@@ -535,12 +537,28 @@ const QCForm = ({ viewOnly = false }) => {
             </div>
           </div>
 
-          {/* DICOM Analysis Integration */}
-          {!viewOnly && machine && (machine.type === 'CT' || machine.type === 'MRI') && (
+          {/* DICOM Series Selection */}
+          {machine && (
+            <DICOMSeriesSelector
+              machineId={machineId}
+              frequency={frequency}
+              modality={machine.type}
+              selectedDate={selectedDate}
+              onSeriesSelection={(series) => {
+                setSelectedDICOMSeries(series);
+                console.log('Selected DICOM series for analysis:', series);
+              }}
+              viewOnly={viewOnly}
+            />
+          )}
+
+          {/* DICOM Analysis Integration - shown when series are selected */}
+          {!viewOnly && machine && selectedDICOMSeries.length > 0 && (machine.type === 'CT' || machine.type === 'MRI') && (
             <DICOMAnalysis 
               machineId={machineId}
               frequency={frequency}
               worksheetData={{ modality: machine.type, tests }}
+              selectedSeries={selectedDICOMSeries}
               onAnalysisComplete={(results) => {
                 setDicomAnalysisResults(results);
                 // Auto-populate form fields with DICOM analysis results
