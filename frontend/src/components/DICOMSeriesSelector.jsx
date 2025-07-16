@@ -158,7 +158,50 @@ const DICOMSeriesSelector = ({
         ];
         break;
 
-      case 'MRI':
+      case 'Mammography':
+        series = [
+          {
+            seriesInstanceUID: '1.2.840.113619.2.55.3.604688119.971.' + (Date.now() + 1),
+            seriesNumber: 1,
+            seriesDescription: 'ACR Mammography Phantom CC',
+            imageCount: 1,
+            sliceThickness: 0.0,
+            kvp: 28,
+            mas: 'AEC',
+            compression: '15 daN',
+            requiredFor: ['Phantom Image Quality Assessment', 'Contrast Sensitivity Evaluation'],
+            recommended: true,
+            analysisType: 'primary'
+          },
+          {
+            seriesInstanceUID: '1.2.840.113619.2.55.3.604688119.971.' + (Date.now() + 2),
+            seriesNumber: 2,
+            seriesDescription: 'ACR Mammography Phantom MLO',
+            imageCount: 1,
+            sliceThickness: 0.0,
+            kvp: 28,
+            mas: 'AEC',
+            compression: '15 daN',
+            requiredFor: ['Phantom Image Quality Assessment', 'Spatial Resolution Test'],
+            recommended: true,
+            analysisType: 'primary'
+          },
+          {
+            seriesInstanceUID: '1.2.840.113619.2.55.3.604688119.971.' + (Date.now() + 3),
+            seriesNumber: 3,
+            seriesDescription: 'Uniformity Test Images',
+            imageCount: 4,
+            sliceThickness: 0.0,
+            kvp: 28,
+            mas: 'AEC',
+            compression: '15 daN',
+            requiredFor: ['Automatic Exposure Control Performance', 'Beam Quality Assessment'],
+            recommended: false,
+            analysisType: 'secondary'
+          }
+        ];
+        break;
+
       case 'PET':
       case 'PET-CT':
         series = [
@@ -378,12 +421,16 @@ const DICOMSeriesSelector = ({
                           </div>
                           
                           <div className="text-sm text-gray-400 mb-2">
-                            {series.imageCount} images • {series.sliceThickness}mm slice thickness
+                            {series.imageCount} images
+                            {series.sliceThickness > 0 && <> • {series.sliceThickness}mm slice thickness</>}
                             {modality === 'CT' && (
                               <> • {series.kvp}kVp • {series.mas}mAs • {series.reconstructionKernel}</>
                             )}
                             {modality === 'MRI' && series.tr && (
                               <> • TR:{series.tr}ms • TE:{series.te}ms • FA:{series.flipAngle}°</>
+                            )}
+                            {modality === 'Mammography' && (
+                              <> • {series.kvp}kVp • {series.mas} • {series.compression}</>
                             )}
                           </div>
                           

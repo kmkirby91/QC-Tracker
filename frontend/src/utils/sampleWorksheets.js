@@ -471,8 +471,76 @@ export const createACRTemplates = () => {
     updatedAt: new Date().toISOString()
   };
   
+  // ================== DAILY MAMMOGRAPHY QC TEMPLATE (ACR Standard) ==================
+  const mammographyDailyTemplate = {
+    id: Date.now() + 7,
+    title: 'ACR Mammography Daily QC Protocol',
+    modality: 'Mammography',
+    frequency: 'daily',
+    description: 'Daily quality control tests for mammography systems following ACR Mammography Quality Control Manual',
+    tests: [
+      {
+        id: 1,
+        testName: 'Phantom Image Quality Assessment',
+        testType: 'visual',
+        tolerance: 'Pass',
+        units: '',
+        notes: 'Use ACR mammography phantom. Evaluate image quality including fibers, specks, and masses. All structures should be visible.',
+        description: 'Visual assessment of ACR mammography phantom image quality'
+      },
+      {
+        id: 2,
+        testName: 'Automatic Exposure Control (AEC) Function',
+        testType: 'value',
+        tolerance: '±15%',
+        units: 'mAs',
+        notes: 'Test AEC reproducibility with different breast thicknesses. Use tissue-equivalent phantoms.',
+        description: 'Verify AEC system provides consistent exposure across different breast thicknesses'
+      },
+      {
+        id: 3,
+        testName: 'Breast Thickness Compensation',
+        testType: 'value',
+        tolerance: '±1 cm',
+        units: 'cm',
+        notes: 'Verify compression paddle position indicator accuracy. Check with various phantom thicknesses.',
+        description: 'Ensure compression paddle position indicator accurately reflects breast thickness'
+      },
+      {
+        id: 4,
+        testName: 'kVp Accuracy and Reproducibility',
+        testType: 'value',
+        tolerance: '±2 kVp',
+        units: 'kVp',
+        notes: 'Measure kVp for all clinical techniques. Use calibrated kVp meter.',
+        description: 'Verify X-ray tube voltage accuracy for all clinical kVp settings'
+      },
+      {
+        id: 5,
+        testName: 'Compression Force Check',
+        testType: 'value',
+        tolerance: '111-200 N',
+        units: 'N',
+        notes: 'Check compression force with calibrated force gauge. Verify power and manual compression modes.',
+        description: 'Ensure compression force is within acceptable range for patient safety and image quality'
+      },
+      {
+        id: 6,
+        testName: 'Beam Quality (Half Value Layer)',
+        testType: 'value',
+        tolerance: '±10%',
+        units: 'mm Al',
+        notes: 'Measure HVL for all clinical kVp/filter combinations. Use precision aluminum filters.',
+        description: 'Verify beam quality consistency and filtration effectiveness'
+      }
+    ],
+    isWorksheet: false, // This is a template, not a worksheet
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
   // Add all templates to array
-  templates.push(ctDailyTemplate, mrDailyTemplate, ctAnnualTemplate, mrAnnualTemplate, doseCalQuarterlyTemplate, doseCalAnnualTemplate);
+  templates.push(ctDailyTemplate, mrDailyTemplate, ctAnnualTemplate, mrAnnualTemplate, doseCalQuarterlyTemplate, doseCalAnnualTemplate, mammographyDailyTemplate);
   
   // Save templates to localStorage
   localStorage.setItem('qcModalityTemplates', JSON.stringify(templates));
@@ -480,6 +548,7 @@ export const createACRTemplates = () => {
   console.log('✅ ACR-Standard QC Templates Created:');
   console.log('   📅 Daily CT QC (6 tests)');
   console.log('   📅 Daily MR QC (6 tests)');
+  console.log('   📅 Daily Mammography QC (6 tests)');
   console.log('   📊 Annual CT QC (8 tests)');
   console.log('   📊 Annual MR QC (9 tests)');
   console.log('   📊 Quarterly Dose Calibrator QC (5 tests)');
@@ -488,12 +557,13 @@ export const createACRTemplates = () => {
   console.log('🏥 No worksheets assigned - templates ready for use');
   
   return {
-    templatesCreated: 6,
+    templatesCreated: 7,
     worksheetsCreated: 0,
     machinesWithWorksheets: [],
     templates: [
       'ACR CT Daily QC Protocol',
       'ACR MR Daily QC Protocol', 
+      'ACR Mammography Daily QC Protocol',
       'ACR CT Annual QC Protocol',
       'ACR MR Annual QC Protocol',
       'Dose Calibrator Quarterly QC Protocol',

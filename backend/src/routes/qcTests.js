@@ -87,6 +87,52 @@ const qcTestTemplates = {
       'Nuclear Medicine License Review',
       'Comprehensive System Validation'
     ]
+  },
+  'Mammography': {
+    daily: [
+      'Phantom Image Quality Assessment',
+      'Automatic Exposure Control (AEC) Function',
+      'Breast Thickness Compensation',
+      'kVp Accuracy and Reproducibility',
+      'Beam Quality (Half Value Layer)',
+      'Compression Force Check'
+    ],
+    weekly: [
+      'Screen Contact Test',
+      'Phantom Image Quality (Weekly)',
+      'Automatic Exposure Control Consistency',
+      'Compression Plate Alignment',
+      'Light Field Congruence',
+      'Magnification Mode QC'
+    ],
+    monthly: [
+      'Phantom Image Quality (Monthly)',
+      'Automatic Exposure Control Performance',
+      'kVp Accuracy and Reproducibility',
+      'Beam Quality Assessment',
+      'Compression Force Measurement',
+      'Spatial Resolution Test',
+      'Contrast Sensitivity Evaluation',
+      'Artifact Analysis'
+    ],
+    quarterly: [
+      'Repeat/Reject Analysis',
+      'Compression Force Calibration',
+      'Viewbox and Viewing Conditions',
+      'Processor QC (if applicable)',
+      'Darkroom Fog Test',
+      'Screen-Film Contact Assessment'
+    ],
+    annual: [
+      'Full System Performance Evaluation',
+      'Mammography Medical Physicist Survey',
+      'Radiation Safety Survey',
+      'Quality Control Program Review',
+      'Staff Training Assessment',
+      'ACR Phantom Evaluation',
+      'Patient Dose Assessment',
+      'Equipment Calibration Verification'
+    ]
   }
 };
 

@@ -292,6 +292,35 @@ const mockMachines = [
       quarterly: true,
       annual: true
     }
+  },
+  {
+    machineId: 'MAM-WOM-001',
+    name: 'Hologic Selenia Dimensions',
+    type: 'Mammography',
+    manufacturer: 'Hologic',
+    model: 'Selenia Dimensions 3D',
+    serialNumber: 'SN-MAM-2022-001',
+    location: {
+      building: "Woman's",
+      floor: '1',
+      room: 'Mammography Suite A'
+    },
+    installationDate: '2022-08-15',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Jennifer Park',
+      notes: 'All ACR phantom images within specifications. kVp and mAs accuracy verified.'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: true,
+      weekly: true,
+      monthly: true,
+      quarterly: true,
+      annual: true
+    }
   }
 ];
 
