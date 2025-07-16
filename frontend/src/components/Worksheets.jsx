@@ -2096,19 +2096,52 @@ const Worksheets = () => {
                 </div>
               </div>
 
-              {/* DICOM Series Selection for Templates */}
+              {/* DICOM Images Section for Templates */}
               {customWorksheetInfo.modality && (
-                <DICOMSeriesSelector
-                  machineId="TEMPLATE_PLACEHOLDER"
-                  frequency={customWorksheetInfo.frequency}
-                  modality={customWorksheetInfo.modality}
-                  selectedDate={new Date().toISOString().split('T')[0]}
-                  onSeriesSelection={(series) => {
-                    console.log('Template DICOM series selection:', series);
-                    // Store series selection in template data for future use
-                  }}
-                  viewOnly={false}
-                />
+                <div className="bg-gray-800 rounded-lg p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-gray-100 flex items-center">
+                      🖼️ DICOM Images
+                    </h2>
+                    <div className="text-sm text-gray-400">
+                      Template Configuration
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-4 mb-4">
+                    <div className="flex items-center text-blue-300 text-sm">
+                      <span className="mr-2">💡</span>
+                      <span>
+                        This section defines which DICOM series will be available for automated QC analysis when this template is used. 
+                        The selected series will be used to automatically calculate measurement values for the tests below.
+                      </span>
+                    </div>
+                  </div>
+
+                  <DICOMSeriesSelector
+                    machineId="TEMPLATE_PLACEHOLDER"
+                    frequency={customWorksheetInfo.frequency}
+                    modality={customWorksheetInfo.modality}
+                    selectedDate={new Date().toISOString().split('T')[0]}
+                    onSeriesSelection={(series) => {
+                      console.log('Template DICOM series selection:', series);
+                      // Store series selection in template data for future use
+                      // This could be saved with the template for future worksheet creation
+                    }}
+                    viewOnly={false}
+                    templateMode={true}
+                  />
+                  
+                  <div className="mt-4 p-3 bg-gray-700 rounded-lg">
+                    <h4 className="text-gray-100 font-medium mb-2">📋 Template Benefits</h4>
+                    <ul className="text-sm text-gray-300 space-y-1">
+                      <li>• Pre-configured DICOM series for consistent QC workflows</li>
+                      <li>• Automatic test value calculation from selected images</li>
+                      <li>• Standardized analysis across all machines using this template</li>
+                      <li>• Reduced manual data entry and human error</li>
+                    </ul>
+                  </div>
+                </div>
               )}
 
               {/* Test Builder */}

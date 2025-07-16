@@ -8,7 +8,8 @@ const DICOMSeriesSelector = ({
   modality, 
   selectedDate,
   onSeriesSelection,
-  viewOnly = false 
+  viewOnly = false,
+  templateMode = false 
 }) => {
   const [availableSeries, setAvailableSeries] = useState([]);
   const [selectedSeries, setSelectedSeries] = useState([]);
@@ -269,7 +270,7 @@ const DICOMSeriesSelector = ({
     }
   };
 
-  if (viewOnly) {
+  if (viewOnly && !templateMode) {
     return (
       <div className="bg-gray-800 rounded-lg p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-100 mb-3 flex items-center">
@@ -286,25 +287,46 @@ const DICOMSeriesSelector = ({
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6 mb-6">
+    <div className={templateMode ? "" : "bg-gray-800 rounded-lg p-6 mb-6"}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-100 flex items-center">
-          🖼️ DICOM Images
+          {templateMode ? "📋 Available DICOM Series" : "🖼️ DICOM Images"}
         </h3>
         <div className="flex items-center space-x-2">
-          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-            connectionStatus === 'connected' ? 'bg-green-900 text-green-200' :
-            'bg-red-900 text-red-200'
-          }`}>
-            {connectionStatus === 'connected' ? '🟢 Connected' : '🔴 Disconnected'}
-          </div>
-          {lastRefresh && (
-            <span className="text-xs text-gray-400">
-              Last: {lastRefresh}
-            </span>
+          {!templateMode && (
+            <>
+              <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                connectionStatus === 'connected' ? 'bg-green-900 text-green-200' :
+                'bg-red-900 text-red-200'
+              }`}>
+                {connectionStatus === 'connected' ? '🟢 Connected' : '🔴 Disconnected'}
+              </div>
+              {lastRefresh && (
+                <span className="text-xs text-gray-400">
+                  Last: {lastRefresh}
+                </span>
+              )}
+            </>
+          )}
+          {templateMode && (
+            <div className="text-sm text-gray-400">
+              {availableSeries.length} series types available for {modality}
+            </div>
           )}
         </div>
       </div>
+
+      {templateMode && (
+        <div className="bg-green-900/20 border border-green-600 rounded-lg p-4 mb-4">
+          <div className="flex items-center text-green-300 text-sm">
+            <span className="mr-2">✨</span>
+            <span>
+              These DICOM series will be available for selection when technologists perform QC using this template. 
+              Each series enables automated calculation of specific QC measurements.
+            </span>
+          </div>
+        </div>
+      )}
 
       {connectionStatus === 'disconnected' && (
         <div className="bg-red-900/20 border border-red-600 rounded-lg p-4 mb-4">
@@ -436,12 +458,18 @@ const DICOMSeriesSelector = ({
                           
                           {series.requiredFor && series.requiredFor.length > 0 && (
                             <div className="text-sm">
-                              <span className="text-gray-400">Required for:</span>
+                              <span className="text-gray-400">
+                                {templateMode ? 'Enables automated calculation for:' : 'Required for:'}
+                              </span>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {series.requiredFor.map((test, index) => (
                                   <span
                                     key={index}
-                                    className="px-2 py-1 bg-purple-900/30 border border-purple-600 text-purple-200 text-xs rounded"
+                                    className={`px-2 py-1 text-xs rounded ${
+                                      templateMode 
+                                        ? 'bg-green-900/30 border border-green-600 text-green-200'
+                                        : 'bg-purple-900/30 border border-purple-600 text-purple-200'
+                                    }`}
                                   >
                                     {test}
                                   </span>
@@ -505,13 +533,27 @@ const DICOMSeriesSelector = ({
 
       {/* Future Enhancement Notice */}
       <div className="mt-6 p-4 bg-gray-700 rounded-lg">
-        <h4 className="text-gray-100 font-medium mb-2">🚧 Planned Enhancements</h4>
+        <h4 className="text-gray-100 font-medium mb-2">
+          {templateMode ? "🚧 Template Integration Features" : "🚧 Planned Enhancements"}
+        </h4>
         <ul className="text-sm text-gray-300 space-y-1">
-          <li>• Real-time DICOM image preview and ROI visualization</li>
-          <li>• Automatic series recommendation based on QC protocol</li>
-          <li>• Multi-vendor DICOM format support</li>
-          <li>• Series quality validation before analysis</li>
-          <li>• Integration with PACS worklist and study routing</li>
+          {templateMode ? (
+            <>
+              <li>• Template-based DICOM series pre-selection for consistent workflows</li>
+              <li>• Automatic test-to-series mapping based on QC requirements</li>
+              <li>• Series validation rules to ensure quality phantom compatibility</li>
+              <li>• Integration with QC test definitions for automated value calculation</li>
+              <li>• Template inheritance for institutional standardization</li>
+            </>
+          ) : (
+            <>
+              <li>• Real-time DICOM image preview and ROI visualization</li>
+              <li>• Automatic series recommendation based on QC protocol</li>
+              <li>• Multi-vendor DICOM format support</li>
+              <li>• Series quality validation before analysis</li>
+              <li>• Integration with PACS worklist and study routing</li>
+            </>
+          )}
         </ul>
       </div>
     </div>
