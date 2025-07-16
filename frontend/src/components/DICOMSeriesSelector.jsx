@@ -452,6 +452,7 @@ const DICOMSeriesSelector = ({
                 </div>
               </div>
             )}
+          </div>
         </>
       )}
 
