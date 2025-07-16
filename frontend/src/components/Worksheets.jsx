@@ -4,6 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { checkAndInitializeSampleData } from '../utils/sampleWorksheets';
 import DICOMSeriesSelector from './DICOMSeriesSelector';
+import DICOMTemplateConfig from './DICOMTemplateConfig';
 
 const Worksheets = () => {
   const navigate = useNavigate();
@@ -63,6 +64,7 @@ const Worksheets = () => {
   const [realTimeModifications, setRealTimeModifications] = useState([]);
   const [hasRealTimeModifications, setHasRealTimeModifications] = useState(false);
   const [matchedToTemplate, setMatchedToTemplate] = useState(false);
+  const [dicomSeriesConfig, setDicomSeriesConfig] = useState([]);
 
   const frequencies = [
     { value: 'daily', label: 'Daily QC', icon: '📅' },
@@ -493,20 +495,49 @@ const Worksheets = () => {
       return;
     }
 
+    if (!customWorksheetInfo.modality) {
+      toast.error('Please select a modality');
+      return;
+    }
+
     const template = {
       id: Date.now(),
       title: customWorksheetInfo.title,
+      modality: customWorksheetInfo.modality,
       frequency: customWorksheetInfo.frequency,
       description: customWorksheetInfo.description,
       tests: customTests.filter(test => test.testName.trim() !== ''),
-      createdAt: new Date().toISOString()
+      dicomSeriesConfig: dicomSeriesConfig,
+      createdAt: new Date().toISOString(),
+      isWorksheet: false // Mark as template
     };
 
-    const savedTemplates = JSON.parse(localStorage.getItem('qcCustomTemplates') || '[]');
+    const savedTemplates = JSON.parse(localStorage.getItem('qcModalityTemplates') || '[]');
     savedTemplates.push(template);
-    localStorage.setItem('qcCustomTemplates', JSON.stringify(savedTemplates));
+    localStorage.setItem('qcModalityTemplates', JSON.stringify(savedTemplates));
     
-    toast.success('Template saved successfully!');
+    toast.success(`Template saved successfully with ${dicomSeriesConfig.length} DICOM series configuration(s)!`);
+    
+    // Reset form
+    setCustomWorksheetInfo({
+      title: '',
+      frequency: 'daily',
+      modality: '',
+      description: ''
+    });
+    setCustomTests([{
+      id: Date.now(),
+      testName: '',
+      testType: 'value',
+      tolerance: '',
+      units: '',
+      notes: '',
+      description: ''
+    }]);
+    setDicomSeriesConfig([]);
+    
+    // Refresh the templates list
+    setRefreshKey(prev => prev + 1);
   };
 
   // Consolidated template system - using only modality templates
@@ -1305,7 +1336,15 @@ const Worksheets = () => {
     })));
     setSelectedTemplate(template);
     setIsCreatingTemplate(true);
-    toast.success('Template loaded for editing!');
+    
+    // Load DICOM series configuration if it exists
+    if (template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0) {
+      setDicomSeriesConfig(template.dicomSeriesConfig);
+      toast.success(`Template loaded with ${template.dicomSeriesConfig.length} DICOM series configuration(s)!`);
+    } else {
+      setDicomSeriesConfig([]);
+      toast.success('Template loaded for editing!');
+    }
   };
 
   const viewTemplateReadOnly = (template) => {
@@ -1459,6 +1498,9 @@ const Worksheets = () => {
     // Clear real-time modifications
     setRealTimeModifications([]);
     setHasRealTimeModifications(false);
+    
+    // Clear DICOM series configuration
+    setDicomSeriesConfig([]);
   };
 
   const deleteTemplate = (templateId) => {
@@ -2112,35 +2154,21 @@ const Worksheets = () => {
                     <div className="flex items-center text-blue-300 text-sm">
                       <span className="mr-2">💡</span>
                       <span>
-                        This section defines which DICOM series will be available for automated QC analysis when this template is used. 
-                        The selected series will be used to automatically calculate measurement values for the tests below.
+                        Configure DICOM series identification criteria that will be used to automatically find and select 
+                        appropriate images when this template is used for QC performance. No database queries are performed during template creation.
                       </span>
                     </div>
                   </div>
 
-                  <DICOMSeriesSelector
-                    machineId="TEMPLATE_PLACEHOLDER"
-                    frequency={customWorksheetInfo.frequency}
+                  <DICOMTemplateConfig
                     modality={customWorksheetInfo.modality}
-                    selectedDate={new Date().toISOString().split('T')[0]}
-                    onSeriesSelection={(series) => {
-                      console.log('Template DICOM series selection:', series);
-                      // Store series selection in template data for future use
-                      // This could be saved with the template for future worksheet creation
+                    frequency={customWorksheetInfo.frequency}
+                    onSeriesConfigChange={(config) => {
+                      setDicomSeriesConfig(config);
+                      console.log('DICOM series configuration updated:', config);
                     }}
-                    viewOnly={false}
-                    templateMode={true}
+                    initialConfig={dicomSeriesConfig}
                   />
-                  
-                  <div className="mt-4 p-3 bg-gray-700 rounded-lg">
-                    <h4 className="text-gray-100 font-medium mb-2">📋 Template Benefits</h4>
-                    <ul className="text-sm text-gray-300 space-y-1">
-                      <li>• Pre-configured DICOM series for consistent QC workflows</li>
-                      <li>• Automatic test value calculation from selected images</li>
-                      <li>• Standardized analysis across all machines using this template</li>
-                      <li>• Reduced manual data entry and human error</li>
-                    </ul>
-                  </div>
                 </div>
               )}
 
