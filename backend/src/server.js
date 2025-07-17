@@ -26,7 +26,9 @@ app.use(helmet({
 app.use(cors({
   origin: [
     'http://localhost:3000',
+    'http://localhost:3001',
     'http://192.168.1.182:3000',
+    'http://192.168.1.182:3001',
     'https://qctracker.a-naviq.com',
     'http://qctracker.a-naviq.com'
   ],

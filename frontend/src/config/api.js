@@ -1,8 +1,29 @@
 import axios from 'axios';
 
+// Determine the correct API base URL
+const getApiBaseUrl = () => {
+  // Check if we have a custom API URL from environment
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // For development and production, determine based on current domain
+  const hostname = window.location.hostname;
+  
+  if (hostname === 'qctracker.a-naviq.com') {
+    return 'https://qctracker.a-naviq.com/api';
+  } else if (hostname === '192.168.1.182' || hostname === 'localhost') {
+    // When running through Vite dev server, use the proxy
+    return '/api';
+  }
+  
+  // Default fallback to proxy for development
+  return '/api';
+};
+
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: getApiBaseUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -12,7 +33,7 @@ const api = axios.create({
 // Add request interceptor for debugging
 api.interceptors.request.use(
   (config) => {
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    console.log(`API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => {
@@ -29,15 +50,12 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Response Error:', error.response?.status, error.response?.data);
-    
-    // Handle common error scenarios
-    if (error.response?.status === 403) {
-      console.error('Access forbidden - check CORS configuration');
-    } else if (error.response?.status === 404) {
-      console.error('API endpoint not found');
-    } else if (error.code === 'NETWORK_ERROR') {
-      console.error('Network error - check if backend is running');
-    }
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      url: error.config?.url,
+      baseURL: error.config?.baseURL
+    });
     
     return Promise.reject(error);
   }

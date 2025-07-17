@@ -9,7 +9,8 @@ const DICOMSeriesSelector = ({
   selectedDate,
   onSeriesSelection,
   viewOnly = false,
-  templateMode = false 
+  templateMode = false,
+  templateData = null
 }) => {
   const [availableSeries, setAvailableSeries] = useState([]);
   const [selectedSeries, setSelectedSeries] = useState([]);
@@ -271,17 +272,106 @@ const DICOMSeriesSelector = ({
   };
 
   if (viewOnly && !templateMode) {
+    // Show template's DICOM configuration if available
+    const dicomConfig = templateData?.dicomSeriesConfig || [];
+    
     return (
       <div className="bg-gray-800 rounded-lg p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-100 mb-3 flex items-center">
-          🖼️ DICOM Images (View Only)
+          🖼️ DICOM Images Configuration
         </h3>
-        <div className="bg-gray-700 rounded-lg p-4">
-          <p className="text-gray-300 text-sm">
-            In actual QC performance, users would select DICOM series from this section for automated analysis.
-            The selected series would be used to automatically calculate QC measurements.
-          </p>
-        </div>
+        
+        {dicomConfig.length > 0 ? (
+          <div className="space-y-4">
+            <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-4">
+              <p className="text-blue-300 text-sm">
+                This template is configured with {dicomConfig.length} DICOM series for automated image selection during QC performance.
+              </p>
+            </div>
+            
+            {dicomConfig.map((series, index) => (
+              <div key={series.id || index} className="bg-gray-700 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-lg font-medium text-gray-100">
+                    {series.name || `Series Configuration ${index + 1}`}
+                  </h4>
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    series.priority === 'required' ? 'bg-red-900 text-red-200' :
+                    series.priority === 'recommended' ? 'bg-yellow-900 text-yellow-200' :
+                    'bg-gray-600 text-gray-300'
+                  }`}>
+                    {series.priority || 'optional'}
+                  </span>
+                </div>
+                
+                {series.description && (
+                  <p className="text-gray-300 text-sm mb-3">{series.description}</p>
+                )}
+                
+                {series.requiredFor && series.requiredFor.length > 0 && (
+                  <div className="mb-3">
+                    <span className="text-gray-400 text-sm">Enables QC Tests:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {series.requiredFor.map((test, testIndex) => (
+                        <span
+                          key={testIndex}
+                          className="px-2 py-1 text-xs bg-green-900/30 border border-green-600 text-green-200 rounded"
+                        >
+                          {test}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {series.dicomCriteria && series.dicomCriteria.customTags && series.dicomCriteria.customTags.length > 0 && (
+                  <div>
+                    <h5 className="text-sm font-medium text-gray-300 mb-2">DICOM Identification Criteria:</h5>
+                    <div className="space-y-2">
+                      {series.dicomCriteria.customTags.map((tag, tagIndex) => (
+                        <div key={tagIndex} className="bg-gray-600 rounded p-2 text-sm">
+                          <div className="flex items-center space-x-2 flex-wrap">
+                            <span className="text-blue-300 font-medium">
+                              {tag.tag === 'other' ? tag.customTag : tag.tag}
+                            </span>
+                            <span className="text-gray-400">
+                              {tag.matchType === 'exact' ? '=' :
+                               tag.matchType === 'contains' ? 'contains' :
+                               tag.matchType === 'begins_with' ? 'starts with' :
+                               tag.matchType === 'ends_with' ? 'ends with' :
+                               tag.matchType === 'regex' ? 'matches regex' :
+                               tag.matchType === 'not_equal' ? '≠' :
+                               tag.matchType === 'greater_than' ? '>' :
+                               tag.matchType === 'less_than' ? '<' :
+                               '='}
+                            </span>
+                            <span className="text-yellow-300 font-medium">"{tag.value}"</span>
+                          </div>
+                          {tag.description && (
+                            <p className="text-gray-400 text-xs mt-1">{tag.description}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {(!series.dicomCriteria || !series.dicomCriteria.customTags || series.dicomCriteria.customTags.length === 0) && (
+                  <div className="text-gray-400 text-sm italic">
+                    No specific DICOM identification criteria configured
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-gray-700 rounded-lg p-4">
+            <p className="text-gray-300 text-sm">
+              This template does not have DICOM series configuration. 
+              In actual QC performance, users would manually select DICOM series for automated analysis.
+            </p>
+          </div>
+        )}
       </div>
     );
   }
