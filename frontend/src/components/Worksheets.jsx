@@ -209,6 +209,56 @@ const Worksheets = () => {
     return false;
   };
 
+  const editCustomWorksheet = (worksheet) => {
+    console.log('editCustomWorksheet called with worksheet:', worksheet);
+    
+    // Load worksheet data into the custom worksheet form for editing
+    setCustomWorksheetInfo({
+      title: worksheet.title,
+      frequency: worksheet.frequency,
+      machineId: worksheet.assignedMachines && worksheet.assignedMachines.length > 0 ? worksheet.assignedMachines[0] : '',
+      modality: worksheet.modality,
+      description: worksheet.description || ''
+    });
+    
+    // Load the tests from the worksheet
+    setCustomTests(worksheet.tests || []);
+    
+    // Load DICOM series configuration if it exists
+    if (worksheet.dicomSeriesConfig && worksheet.dicomSeriesConfig.length > 0) {
+      setDicomSeriesConfig(worksheet.dicomSeriesConfig);
+    } else {
+      setDicomSeriesConfig([]);
+    }
+    
+    // Set the worksheet data for editing (NOT template)
+    setWorksheetDataSafe(worksheet);
+    
+    // Clear template selection since we're editing a worksheet, not a template
+    setSelectedTemplate(null);
+    
+    // Set to custom mode for editing
+    setViewMode('custom');
+    
+    toast.success(`Editing worksheet: ${worksheet.title}`);
+  };
+
+  const viewCustomWorksheetReadOnly = (worksheet, machineId = null) => {
+    console.log('viewCustomWorksheetReadOnly called with worksheet:', worksheet, 'machineId:', machineId);
+    
+    // Store worksheet data temporarily for QCForm to use
+    localStorage.setItem('tempWorksheetView', JSON.stringify(worksheet));
+    
+    // Navigate to QCForm in view-only mode for custom worksheets
+    if (machineId) {
+      navigate(`/qc/view-worksheet/${machineId}/${worksheet.frequency}`);
+    } else {
+      // For unassigned worksheets, use the modality route
+      navigate(`/qc/view/${worksheet.modality}/${worksheet.frequency}`);
+    }
+    toast.success(`Viewing worksheet: ${worksheet.title}`);
+  };
+
   const frequencies = [
     { value: 'daily', label: 'Daily QC', icon: '📅' },
     { value: 'weekly', label: 'Weekly QC', icon: '📆' },
@@ -849,95 +899,142 @@ const Worksheets = () => {
                       }
                       
                       return (
-                        <div key={frequency} className="mb-6 bg-gray-800 rounded-lg p-4">
-                          <div className="flex items-center mb-3">
-                            <span className="text-lg mr-2">{getFrequencyIcon(frequency)}</span>
-                            <h4 className="text-lg font-medium text-gray-200">{getFrequencyLabel(frequency)}</h4>
-                            <span className="ml-auto text-xs text-gray-400">
-                              {frequencyWorksheets.length} worksheet{frequencyWorksheets.length !== 1 ? 's' : ''}
+                        <div key={frequency} className="bg-gray-800 rounded-lg p-4">
+                          <h4 className="text-lg font-medium text-gray-100 mb-4 flex items-center space-x-2">
+                            <span>{getFrequencyIcon(frequency)}</span>
+                            <span>{getFrequencyLabel(frequency)}</span>
+                            <span className="text-sm text-gray-400">
+                              ({frequencyWorksheets.length} worksheet{frequencyWorksheets.length !== 1 ? 's' : ''})
                             </span>
-                          </div>
+                          </h4>
                           
-                          <div className="space-y-3">
-                            {frequencyWorksheets.map(worksheet => {
-                              const assignedMachineNames = worksheet.assignedMachines
-                                ?.map(machineId => machines.find(m => m.machineId === machineId)?.name || machineId)
-                                .join(', ') || 'No machines assigned';
-                              
-                              return (
-                                <div key={worksheet.id} className="bg-gray-700 rounded-lg p-4">
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center space-x-3 mb-2">
-                                        <h5 className="text-gray-100 font-medium">{worksheet.title}</h5>
-                                        
-                                        {/* Template tracking indicator */}
-                                        {worksheet.sourceTemplateName && (
-                                          <div className="flex items-center text-blue-300 text-xs">
-                                            <span className="mr-1">📋</span>
-                                            <span>{worksheet.sourceTemplateName}</span>
-                                            {worksheet.isModified && (
-                                              <span className="ml-1 text-yellow-300">*</span>
-                                            )}
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {frequencyWorksheets.map((worksheet) => (
+                              <div key={worksheet.id} className="bg-gray-900 rounded-lg p-4 border-l-4 border-blue-500">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h5 className="font-medium text-gray-100 text-sm">
+                                    {worksheet.title}
+                                  </h5>
+                                  <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full">
+                                    Worksheet
+                                  </span>
+                                </div>
+                                
+                                {/* Template Source Info - More compact */}
+                                {(worksheet.templateSource || worksheet.sourceTemplateName) && (
+                                  <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-2 mb-3">
+                                    <div className="text-xs text-blue-300 font-medium mb-1">
+                                      📋 Based on: {worksheet.sourceTemplateName || worksheet.templateSource}
+                                    </div>
+                                    {(() => {
+                                      // Check if worksheet has been modified from template
+                                      const isModified = worksheet.isModified || 
+                                                       (worksheet.modifications && worksheet.modifications.length > 0) ||
+                                                       (worksheet.customizations && worksheet.customizations.length > 0);
+                                      
+                                      if (isModified) {
+                                        const modifications = worksheet.modifications || worksheet.customizations || [];
+                                        return (
+                                          <div className="text-xs text-amber-300">
+                                            <div className="font-medium mb-1 flex items-center">
+                                              <span className="mr-1">🔧</span>
+                                              <span>Modified from template</span>
+                                              <span className="ml-1 px-1 py-0.5 bg-amber-800/50 rounded text-amber-200">
+                                                {modifications.length > 0 ? `${modifications.length} changes` : 'customized'}
+                                              </span>
+                                            </div>
                                           </div>
-                                        )}
-                                      </div>
-                                      
-                                      <div className="text-sm text-gray-400 space-y-1">
-                                        <div>Assigned to: {assignedMachineNames}</div>
-                                        <div>Tests: {worksheet.tests?.length || 0}</div>
-                                        {worksheet.description && (
-                                          <div>Description: {worksheet.description}</div>
-                                        )}
-                                        <div className="text-xs text-gray-500">
-                                          Created: {new Date(worksheet.createdAt || Date.now()).toLocaleDateString()}
-                                          {worksheet.updatedAt && worksheet.updatedAt !== worksheet.createdAt && (
-                                            <span> • Updated: {new Date(worksheet.updatedAt).toLocaleDateString()}</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center space-x-2 ml-4">
-                                      <button
-                                        onClick={() => {
-                                          const machineId = worksheet.assignedMachines?.[0];
-                                          if (machineId) {
-                                            setWorksheetDataSafe({
-                                              ...worksheet,
-                                              viewOnly: true,
-                                              machine: machines.find(m => m.machineId === machineId)
-                                            });
-                                          }
-                                        }}
-                                        className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
-                                      >
-                                        👁️ View
-                                      </button>
-                                      
-                                      <button
-                                        onClick={() => {
-                                          const machineId = worksheet.assignedMachines?.[0];
-                                          if (machineId) {
-                                            generateWorksheet(machineId, worksheet.frequency);
-                                          }
-                                        }}
-                                        className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
-                                      >
-                                        📝 Generate
-                                      </button>
-                                      
-                                      <button
-                                        onClick={() => deleteWorksheet(worksheet.id)}
-                                        className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition-colors"
-                                      >
-                                        🗑️ Delete
-                                      </button>
-                                    </div>
+                                        );
+                                      } else {
+                                        return (
+                                          <div className="text-xs text-green-300 flex items-center">
+                                            <span className="mr-1">✓</span>
+                                            <span>Unmodified from template</span>
+                                          </div>
+                                        );
+                                      }
+                                    })()}
+                                  </div>
+                                )}
+                                
+                                <div className="space-y-2 mb-4">
+                                  <div className="text-xs text-gray-300">
+                                    <strong>Tests:</strong> {worksheet.tests?.length || 0}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    <strong>Assigned to:</strong> {worksheet.assignedMachines?.length || 0} machine{worksheet.assignedMachines?.length !== 1 ? 's' : ''}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Created: {new Date(worksheet.createdAt || Date.now()).toLocaleDateString()}
                                   </div>
                                 </div>
-                              );
-                            })}
+
+                                {/* Assigned Machines List */}
+                                {worksheet.assignedMachines && worksheet.assignedMachines.length > 0 && (
+                                  <div className="mb-4 p-2 bg-gray-800 rounded">
+                                    <div className="text-xs text-gray-300 font-medium mb-2">Assigned Machines:</div>
+                                    <div className="space-y-1">
+                                      {worksheet.assignedMachines.map(machineId => {
+                                        const machine = machines.find(m => m.machineId === machineId);
+                                        return machine ? (
+                                          <div key={machineId} className="text-xs text-gray-300">
+                                            {machine.name}
+                                          </div>
+                                        ) : null;
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                <div className="space-y-2">
+                                  {/* Edit Button - Always available */}
+                                  <button
+                                    onClick={() => editCustomWorksheet(worksheet)}
+                                    className="w-full px-2 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
+                                  >
+                                    ✏️ Edit Worksheet
+                                  </button>
+                                  
+                                  {/* View Buttons - Based on machine assignments */}
+                                  {!worksheet.assignedMachines || worksheet.assignedMachines.length === 0 ? (
+                                    <button
+                                      onClick={() => viewCustomWorksheetReadOnly(worksheet)}
+                                      className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                                    >
+                                      👁️ View Template
+                                    </button>
+                                  ) : worksheet.assignedMachines.length === 1 ? (
+                                    <button
+                                      onClick={() => viewCustomWorksheetReadOnly(worksheet, worksheet.assignedMachines[0])}
+                                      className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                                    >
+                                      👁️ View for {machines.find(m => m.machineId === worksheet.assignedMachines[0])?.name || 'Machine'}
+                                    </button>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <div className="text-xs text-gray-400">View for machine:</div>
+                                      {worksheet.assignedMachines.slice(0, 2).map(machineId => {
+                                        const machine = machines.find(m => m.machineId === machineId);
+                                        return machine ? (
+                                          <button
+                                            key={machineId}
+                                            onClick={() => viewCustomWorksheetReadOnly(worksheet, machineId)}
+                                            className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors text-left"
+                                          >
+                                            👁️ {machine.name}
+                                          </button>
+                                        ) : null;
+                                      })}
+                                      {worksheet.assignedMachines.length > 2 && (
+                                        <div className="text-xs text-gray-400">
+                                          ... and {worksheet.assignedMachines.length - 2} more
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       );
