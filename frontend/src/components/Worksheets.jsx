@@ -211,6 +211,7 @@ const Worksheets = () => {
 
   const editCustomWorksheet = (worksheet) => {
     console.log('editCustomWorksheet called with worksheet:', worksheet);
+    console.log('Worksheet templateSource:', worksheet.templateSource);
     
     // Load worksheet data into the custom worksheet form for editing
     setCustomWorksheetInfo({
@@ -232,7 +233,15 @@ const Worksheets = () => {
     }
     
     // Set the worksheet data for editing (NOT template)
-    setWorksheetDataSafe(worksheet);
+    // Ensure templateSource is included for proper edit mode detection
+    const worksheetForEditing = {
+      ...worksheet,
+      templateSource: worksheet.templateSource,
+      isEditing: true // Additional flag to ensure edit mode is detected
+    };
+    
+    console.log('Setting worksheetData for editing:', worksheetForEditing);
+    setWorksheetDataSafe(worksheetForEditing);
     
     // Clear template selection since we're editing a worksheet, not a template
     setSelectedTemplate(null);
@@ -430,7 +439,10 @@ const Worksheets = () => {
       }
       
       // Set the worksheet data for editing (NOT template)
-      setWorksheetDataSafe(worksheet);
+      setWorksheetDataSafe({
+        ...worksheet,
+        isEditing: true // Additional flag to ensure edit mode is detected
+      });
       
       // Clear template selection since we're editing a worksheet, not a template
       setSelectedTemplate(null);
@@ -1374,7 +1386,10 @@ const Worksheets = () => {
 
   const renderCustomWorksheet = () => {
     // Check if we're editing an existing worksheet
-    const isEditingExistingWorksheet = worksheetData && worksheetData.templateSource;
+    const isEditingExistingWorksheet = worksheetData && (worksheetData.templateSource || worksheetData.isEditing);
+    
+    console.log('renderCustomWorksheet - worksheetData:', worksheetData);
+    console.log('renderCustomWorksheet - isEditingExistingWorksheet:', isEditingExistingWorksheet);
     
     return (
       <div key={`custom-${refreshKey}`} className="space-y-6">
@@ -1386,7 +1401,8 @@ const Worksheets = () => {
               <div>
                 <h2 className="text-xl font-semibold text-orange-200">Editing Worksheet</h2>
                 <p className="text-sm text-orange-300">
-                  Modifying "{worksheetData.title}" - based on {worksheetData.templateSource}
+                  Modifying "{worksheetData.title}"
+                  {worksheetData.templateSource && ` - based on ${worksheetData.templateSource}`}
                 </p>
               </div>
             </div>
