@@ -64,6 +64,7 @@ const Worksheets = () => {
   const [hasRealTimeModifications, setHasRealTimeModifications] = useState(false);
   const [matchedToTemplate, setMatchedToTemplate] = useState(false);
   const [dicomSeriesConfig, setDicomSeriesConfig] = useState([]);
+  const [dicomConfigEnabled, setDicomConfigEnabled] = useState(false);
 
   // Machine-specific DICOM configuration storage
   const getMachineSpecificDicomConfig = (machineId, modality, frequency) => {
@@ -226,8 +227,10 @@ const Worksheets = () => {
     // Load DICOM series configuration if it exists
     if (worksheet.dicomSeriesConfig && worksheet.dicomSeriesConfig.length > 0) {
       setDicomSeriesConfig(worksheet.dicomSeriesConfig);
+      setDicomConfigEnabled(true);
     } else {
       setDicomSeriesConfig([]);
+      setDicomConfigEnabled(false);
     }
     
     // Set the worksheet data for editing (NOT template)
@@ -432,8 +435,10 @@ const Worksheets = () => {
       // Load DICOM series configuration if it exists
       if (worksheet.dicomSeriesConfig && worksheet.dicomSeriesConfig.length > 0) {
         setDicomSeriesConfig(worksheet.dicomSeriesConfig);
+        setDicomConfigEnabled(true);
       } else {
         setDicomSeriesConfig([]);
+        setDicomConfigEnabled(false);
       }
       
       // Set the worksheet data for editing (NOT template)
@@ -593,9 +598,11 @@ const Worksheets = () => {
     // Load DICOM series configuration if it exists
     if (template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0) {
       setDicomSeriesConfig(template.dicomSeriesConfig);
+      setDicomConfigEnabled(true);
       toast.success(`Template loaded with ${template.dicomSeriesConfig.length} DICOM series configuration(s)!`);
     } else {
       setDicomSeriesConfig([]);
+      setDicomConfigEnabled(false);
       toast.success('Template loaded for editing!');
     }
   };
@@ -628,8 +635,10 @@ const Worksheets = () => {
     // Load DICOM series configuration if it exists
     if (template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0) {
       setDicomSeriesConfig(template.dicomSeriesConfig);
+      setDicomConfigEnabled(true);
     } else {
       setDicomSeriesConfig([]);
+      setDicomConfigEnabled(false);
     }
     
     // Switch to custom worksheet tab with template loaded
@@ -653,6 +662,7 @@ const Worksheets = () => {
     setIsCreatingTemplate(false);
     setTemplateJustLoaded(false);
     setDicomSeriesConfig([]);
+    setDicomConfigEnabled(false);
   };
 
   const saveWorksheet = (worksheetData) => {
@@ -1414,6 +1424,7 @@ const Worksheets = () => {
                       
                       // Load DICOM configuration from template (separate from QC tests)
                       setDicomSeriesConfig(template.dicomSeriesConfig || []);
+                      setDicomConfigEnabled(template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0);
                       
                       // IMPORTANT: Set selectedTemplate for proper template tracking
                       setSelectedTemplate(template);
@@ -2050,6 +2061,7 @@ const Worksheets = () => {
                         });
                         setCustomTests(template.tests.map(test => ({ ...test, id: Date.now() + Math.random() })));
                         setDicomSeriesConfig(template.dicomSeriesConfig || []); // Load DICOM configuration
+                        setDicomConfigEnabled(template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0);
                         setIsCreatingTemplate(true);
                         toast.success(`Template "${template.title}" loaded for editing as new template`);
                       }
@@ -2234,17 +2246,42 @@ const Worksheets = () => {
 
                 {/* DICOM Configuration */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-100 mb-4">DICOM Configuration</h3>
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <DICOMTemplateConfig
-                      modality={customWorksheetInfo.modality}
-                      frequency={customWorksheetInfo.frequency}
-                      onSeriesConfigChange={(config) => {
-                        setDicomSeriesConfig(config);
+                  <div className="flex items-center space-x-3 mb-4">
+                    <input
+                      type="checkbox"
+                      id="enable-dicom-config"
+                      checked={dicomConfigEnabled}
+                      onChange={(e) => {
+                        setDicomConfigEnabled(e.target.checked);
+                        if (!e.target.checked) {
+                          setDicomSeriesConfig([]);
+                        }
                       }}
-                      initialConfig={dicomSeriesConfig}
+                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
                     />
+                    <label htmlFor="enable-dicom-config" className="text-lg font-semibold text-gray-100">
+                      DICOM Configuration
+                    </label>
                   </div>
+                  
+                  {dicomConfigEnabled ? (
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <DICOMTemplateConfig
+                        modality={customWorksheetInfo.modality}
+                        frequency={customWorksheetInfo.frequency}
+                        onSeriesConfigChange={(config) => {
+                          setDicomSeriesConfig(config);
+                        }}
+                        initialConfig={dicomSeriesConfig}
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <p className="text-gray-400 text-sm">
+                        Enable DICOM configuration to automatically identify and analyze DICOM images during QC performance.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tests Section */}
