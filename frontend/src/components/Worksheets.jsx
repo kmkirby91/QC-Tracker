@@ -1593,18 +1593,6 @@ const Worksheets = () => {
                     </span>
                   </div>
                   
-                  {series.requiredFor && series.requiredFor.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {series.requiredFor.map((test, testIndex) => (
-                        <span
-                          key={testIndex}
-                          className="px-2 py-1 text-xs bg-green-900/30 border border-green-600 text-green-200 rounded"
-                        >
-                          {test}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                   
                   {series.dicomCriteria && series.dicomCriteria.customTags && series.dicomCriteria.customTags.length > 0 && (
                     <div className="mt-2 text-xs text-gray-400">

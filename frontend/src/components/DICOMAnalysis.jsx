@@ -218,7 +218,7 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, selectedSeries = [
                 </div>
               </div>
               <div className="text-xs text-blue-300">
-                {series.requiredFor?.length || 0} QC tests
+                DICOM Series Configuration
               </div>
             </div>
           ))}

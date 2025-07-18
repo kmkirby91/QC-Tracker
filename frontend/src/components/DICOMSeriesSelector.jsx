@@ -83,7 +83,6 @@ const DICOMSeriesSelector = ({
             kvp: 120,
             mas: 200,
             reconstructionKernel: 'STANDARD',
-            requiredFor: ['CT Number Accuracy (Water)', 'Image Noise', 'Uniformity'],
             recommended: true,
             analysisType: 'primary'
           },
@@ -96,7 +95,6 @@ const DICOMSeriesSelector = ({
             kvp: 120,
             mas: 300,
             reconstructionKernel: 'SHARP',
-            requiredFor: ['Spatial Resolution', 'Slice Thickness'],
             recommended: false,
             analysisType: 'secondary'
           },
@@ -109,7 +107,6 @@ const DICOMSeriesSelector = ({
             kvp: 120,
             mas: 400,
             reconstructionKernel: 'STANDARD',
-            requiredFor: ['Low Contrast Resolution'],
             recommended: false,
             analysisType: 'optional'
           }
@@ -127,7 +124,6 @@ const DICOMSeriesSelector = ({
             tr: 500,
             te: 15,
             flipAngle: 90,
-            requiredFor: ['SNR Measurement', 'Uniformity', 'Geometric Accuracy'],
             recommended: true,
             analysisType: 'primary'
           },
@@ -140,7 +136,6 @@ const DICOMSeriesSelector = ({
             tr: 4000,
             te: 100,
             flipAngle: 90,
-            requiredFor: ['Image Quality Assessment', 'Ghosting Analysis'],
             recommended: true,
             analysisType: 'primary'
           },
@@ -153,7 +148,6 @@ const DICOMSeriesSelector = ({
             tr: 100,
             te: 5,
             flipAngle: 30,
-            requiredFor: ['Frequency Stability'],
             recommended: false,
             analysisType: 'optional'
           }
@@ -171,7 +165,6 @@ const DICOMSeriesSelector = ({
             kvp: 28,
             mas: 'AEC',
             compression: '15 daN',
-            requiredFor: ['Phantom Image Quality Assessment', 'Contrast Sensitivity Evaluation'],
             recommended: true,
             analysisType: 'primary'
           },
@@ -184,7 +177,6 @@ const DICOMSeriesSelector = ({
             kvp: 28,
             mas: 'AEC',
             compression: '15 daN',
-            requiredFor: ['Phantom Image Quality Assessment', 'Spatial Resolution Test'],
             recommended: true,
             analysisType: 'primary'
           },
@@ -197,7 +189,6 @@ const DICOMSeriesSelector = ({
             kvp: 28,
             mas: 'AEC',
             compression: '15 daN',
-            requiredFor: ['Automatic Exposure Control Performance', 'Beam Quality Assessment'],
             recommended: false,
             analysisType: 'secondary'
           }
@@ -213,7 +204,6 @@ const DICOMSeriesSelector = ({
             seriesDescription: `${modality} QC Phantom`,
             imageCount: 50,
             sliceThickness: 3.0,
-            requiredFor: ['Daily QC Analysis'],
             recommended: true,
             analysisType: 'primary'
           }
@@ -227,7 +217,6 @@ const DICOMSeriesSelector = ({
             seriesNumber: 1,
             seriesDescription: 'QC Phantom Study',
             imageCount: 1,
-            requiredFor: ['Quality Control'],
             recommended: true,
             analysisType: 'primary'
           }
@@ -315,27 +304,12 @@ const DICOMSeriesSelector = ({
                   <p className="text-gray-300 text-sm mb-3">{series.description}</p>
                 )}
                 
-                {series.requiredFor && series.requiredFor.length > 0 && (
-                  <div className="mb-3">
-                    <span className="text-gray-400 text-sm">Enables QC Tests:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {series.requiredFor.map((test, testIndex) => (
-                        <span
-                          key={testIndex}
-                          className="px-2 py-1 text-xs bg-green-900/30 border border-green-600 text-green-200 rounded"
-                        >
-                          {test}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 
-                {series.dicomCriteria && series.dicomCriteria.customTags && series.dicomCriteria.customTags.length > 0 && (
+                {series.dicomCriteria && series.dicomCriteria.customTags && series.dicomCriteria.customTags.filter(tag => tag.enabled !== false).length > 0 && (
                   <div>
-                    <h5 className="text-sm font-medium text-gray-300 mb-2">DICOM Identification Criteria:</h5>
+                    <h5 className="text-sm font-medium text-gray-300 mb-2">Active DICOM Identification Criteria:</h5>
                     <div className="space-y-2">
-                      {series.dicomCriteria.customTags.map((tag, tagIndex) => (
+                      {series.dicomCriteria.customTags.filter(tag => tag.enabled !== false).map((tag, tagIndex) => (
                         <div key={tagIndex} className="bg-gray-600 rounded p-2 text-sm">
                           <div className="flex items-center space-x-2 flex-wrap">
                             <span className="text-blue-300 font-medium">
@@ -360,12 +334,23 @@ const DICOMSeriesSelector = ({
                         </div>
                       ))}
                     </div>
+                    {(() => {
+                      const disabledCriteria = series.dicomCriteria.customTags.filter(tag => tag.enabled === false);
+                      return disabledCriteria.length > 0 ? (
+                        <div className="mt-2 text-xs text-yellow-300">
+                          ⚠️ {disabledCriteria.length} additional criteria disabled
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                 )}
                 
-                {(!series.dicomCriteria || !series.dicomCriteria.customTags || series.dicomCriteria.customTags.length === 0) && (
+                {(!series.dicomCriteria || !series.dicomCriteria.customTags || series.dicomCriteria.customTags.filter(tag => tag.enabled !== false).length === 0) && (
                   <div className="text-gray-400 text-sm italic">
-                    No specific DICOM identification criteria configured
+                    {series.dicomCriteria?.customTags?.length > 0 
+                      ? 'All DICOM identification criteria are disabled'
+                      : 'No specific DICOM identification criteria configured'
+                    }
                   </div>
                 )}
               </div>
@@ -553,27 +538,6 @@ const DICOMSeriesSelector = ({
                             )}
                           </div>
                           
-                          {series.requiredFor && series.requiredFor.length > 0 && (
-                            <div className="text-sm">
-                              <span className="text-gray-400">
-                                {templateMode ? 'Enables automated calculation for:' : 'Required for:'}
-                              </span>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {series.requiredFor.map((test, index) => (
-                                  <span
-                                    key={index}
-                                    className={`px-2 py-1 text-xs rounded ${
-                                      templateMode 
-                                        ? 'bg-green-900/30 border border-green-600 text-green-200'
-                                        : 'bg-purple-900/30 border border-purple-600 text-purple-200'
-                                    }`}
-                                  >
-                                    {test}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       </div>
                       

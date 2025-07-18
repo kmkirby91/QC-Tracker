@@ -9,13 +9,19 @@ const DICOMTemplateConfig = ({
 }) => {
   const [seriesConfigs, setSeriesConfigs] = useState(initialConfig.length > 0 ? initialConfig.map(config => ({
     ...config,
-    enabled: config.enabled !== undefined ? config.enabled : true // Default to enabled for backward compatibility
+    enabled: config.enabled !== undefined ? config.enabled : true, // Default to enabled for backward compatibility
+    dicomCriteria: {
+      ...config.dicomCriteria,
+      customTags: (config.dicomCriteria?.customTags || []).map(tag => ({
+        ...tag,
+        enabled: tag.enabled !== undefined ? tag.enabled : true // Default to enabled for backward compatibility
+      }))
+    }
   })) : [
     {
       id: Date.now(),
       name: '',
       description: '',
-      requiredFor: [],
       priority: 'required',
       enabled: true,
       dicomCriteria: {
@@ -47,7 +53,6 @@ const DICOMTemplateConfig = ({
       id: Date.now(),
       name: '',
       description: '',
-      requiredFor: [],
       priority: 'optional',
       enabled: true,
       dicomCriteria: {
@@ -119,7 +124,8 @@ const DICOMTemplateConfig = ({
             customTag: '', 
             value: '', 
             matchType: 'exact',
-            description: '' 
+            description: '',
+            enabled: true
           }]
         }
       } : config
@@ -275,54 +281,9 @@ const DICOMTemplateConfig = ({
     }
   };
 
-  const getQCTestSuggestions = () => {
-    switch (modality) {
-      case 'CT':
-        return [
-          'CT Number Accuracy (Water)',
-          'Image Noise',
-          'Uniformity',
-          'Spatial Resolution',
-          'Slice Thickness',
-          'Low Contrast Resolution',
-          'Artifact Analysis'
-        ];
-      case 'MRI':
-        return [
-          'SNR Measurement',
-          'Uniformity',
-          'Geometric Accuracy',
-          'Image Quality Assessment',
-          'Ghosting Analysis',
-          'Frequency Stability',
-          'Slice Position Accuracy'
-        ];
-      case 'Mammography':
-        return [
-          'Phantom Image Quality Assessment',
-          'Contrast Sensitivity Evaluation',
-          'Spatial Resolution Test',
-          'Automatic Exposure Control Performance',
-          'Beam Quality Assessment',
-          'Artifact Analysis'
-        ];
-      default:
-        return [
-          'Quality Control Analysis',
-          'CT Number Accuracy (Water)',
-          'Image Noise',
-          'Uniformity',
-          'SNR Measurement',
-          'Geometric Accuracy',
-          'Spatial Resolution',
-          'Phantom Image Quality Assessment',
-          'Artifact Analysis'
-        ];
-    }
-  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-lg font-medium text-gray-200">DICOM Series Configuration</h4>
         <button
@@ -335,7 +296,7 @@ const DICOMTemplateConfig = ({
       </div>
 
       {seriesConfigs.map((config, index) => (
-        <div key={config.id} className={`bg-gray-700 rounded-lg p-6 space-y-4 ${!config.enabled ? 'opacity-60' : ''}`}>
+        <div key={config.id} className={`bg-gray-700 rounded-lg p-4 space-y-3 ${!config.enabled ? 'opacity-60' : ''}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
@@ -344,20 +305,20 @@ const DICOMTemplateConfig = ({
                   id={`enabled-${config.id}`}
                   checked={config.enabled !== false}
                   onChange={(e) => updateSeriesConfig(config.id, 'enabled', e.target.checked)}
-                  className="w-4 h-4 text-green-600 bg-gray-600 border-gray-500 rounded focus:ring-green-500 focus:ring-2"
+                  className="w-3 h-3 text-green-600 bg-gray-600 border-gray-500 rounded focus:ring-green-500 focus:ring-1"
                 />
-                <label htmlFor={`enabled-${config.id}`} className="text-sm text-green-300 font-medium">
-                  {config.enabled !== false ? '✅ Enabled' : '❌ Disabled'}
+                <label htmlFor={`enabled-${config.id}`} className="text-xs text-green-300 font-medium">
+                  {config.enabled !== false ? '✅' : '❌'}
                 </label>
               </div>
-              <h5 className="text-lg font-medium text-gray-100">
-                Series Configuration #{index + 1}
+              <h5 className="text-sm font-medium text-gray-100">
+                Series #{index + 1}
               </h5>
             </div>
             {seriesConfigs.length > 1 && (
               <button
                 onClick={() => removeSeriesConfig(config.id)}
-                className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
+                className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
               >
                 Remove
               </button>
@@ -365,120 +326,116 @@ const DICOMTemplateConfig = ({
           </div>
           
           {!config.enabled && (
-            <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-3">
-              <p className="text-sm text-yellow-300">
-                ⚠️ This series configuration is disabled and will not be used for DICOM matching when assigned to machines.
+            <div className="bg-yellow-900/30 border border-yellow-600/50 rounded p-2">
+              <p className="text-xs text-yellow-300">
+                ⚠️ Disabled - will not be used for DICOM matching
               </p>
             </div>
           )}
 
           {/* Basic Series Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label className="block text-xs font-medium text-gray-300 mb-1">
                 Series Name *
               </label>
               <input
                 type="text"
                 value={config.name}
                 onChange={(e) => updateSeriesConfig(config.id, 'name', e.target.value)}
-                placeholder="e.g., QC Phantom Axial 5mm"
-                className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="QC Phantom Axial"
+                className="w-full px-2 py-1.5 bg-gray-600 border border-gray-500 rounded text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label className="block text-xs font-medium text-gray-300 mb-1">
                 Priority
               </label>
               <select
                 value={config.priority}
                 onChange={(e) => updateSeriesConfig(config.id, 'priority', e.target.value)}
-                className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-2 py-1.5 bg-gray-600 border border-gray-500 rounded text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
               >
                 <option value="required">Required</option>
                 <option value="recommended">Recommended</option>
                 <option value="optional">Optional</option>
               </select>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Description
-            </label>
-            <textarea
-              value={config.description}
-              onChange={(e) => updateSeriesConfig(config.id, 'description', e.target.value)}
-              placeholder="Describe the purpose of this series and any special requirements..."
-              rows={2}
-              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* QC Tests This Series Enables */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              QC Tests This Series Enables
-            </label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {getQCTestSuggestions().map((test) => (
-                <button
-                  key={test}
-                  onClick={() => {
-                    const current = config.requiredFor || [];
-                    const updated = current.includes(test) 
-                      ? current.filter(t => t !== test)
-                      : [...current, test];
-                    updateSeriesConfig(config.id, 'requiredFor', updated);
-                  }}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
-                    config.requiredFor?.includes(test)
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                  }`}
-                >
-                  {test}
-                </button>
-              ))}
+            <div>
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Description
+              </label>
+              <input
+                type="text"
+                value={config.description}
+                onChange={(e) => updateSeriesConfig(config.id, 'description', e.target.value)}
+                placeholder="Brief description..."
+                className="w-full px-2 py-1.5 bg-gray-600 border border-gray-500 rounded text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+              />
             </div>
           </div>
+
 
           {/* DICOM Identification Criteria */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h6 className="text-md font-medium text-gray-200 mb-3">DICOM Identification Criteria</h6>
-            <div className="text-sm text-gray-400 mb-4">
-              Specify DICOM tags that will be used to identify this series when querying the database.
-            </div>
-
-            {/* DICOM Criteria */}
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300">
-                    DICOM Identification Criteria
-                  </label>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Add specific DICOM tags and values to identify this series
-                  </p>
-                </div>
-                <button
-                  onClick={() => addCustomTag(config.id)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
-                >
-                  + Add Criteria
-                </button>
+          <div className="bg-gray-800 rounded p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h6 className="text-sm font-medium text-gray-200">DICOM Identification Criteria</h6>
+                <p className="text-xs text-gray-400">
+                  Add DICOM tags to identify this series
+                </p>
               </div>
+              <button
+                onClick={() => addCustomTag(config.id)}
+                className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
               
               {config.dicomCriteria.customTags.map((tag, tagIndex) => (
-                <div key={tagIndex} className="space-y-2 mb-3 p-3 bg-gray-700 rounded">
+                <div key={tagIndex} className={`mb-2 p-2 bg-gray-700 rounded ${!tag.enabled ? 'opacity-60' : ''}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`tag-enabled-${config.id}-${tagIndex}`}
+                        checked={tag.enabled !== false}
+                        onChange={(e) => updateCustomTag(config.id, tagIndex, 'enabled', e.target.checked)}
+                        className="w-3 h-3 text-green-600 bg-gray-600 border-gray-500 rounded focus:ring-green-500 focus:ring-1"
+                      />
+                      <label htmlFor={`tag-enabled-${config.id}-${tagIndex}`} className="text-xs text-green-300">
+                        {tag.enabled !== false ? '✅' : '❌'}
+                      </label>
+                      <span className="text-xs text-gray-400">
+                        Criteria #{tagIndex + 1}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => removeCustomTag(config.id, tagIndex)}
+                      className="px-1 py-0.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  
+                  {!tag.enabled && (
+                    <div className="bg-yellow-900/30 border border-yellow-600/50 rounded p-1 mb-2">
+                      <p className="text-xs text-yellow-300">
+                        ⚠️ Disabled
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                     <div>
                       <label className="block text-xs text-gray-300 mb-1">DICOM Tag</label>
                       <select
                         value={tag.tag}
                         onChange={(e) => updateCustomTag(config.id, tagIndex, 'tag', e.target.value)}
-                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       >
                         <option value="">Select a DICOM tag...</option>
                         {Object.entries(
@@ -504,7 +461,7 @@ const DICOMTemplateConfig = ({
                       <select
                         value={tag.matchType || 'exact'}
                         onChange={(e) => updateCustomTag(config.id, tagIndex, 'matchType', e.target.value)}
-                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       >
                         <option value="exact">Exact Match</option>
                         <option value="contains">Contains</option>
@@ -534,7 +491,7 @@ const DICOMTemplateConfig = ({
                           tag.matchType === 'less_than' ? 'Maximum value' :
                           'Value to match'
                         }
-                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
                     </div>
                   </div>
@@ -547,7 +504,7 @@ const DICOMTemplateConfig = ({
                         value={tag.customTag || ''}
                         onChange={(e) => updateCustomTag(config.id, tagIndex, 'customTag', e.target.value)}
                         placeholder="e.g., 0018,0050"
-                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
                       <p className="text-xs text-gray-400 mt-1">
                         Enter the DICOM tag in format: group,element (e.g., 0018,0050)
@@ -564,52 +521,69 @@ const DICOMTemplateConfig = ({
                     </div>
                   )}
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 mr-2">
-                      <label className="block text-xs text-gray-300 mb-1">Description (Optional)</label>
-                      <input
-                        type="text"
-                        value={tag.description}
-                        onChange={(e) => updateCustomTag(config.id, tagIndex, 'description', e.target.value)}
-                        placeholder="Description of this criteria"
-                        className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                    <button
-                      onClick={() => removeCustomTag(config.id, tagIndex)}
-                      className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
-                    >
-                      Remove
-                    </button>
+                  <div>
+                    <label className="block text-xs text-gray-300 mb-1">Description (Optional)</label>
+                    <input
+                      type="text"
+                      value={tag.description}
+                      onChange={(e) => updateCustomTag(config.id, tagIndex, 'description', e.target.value)}
+                      placeholder="Description..."
+                      className="w-full px-2 py-1 bg-gray-600 border border-gray-500 rounded text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
                   </div>
                 </div>
               ))}
               
               {config.dicomCriteria.customTags.length === 0 && (
-                <div className="text-center py-4 text-gray-400">
-                  <p className="text-sm">No DICOM criteria added yet</p>
-                  <p className="text-xs mt-1">Click "Add Criteria" to specify how to identify this series</p>
+                <div className="text-center py-2 text-gray-400">
+                  <p className="text-xs">No DICOM criteria added yet</p>
                 </div>
               )}
-            </div>
           </div>
         </div>
       ))}
 
       {/* Summary */}
-      <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-4">
-        <h4 className="text-blue-300 font-medium mb-2">📋 Configuration Summary</h4>
-        <div className="text-sm text-blue-200">
-          <p>This template defines {seriesConfigs.length} DICOM series configuration(s) for {modality ? `${modality} ` : ''}{frequency ? `${frequency} ` : ''}QC.</p>
-          <p className="mt-1">
-            <span className="text-green-300">✅ {seriesConfigs.filter(config => config.enabled !== false).length} enabled</span>
-            {seriesConfigs.filter(config => config.enabled === false).length > 0 && (
-              <span className="text-yellow-300 ml-3">❌ {seriesConfigs.filter(config => config.enabled === false).length} disabled</span>
-            )}
-          </p>
-          <p className="mt-2">
-            When this template is used, the system will search for DICOM studies matching only the enabled criteria
-            and present them to technologists for selection during QC performance.
+      <div className="bg-blue-900/20 border border-blue-600 rounded p-3">
+        <h4 className="text-blue-300 font-medium mb-2 text-sm">📋 Configuration Summary</h4>
+        <div className="text-xs text-blue-200">
+          <p className="mb-2">This template defines {seriesConfigs.length} DICOM series configuration(s) for {modality ? `${modality} ` : ''}{frequency ? `${frequency} ` : ''}QC:</p>
+          
+          <div className="space-y-1">
+            {seriesConfigs.map((config, index) => {
+              const activeCriteria = (config.dicomCriteria?.customTags || []).filter(tag => tag.enabled !== false).length;
+              const totalCriteria = config.dicomCriteria?.customTags?.length || 0;
+              const disabledCriteria = totalCriteria - activeCriteria;
+              
+              return (
+                <div key={config.id} className="flex items-center justify-between py-1">
+                  <div className="flex items-center space-x-2">
+                    <span className={config.enabled !== false ? 'text-green-300' : 'text-red-300'}>
+                      {config.enabled !== false ? '✅' : '❌'}
+                    </span>
+                    <span className="text-gray-200">
+                      {config.name || `Series #${index + 1}`}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    {totalCriteria > 0 ? (
+                      <span className="text-xs">
+                        <span className="text-green-300">{activeCriteria} criteria enabled</span>
+                        {disabledCriteria > 0 && (
+                          <span className="text-yellow-300"> • {disabledCriteria} disabled</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">No criteria</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          <p className="mt-2 text-xs text-blue-300">
+            Only enabled series with enabled criteria will be used for DICOM matching during QC performance.
           </p>
         </div>
       </div>
