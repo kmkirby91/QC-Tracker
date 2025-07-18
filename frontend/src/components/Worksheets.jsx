@@ -749,6 +749,55 @@ const Worksheets = () => {
     }
   };
 
+  const deleteWorksheet = () => {
+    if (!worksheetData || !worksheetData.templateSource) {
+      toast.error('Unable to delete worksheet - worksheet data not found');
+      return;
+    }
+
+    try {
+      const worksheets = JSON.parse(localStorage.getItem('qcWorksheets') || '[]');
+      
+      // Find and remove the worksheet by templateSource
+      const updatedWorksheets = worksheets.filter(w => 
+        w.templateSource !== worksheetData.templateSource
+      );
+      
+      if (updatedWorksheets.length === worksheets.length) {
+        toast.error('Worksheet not found in storage');
+        return;
+      }
+      
+      localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+      
+      // Clear the current editing state
+      setWorksheetDataSafe(null);
+      setCustomWorksheetInfo({
+        title: '',
+        frequency: 'daily',
+        machineId: '',
+        modality: '',
+        description: ''
+      });
+      setCustomTests([
+        { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '', calculatedFromDicom: false, dicomSeriesSource: '' }
+      ]);
+      setDicomSeriesConfig([]);
+      setDicomConfigEnabled(false);
+      setSelectedTemplate(null);
+      
+      // Navigate back to worksheets view
+      setViewMode('worksheets');
+      setRefreshKey(prev => prev + 1); // Force refresh of worksheets list
+      
+      toast.success(`Worksheet "${worksheetData.title}" deleted successfully`);
+      
+    } catch (error) {
+      console.error('Error deleting worksheet:', error);
+      toast.error('Failed to delete worksheet');
+    }
+  };
+
   const addCustomTest = () => {
     const newTest = {
       id: Date.now() + Math.random(),
@@ -1887,7 +1936,7 @@ const Worksheets = () => {
               className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               <span>📝</span>
-              <span>Create Worksheet</span>
+              <span>{isEditingExistingWorksheet ? 'Update Worksheet' : 'Create Worksheet'}</span>
             </button>
             <button
               onClick={resetTemplateForm}
@@ -1896,6 +1945,21 @@ const Worksheets = () => {
               <span>🔄</span>
               <span>Reset</span>
             </button>
+            
+            {/* Delete Button - Only show when editing existing worksheet */}
+            {isEditingExistingWorksheet && (
+              <button
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to delete "${worksheetData.title}"? This will remove the worksheet from the assigned machine(s). This action cannot be undone.`)) {
+                    deleteWorksheet();
+                  }
+                }}
+                className="px-6 py-3 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition-colors flex items-center space-x-2"
+              >
+                <span>🗑️</span>
+                <span>Delete Worksheet</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
