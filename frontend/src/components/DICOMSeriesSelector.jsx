@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import DICOMViewer from './DICOMViewer';
 
 const DICOMSeriesSelector = ({ 
   machineId, 
@@ -19,8 +18,6 @@ const DICOMSeriesSelector = ({
   const [studyInfo, setStudyInfo] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [lastRefresh, setLastRefresh] = useState(null);
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [selectedSeriesForViewing, setSelectedSeriesForViewing] = useState(null);
 
   useEffect(() => {
     if (machineId && selectedDate && !viewOnly) {
@@ -247,14 +244,484 @@ const DICOMSeriesSelector = ({
 
   const handlePreviewSeries = (series) => {
     console.log('Opening DICOM viewer for series:', series.seriesDescription);
-    setSelectedSeriesForViewing(series);
-    setViewerOpen(true);
-    toast.success(`Opening DICOM viewer for ${series.seriesDescription}`);
+    
+    // Open DICOM viewer in a new window
+    const viewerWindow = window.open(
+      '', 
+      'dicomViewer', 
+      'width=1200,height=800,scrollbars=no,resizable=yes,status=no,toolbar=no,menubar=no,location=no'
+    );
+    
+    if (viewerWindow) {
+      // Create the HTML content for the viewer window
+      const viewerHTML = createViewerHTML(series);
+      viewerWindow.document.write(viewerHTML);
+      viewerWindow.document.close();
+      
+      // Focus the new window
+      viewerWindow.focus();
+      
+      toast.success(`Opening DICOM viewer for ${series.seriesDescription}`);
+    } else {
+      toast.error('Failed to open DICOM viewer. Please allow popups for this site.');
+    }
   };
 
-  const handleCloseViewer = () => {
-    setViewerOpen(false);
-    setSelectedSeriesForViewing(null);
+  const createViewerHTML = (series) => {
+    // Serialize the series data to pass to the new window
+    const seriesData = JSON.stringify(series);
+    
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DICOM Viewer - ${series.seriesDescription}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: #111827; 
+            color: white; 
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+        }
+        .viewer-container { 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: black;
+            position: relative;
+            overflow: hidden;
+        }
+        .controls-panel {
+            width: 300px;
+            background: #1f2937;
+            border-left: 1px solid #374151;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        .overlay-info {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            cursor: crosshair;
+        }
+        .control-group {
+            margin-bottom: 1rem;
+        }
+        .control-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #d1d5db;
+            margin-bottom: 0.5rem;
+        }
+        .slider {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        .preset-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .preset-btn, .control-btn {
+            padding: 0.25rem 0.5rem;
+            background: #374151;
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .preset-btn:hover, .control-btn:hover {
+            background: #4b5563;
+        }
+        .reset-btn {
+            width: 100%;
+            padding: 0.5rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .reset-btn:hover {
+            background: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <div class="viewer-container">
+        <!-- Header -->
+        <div style="background: #1f2937; padding: 1rem; border-bottom: 1px solid #374151; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1 style="font-size: 1.125rem; font-weight: 600; margin: 0;">DICOM Viewer</h1>
+                <p style="font-size: 0.875rem; color: #9ca3af; margin: 0;">${series.seriesDescription} - Series ${series.seriesNumber}</p>
+            </div>
+            <button onclick="window.close()" class="control-btn">✕ Close</button>
+        </div>
+        
+        <!-- Main content -->
+        <div style="flex: 1; display: flex;">
+            <!-- Image viewer -->
+            <div class="canvas-container" id="canvasContainer">
+                <canvas id="dicomCanvas"></canvas>
+                <div class="overlay-info" id="imageInfo">
+                    Loading...
+                </div>
+            </div>
+            
+            <!-- Controls -->
+            <div class="controls-panel">
+                <h3 style="font-weight: 600; margin-bottom: 1rem;">Viewer Controls</h3>
+                
+                <!-- Image navigation -->
+                <div class="control-group">
+                    <label class="control-label">Image Navigation</label>
+                    <input type="range" id="imageSlider" class="slider" min="0" max="29" value="0">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #9ca3af;">
+                        <span>1</span>
+                        <span id="totalImages">30</span>
+                    </div>
+                </div>
+                
+                <!-- Window/Level controls -->
+                <div class="control-group">
+                    <label class="control-label">Window Width: <span id="windowWidthValue">400</span></label>
+                    <input type="range" id="windowWidthSlider" class="slider" min="1" max="4000" value="400">
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">Window Center: <span id="windowCenterValue">40</span></label>
+                    <input type="range" id="windowCenterSlider" class="slider" min="-1000" max="3000" value="40">
+                </div>
+                
+                <!-- Presets -->
+                <div class="control-group">
+                    <label class="control-label">Presets</label>
+                    <div class="preset-grid">
+                        <button class="preset-btn" onclick="setPreset(400, 40)">Soft Tissue</button>
+                        <button class="preset-btn" onclick="setPreset(1500, 400)">Bone</button>
+                        <button class="preset-btn" onclick="setPreset(1600, -600)">Lung</button>
+                        <button class="preset-btn" onclick="setPreset(80, 40)">Brain</button>
+                    </div>
+                </div>
+                
+                <!-- Zoom controls -->
+                <div class="control-group">
+                    <label class="control-label">Zoom: <span id="zoomValue">100</span>%</label>
+                    <input type="range" id="zoomSlider" class="slider" min="0.1" max="5" step="0.1" value="1">
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <button class="preset-btn" onclick="setZoom(0.5)">50%</button>
+                        <button class="preset-btn" onclick="setZoom(1)">100%</button>
+                        <button class="preset-btn" onclick="setZoom(2)">200%</button>
+                    </div>
+                </div>
+                
+                <!-- Reset button -->
+                <button class="reset-btn" onclick="resetView()">Reset View</button>
+                
+                <!-- Series info -->
+                <div style="border-top: 1px solid #374151; padding-top: 1rem; margin-top: 1rem;">
+                    <h4 style="font-size: 0.875rem; font-weight: 500; color: #d1d5db; margin-bottom: 0.5rem;">Series Information</h4>
+                    <div style="font-size: 0.75rem; color: #9ca3af;">
+                        <div><strong>Description:</strong> ${series.seriesDescription}</div>
+                        <div><strong>Series Number:</strong> ${series.seriesNumber}</div>
+                        <div><strong>Images:</strong> ${series.imageCount}</div>
+                        ${series.sliceThickness ? `<div><strong>Slice Thickness:</strong> ${series.sliceThickness}mm</div>` : ''}
+                        ${series.kvp ? `<div><strong>kVp:</strong> ${series.kvp}</div>` : ''}
+                        ${series.mas ? `<div><strong>mAs:</strong> ${series.mas}</div>` : ''}
+                    </div>
+                </div>
+                
+                <!-- Instructions -->
+                <div style="border-top: 1px solid #374151; padding-top: 1rem; margin-top: 1rem;">
+                    <h4 style="font-size: 0.875rem; font-weight: 500; color: #d1d5db; margin-bottom: 0.5rem;">Instructions</h4>
+                    <div style="font-size: 0.75rem; color: #9ca3af;">
+                        <div>• Mouse wheel: Navigate images</div>
+                        <div>• Ctrl + wheel: Zoom</div>
+                        <div>• Drag: Pan image</div>
+                        <div>• Shift + drag: Window/Level</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // DICOM Viewer Implementation
+        const series = ${seriesData};
+        let images = [];
+        let currentImage = 0;
+        let windowWidth = 400;
+        let windowCenter = 40;
+        let zoom = 1;
+        let pan = { x: 0, y: 0 };
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let dragMode = 'pan';
+        
+        const canvas = document.getElementById('dicomCanvas');
+        const ctx = canvas.getContext('2d');
+        const imageInfo = document.getElementById('imageInfo');
+        
+        // Initialize viewer
+        function init() {
+            generateMockImages();
+            setupEventListeners();
+            renderImage();
+            updateUI();
+        }
+        
+        function generateMockImages() {
+            const imageCount = series.imageCount || 30;
+            images = [];
+            
+            for (let i = 0; i < imageCount; i++) {
+                const imageData = generateMockImageData(i);
+                images.push({
+                    instanceNumber: i + 1,
+                    imageData: imageData,
+                    acquisitionTime: \`\${String(8 + Math.floor(i / 10)).padStart(2, '0')}:\${String(30 + (i % 60)).padStart(2, '0')}:\${String(i % 60).padStart(2, '0')}\`
+                });
+            }
+            
+            document.getElementById('totalImages').textContent = imageCount;
+            document.getElementById('imageSlider').max = imageCount - 1;
+        }
+        
+        function generateMockImageData(imageIndex) {
+            const width = 512;
+            const height = 512;
+            const data = new Uint16Array(width * height);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const index = y * width + x;
+                    let value = 0;
+                    
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+                    const distFromCenter = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+                    
+                    if (distFromCenter < 200) {
+                        value = 1000; // Water phantom base
+                        
+                        // Add test objects
+                        for (let i = 0; i < 6; i++) {
+                            const objAngle = (i * Math.PI / 3) + (imageIndex * 0.1);
+                            const objX = centerX + 80 * Math.cos(objAngle);
+                            const objY = centerY + 80 * Math.sin(objAngle);
+                            const objDist = Math.sqrt((x - objX) ** 2 + (y - objY) ** 2);
+                            
+                            if (objDist < 15) {
+                                value = 1200 + (i * 100);
+                            }
+                        }
+                        
+                        value += (Math.random() - 0.5) * 50;
+                    }
+                    
+                    data[index] = Math.max(0, Math.min(4095, value));
+                }
+            }
+            
+            return { data, width, height };
+        }
+        
+        function renderImage() {
+            if (!images[currentImage]) return;
+            
+            const image = images[currentImage];
+            const { data, width, height } = image.imageData;
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const imageData = ctx.createImageData(width, height);
+            const pixels = imageData.data;
+            
+            // Apply window/level
+            for (let i = 0; i < data.length; i++) {
+                const pixelValue = data[i];
+                const minValue = windowCenter - windowWidth / 2;
+                const maxValue = windowCenter + windowWidth / 2;
+                let normalizedValue = (pixelValue - minValue) / (maxValue - minValue);
+                normalizedValue = Math.max(0, Math.min(1, normalizedValue));
+                
+                const intensity = Math.floor(normalizedValue * 255);
+                const pixelIndex = i * 4;
+                pixels[pixelIndex] = intensity;
+                pixels[pixelIndex + 1] = intensity;
+                pixels[pixelIndex + 2] = intensity;
+                pixels[pixelIndex + 3] = 255;
+            }
+            
+            ctx.clearRect(0, 0, width, height);
+            ctx.putImageData(imageData, 0, 0);
+            
+            // Apply zoom and pan
+            canvas.style.transform = \`scale(\${zoom}) translate(\${pan.x}px, \${pan.y}px)\`;
+            
+            updateImageInfo();
+        }
+        
+        function updateImageInfo() {
+            const info = \`
+Image: \${currentImage + 1} / \${images.length}
+Instance: \${images[currentImage].instanceNumber}
+W/L: \${Math.round(windowWidth)} / \${Math.round(windowCenter)}
+Zoom: \${(zoom * 100).toFixed(0)}%
+\${images[currentImage].acquisitionTime ? 'Time: ' + images[currentImage].acquisitionTime : ''}
+            \`.trim();
+            imageInfo.innerHTML = info.replace(/\\n/g, '<br>');
+        }
+        
+        function updateUI() {
+            document.getElementById('imageSlider').value = currentImage;
+            document.getElementById('windowWidthSlider').value = windowWidth;
+            document.getElementById('windowCenterSlider').value = windowCenter;
+            document.getElementById('zoomSlider').value = zoom;
+            document.getElementById('windowWidthValue').textContent = Math.round(windowWidth);
+            document.getElementById('windowCenterValue').textContent = Math.round(windowCenter);
+            document.getElementById('zoomValue').textContent = (zoom * 100).toFixed(0);
+        }
+        
+        function setupEventListeners() {
+            // Image slider
+            document.getElementById('imageSlider').addEventListener('input', (e) => {
+                currentImage = parseInt(e.target.value);
+                renderImage();
+            });
+            
+            // Window/Level sliders
+            document.getElementById('windowWidthSlider').addEventListener('input', (e) => {
+                windowWidth = parseInt(e.target.value);
+                renderImage();
+                updateUI();
+            });
+            
+            document.getElementById('windowCenterSlider').addEventListener('input', (e) => {
+                windowCenter = parseInt(e.target.value);
+                renderImage();
+                updateUI();
+            });
+            
+            // Zoom slider
+            document.getElementById('zoomSlider').addEventListener('input', (e) => {
+                zoom = parseFloat(e.target.value);
+                renderImage();
+                updateUI();
+            });
+            
+            // Mouse events
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseUp);
+            canvas.addEventListener('wheel', handleWheel);
+            
+            // Prevent context menu
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
+        
+        function handleMouseDown(e) {
+            isDragging = true;
+            dragMode = e.shiftKey ? 'windowing' : 'pan';
+            dragStart = { x: e.clientX, y: e.clientY };
+            canvas.style.cursor = dragMode === 'windowing' ? 'ns-resize' : 'move';
+        }
+        
+        function handleMouseMove(e) {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - dragStart.x;
+            const deltaY = e.clientY - dragStart.y;
+            
+            if (dragMode === 'windowing') {
+                windowWidth = Math.max(1, windowWidth + deltaX);
+                windowCenter = windowCenter - deltaY;
+                renderImage();
+                updateUI();
+            } else if (dragMode === 'pan') {
+                pan.x += deltaX / zoom;
+                pan.y += deltaY / zoom;
+                renderImage();
+            }
+            
+            dragStart = { x: e.clientX, y: e.clientY };
+        }
+        
+        function handleMouseUp() {
+            isDragging = false;
+            canvas.style.cursor = 'crosshair';
+        }
+        
+        function handleWheel(e) {
+            e.preventDefault();
+            
+            if (e.ctrlKey) {
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                zoom = Math.max(0.1, Math.min(10, zoom * zoomFactor));
+                renderImage();
+                updateUI();
+            } else {
+                const delta = e.deltaY > 0 ? 1 : -1;
+                currentImage = Math.max(0, Math.min(images.length - 1, currentImage + delta));
+                renderImage();
+                updateUI();
+            }
+        }
+        
+        function setPreset(width, center) {
+            windowWidth = width;
+            windowCenter = center;
+            renderImage();
+            updateUI();
+        }
+        
+        function setZoom(newZoom) {
+            zoom = newZoom;
+            renderImage();
+            updateUI();
+        }
+        
+        function resetView() {
+            zoom = 1;
+            pan = { x: 0, y: 0 };
+            windowWidth = 400;
+            windowCenter = 40;
+            renderImage();
+            updateUI();
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>`;
   };
 
   const getSeriesTypeColor = (analysisType) => {
@@ -633,13 +1100,6 @@ const DICOMSeriesSelector = ({
           )}
         </ul>
       </div>
-
-      {/* DICOM Viewer */}
-      <DICOMViewer
-        series={selectedSeriesForViewing}
-        isOpen={viewerOpen}
-        onClose={handleCloseViewer}
-      />
     </div>
     );
 };
