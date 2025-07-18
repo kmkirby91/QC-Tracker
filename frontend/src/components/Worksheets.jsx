@@ -100,6 +100,75 @@ const Worksheets = () => {
     return ['daily', 'weekly', 'monthly', 'quarterly', 'annual'];
   };
 
+  // Helper function to detect if a worksheet is actually modified from its template
+  const isWorksheetModifiedFromTemplate = (worksheet) => {
+    // If no template source, not a template-based worksheet
+    if (!worksheet.templateSource && !worksheet.sourceTemplateName) {
+      return false;
+    }
+    
+    // Find the original template
+    const templates = getModalityTemplates();
+    const originalTemplate = templates.find(t => 
+      t.title === worksheet.templateSource || 
+      t.title === worksheet.sourceTemplateName ||
+      t.id === worksheet.templateId ||
+      t.id === worksheet.sourceTemplateId
+    );
+    
+    if (!originalTemplate) {
+      // Template not found, assume modified
+      console.log('Template not found for worksheet, assuming modified:', worksheet.templateSource);
+      return true;
+    }
+    
+    // Compare test count
+    if (worksheet.tests.length !== originalTemplate.tests.length) {
+      console.log('Worksheet modified: test count differs', worksheet.tests.length, 'vs', originalTemplate.tests.length);
+      return true;
+    }
+    
+    // Compare individual tests
+    for (let i = 0; i < worksheet.tests.length; i++) {
+      const worksheetTest = worksheet.tests[i];
+      const templateTest = originalTemplate.tests[i];
+      
+      if (!templateTest) {
+        return true;
+      }
+      
+      // Compare key test properties
+      if (worksheetTest.testName !== templateTest.testName ||
+          worksheetTest.testType !== templateTest.testType ||
+          worksheetTest.tolerance !== templateTest.tolerance ||
+          worksheetTest.units !== templateTest.units ||
+          worksheetTest.notes !== templateTest.notes ||
+          worksheetTest.calculatedFromDicom !== templateTest.calculatedFromDicom ||
+          worksheetTest.dicomSeriesSource !== templateTest.dicomSeriesSource) {
+        console.log('Worksheet modified: test differs', worksheetTest.testName);
+        return true;
+      }
+    }
+    
+    // Compare worksheet properties (excluding machine-specific ones)
+    if (worksheet.frequency !== originalTemplate.frequency ||
+        worksheet.modality !== originalTemplate.modality ||
+        worksheet.description !== originalTemplate.description) {
+      console.log('Worksheet modified: properties differ');
+      return true;
+    }
+    
+    // Compare DICOM configuration
+    const worksheetDicom = worksheet.dicomSeriesConfig || [];
+    const templateDicom = originalTemplate.dicomSeriesConfig || [];
+    if (JSON.stringify(worksheetDicom) !== JSON.stringify(templateDicom)) {
+      console.log('Worksheet modified: DICOM config differs');
+      return true;
+    }
+    
+    return false;
+  };
+
   const getWorksheets = () => {
     try {
       const stored = localStorage.getItem('qcWorksheets');
@@ -711,6 +780,60 @@ const Worksheets = () => {
 
     const machine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
     
+    // Function to properly detect if worksheet is modified from template
+    const detectActualModifications = () => {
+      if (!selectedTemplate || !matchedToTemplate) {
+        return false; // No template to compare against
+      }
+      
+      // Compare test count
+      if (customTests.length !== selectedTemplate.tests.length) {
+        console.log('Modification detected: test count differs', customTests.length, 'vs', selectedTemplate.tests.length);
+        return true;
+      }
+      
+      // Compare individual tests
+      for (let i = 0; i < customTests.length; i++) {
+        const currentTest = customTests[i];
+        const templateTest = selectedTemplate.tests[i];
+        
+        if (!templateTest) {
+          console.log('Modification detected: template test missing at index', i);
+          return true;
+        }
+        
+        // Compare key test properties
+        if (currentTest.testName !== templateTest.testName ||
+            currentTest.testType !== templateTest.testType ||
+            currentTest.tolerance !== templateTest.tolerance ||
+            currentTest.units !== templateTest.units ||
+            currentTest.notes !== templateTest.notes ||
+            currentTest.calculatedFromDicom !== templateTest.calculatedFromDicom ||
+            currentTest.dicomSeriesSource !== templateTest.dicomSeriesSource) {
+          console.log('Modification detected: test differs', currentTest.testName, 'vs', templateTest.testName);
+          return true;
+        }
+      }
+      
+      // Compare worksheet info (excluding machine-specific fields)
+      if (customWorksheetInfo.frequency !== selectedTemplate.frequency ||
+          customWorksheetInfo.modality !== selectedTemplate.modality ||
+          customWorksheetInfo.description !== selectedTemplate.description) {
+        console.log('Modification detected: worksheet info differs');
+        return true;
+      }
+      
+      // Compare DICOM configuration
+      if (JSON.stringify(dicomSeriesConfig) !== JSON.stringify(selectedTemplate.dicomSeriesConfig || [])) {
+        console.log('Modification detected: DICOM config differs');
+        return true;
+      }
+      
+      return false;
+    };
+    
+    const isActuallyModified = detectActualModifications();
+    
     // Create unique worksheet for this specific machine
     const uniqueWorksheetData = {
       ...customWorksheetInfo,
@@ -719,7 +842,7 @@ const Worksheets = () => {
       id: `${Date.now()}-${customWorksheetInfo.machineId}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      isModified: (selectedTemplate && matchedToTemplate) ? hasRealTimeModifications : false,
+      isModified: isActuallyModified,
       sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
       sourceTemplateName: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
       templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
@@ -1057,9 +1180,8 @@ const Worksheets = () => {
                                       
                                       {/* Modified indicator */}
                                       {(() => {
-                                        const isModified = worksheet.isModified || 
-                                                         (worksheet.modifications && worksheet.modifications.length > 0) ||
-                                                         (worksheet.customizations && worksheet.customizations.length > 0);
+                                        // Use comprehensive modification detection
+                                        const isModified = isWorksheetModifiedFromTemplate(worksheet);
                                         
                                         if (isModified) {
                                           return (
@@ -1067,7 +1189,7 @@ const Worksheets = () => {
                                               🔧 Modified
                                             </span>
                                           );
-                                        } else if (worksheet.templateSource) {
+                                        } else if (worksheet.templateSource || worksheet.sourceTemplateName) {
                                           return (
                                             <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-green-900/50 text-green-300">
                                               ✓ Unmodified
