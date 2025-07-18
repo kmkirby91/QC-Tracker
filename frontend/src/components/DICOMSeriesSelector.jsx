@@ -293,6 +293,11 @@ const DICOMSeriesSelector = ({
             display: flex; 
             flex-direction: column; 
         }
+        .main-content {
+            flex: 1;
+            display: flex;
+            min-height: 0; /* Important for flex child to shrink */
+        }
         .canvas-container {
             flex: 1;
             display: flex;
@@ -308,6 +313,7 @@ const DICOMSeriesSelector = ({
             border-left: 1px solid #374151;
             padding: 1rem;
             overflow-y: auto;
+            flex-shrink: 0; /* Prevent panel from shrinking */
         }
         .overlay-info {
             position: absolute;
@@ -384,7 +390,7 @@ const DICOMSeriesSelector = ({
         </div>
         
         <!-- Main content -->
-        <div style="flex: 1; display: flex;">
+        <div class="main-content">
             <!-- Image viewer -->
             <div class="canvas-container" id="canvasContainer">
                 <canvas id="dicomCanvas"></canvas>
