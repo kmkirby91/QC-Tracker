@@ -719,7 +719,7 @@ const Worksheets = () => {
       id: `${Date.now()}-${customWorksheetInfo.machineId}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      isModified: (selectedTemplate && matchedToTemplate) ? true : false,
+      isModified: (selectedTemplate && matchedToTemplate) ? hasRealTimeModifications : false,
       sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
       sourceTemplateName: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
       templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
@@ -1636,6 +1636,12 @@ const Worksheets = () => {
                     }
                   } else {
                     updateCustomWorksheetInfo('modality', '');
+                  }
+                  
+                  // Reset modifications when changing machines - this is creating a new worksheet
+                  if (selectedTemplate && matchedToTemplate) {
+                    setHasRealTimeModifications(false);
+                    setRealTimeModifications([]);
                   }
                 }}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
