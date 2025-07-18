@@ -1496,7 +1496,7 @@ const Worksheets = () => {
                 className="w-4 h-4 text-green-600 bg-gray-700 border-gray-600 rounded focus:ring-green-500 focus:ring-2"
               />
               <label htmlFor="matchedToTemplate" className="text-sm font-medium text-green-300">
-                📋 Track modifications from this template
+                Track modifications from this template
               </label>
             </div>
           </div>
