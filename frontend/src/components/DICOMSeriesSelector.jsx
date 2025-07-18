@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import DICOMViewer from './DICOMViewer';
 
 const DICOMSeriesSelector = ({ 
   machineId, 
@@ -18,6 +19,8 @@ const DICOMSeriesSelector = ({
   const [studyInfo, setStudyInfo] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [selectedSeriesForViewing, setSelectedSeriesForViewing] = useState(null);
 
   useEffect(() => {
     if (machineId && selectedDate && !viewOnly) {
@@ -240,6 +243,18 @@ const DICOMSeriesSelector = ({
       );
       onSeriesSelection(selectedSeriesData);
     }
+  };
+
+  const handlePreviewSeries = (series) => {
+    console.log('Opening DICOM viewer for series:', series.seriesDescription);
+    setSelectedSeriesForViewing(series);
+    setViewerOpen(true);
+    toast.success(`Opening DICOM viewer for ${series.seriesDescription}`);
+  };
+
+  const handleCloseViewer = () => {
+    setViewerOpen(false);
+    setSelectedSeriesForViewing(null);
   };
 
   const getSeriesTypeColor = (analysisType) => {
@@ -543,6 +558,7 @@ const DICOMSeriesSelector = ({
                       
                       <div className="ml-4">
                         <button
+                          onClick={() => handlePreviewSeries(series)}
                           className="px-3 py-1 bg-gray-600 text-gray-200 text-xs rounded hover:bg-gray-500 transition-colors"
                           title="Preview Series"
                         >
@@ -617,6 +633,13 @@ const DICOMSeriesSelector = ({
           )}
         </ul>
       </div>
+
+      {/* DICOM Viewer */}
+      <DICOMViewer
+        series={selectedSeriesForViewing}
+        isOpen={viewerOpen}
+        onClose={handleCloseViewer}
+      />
     </div>
     );
 };
