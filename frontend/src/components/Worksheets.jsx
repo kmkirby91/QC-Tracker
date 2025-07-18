@@ -64,7 +64,7 @@ const Worksheets = () => {
   const [hasRealTimeModifications, setHasRealTimeModifications] = useState(false);
   const [matchedToTemplate, setMatchedToTemplate] = useState(false);
   const [dicomSeriesConfig, setDicomSeriesConfig] = useState([]);
-  const [dicomConfigEnabled, setDicomConfigEnabled] = useState(false);
+  const [dicomConfigEnabled, setDicomConfigEnabled] = useState(true);
 
   // Machine-specific DICOM configuration storage
   const getMachineSpecificDicomConfig = (machineId, modality, frequency) => {
