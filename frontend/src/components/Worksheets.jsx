@@ -342,6 +342,7 @@ const Worksheets = () => {
     const machineId = searchParams.get('machineId');
     const frequency = searchParams.get('frequency');
     const templateId = searchParams.get('templateId');
+    const templateSource = searchParams.get('templateSource');
     const viewOnly = searchParams.get('viewOnly');
 
     if (mode === 'template' && templateId) {
@@ -355,6 +356,8 @@ const Worksheets = () => {
       setSelectedMachine(machineId);
       setSelectedFrequency(frequency);
       generateWorksheet(machineId, frequency);
+    } else if (mode === 'edit' && templateSource) {
+      loadWorksheetForEditing(templateSource, machineId, frequency);
     } else if (mode) {
       setViewMode(mode);
     }
@@ -390,6 +393,57 @@ const Worksheets = () => {
     } catch (error) {
       console.error('Error loading worksheet for viewing:', error);
       toast.error('Failed to load worksheet');
+    }
+  };
+
+  const loadWorksheetForEditing = (templateSource, machineId, frequency) => {
+    try {
+      // Find the specific worksheet by templateSource
+      const worksheets = getWorksheets();
+      const worksheet = worksheets.find(w => w.templateSource === templateSource);
+      
+      if (!worksheet) {
+        toast.error('Worksheet not found');
+        setViewMode('worksheets');
+        return;
+      }
+      
+      console.log('Loading worksheet for editing:', worksheet);
+      
+      // Load worksheet data into editing form
+      setCustomWorksheetInfo({
+        title: worksheet.title,
+        frequency: worksheet.frequency,
+        machineId: worksheet.assignedMachines && worksheet.assignedMachines.length > 0 ? worksheet.assignedMachines[0] : '',
+        modality: worksheet.modality,
+        description: worksheet.description || ''
+      });
+      
+      // Load the tests from the worksheet
+      setCustomTests(worksheet.tests || []);
+      
+      // Load DICOM series configuration if it exists
+      if (worksheet.dicomSeriesConfig && worksheet.dicomSeriesConfig.length > 0) {
+        setDicomSeriesConfig(worksheet.dicomSeriesConfig);
+      } else {
+        setDicomSeriesConfig([]);
+      }
+      
+      // Set the worksheet data for editing (NOT template)
+      setWorksheetDataSafe(worksheet);
+      
+      // Clear template selection since we're editing a worksheet, not a template
+      setSelectedTemplate(null);
+      
+      // Set to custom mode for editing
+      setViewMode('custom');
+      
+      toast.success(`Loaded worksheet "${worksheet.title}" for editing`);
+      
+    } catch (error) {
+      console.error('Error loading worksheet for editing:', error);
+      toast.error('Failed to load worksheet for editing');
+      setViewMode('worksheets');
     }
   };
 
@@ -1319,10 +1373,28 @@ const Worksheets = () => {
   };
 
   const renderCustomWorksheet = () => {
+    // Check if we're editing an existing worksheet
+    const isEditingExistingWorksheet = worksheetData && worksheetData.templateSource;
+    
     return (
       <div key={`custom-${refreshKey}`} className="space-y-6">
-        {/* Load Template Dropdown */}
-        {getModalityTemplates().length > 0 && (
+        {/* Edit Mode Header */}
+        {isEditingExistingWorksheet && (
+          <div className="bg-orange-900/20 border border-orange-600 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <span className="text-orange-400 text-xl">✏️</span>
+              <div>
+                <h2 className="text-xl font-semibold text-orange-200">Editing Worksheet</h2>
+                <p className="text-sm text-orange-300">
+                  Modifying "{worksheetData.title}" - based on {worksheetData.templateSource}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Load Template Dropdown - Hide when editing existing worksheet */}
+        {!isEditingExistingWorksheet && getModalityTemplates().length > 0 && (
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl font-semibold text-gray-100 mb-4">Load from Template</h2>
             

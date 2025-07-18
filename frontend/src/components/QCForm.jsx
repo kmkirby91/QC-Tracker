@@ -746,7 +746,7 @@ const QCForm = ({ viewOnly = false }) => {
                 
                 <button
                   type="button"
-                  onClick={() => navigate(`/worksheets?edit=${machineType}&frequency=${frequency}`)}
+                  onClick={() => navigate(`/worksheets?mode=edit&templateSource=${encodeURIComponent(tests[0].templateSource)}&machineId=${machineId}&frequency=${frequency}`)}
                   className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center space-x-2"
                 >
                   <span>✏️</span>
