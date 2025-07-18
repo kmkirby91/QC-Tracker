@@ -1922,7 +1922,36 @@ const Worksheets = () => {
             ))}
           </div>
 
-          <div className="mt-6 flex justify-center space-x-4">
+          {/* Delete Section - Only show when editing existing worksheet */}
+          {isEditingExistingWorksheet && (
+            <div className="mt-6 mb-4">
+              <div className="bg-red-900/20 border border-red-600 rounded-lg p-4">
+                <div className="flex items-center space-x-3 mb-3">
+                  <span className="text-red-400 text-xl">⚠️</span>
+                  <div>
+                    <h3 className="text-red-200 font-medium">Danger Zone</h3>
+                    <p className="text-red-300 text-sm">
+                      Deleting this worksheet will remove it from all assigned machines. This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Are you sure you want to delete "${worksheetData.title}"? This will remove the worksheet from the assigned machine(s). This action cannot be undone.`)) {
+                      deleteCurrentWorksheet();
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition-colors flex items-center space-x-2"
+                >
+                  <span>🗑️</span>
+                  <span>Delete Worksheet</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Main Action Buttons */}
+          <div className="mt-6 flex justify-between">
             <button
               onClick={saveAsTemplate}
               className="px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
@@ -1930,6 +1959,7 @@ const Worksheets = () => {
               <span>💾</span>
               <span>Save as Template</span>
             </button>
+            
             <button
               onClick={createWorksheet}
               disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
@@ -1938,28 +1968,6 @@ const Worksheets = () => {
               <span>📝</span>
               <span>{isEditingExistingWorksheet ? 'Update Worksheet' : 'Create Worksheet'}</span>
             </button>
-            <button
-              onClick={resetTemplateForm}
-              className="px-6 py-3 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 transition-colors flex items-center space-x-2"
-            >
-              <span>🔄</span>
-              <span>Reset</span>
-            </button>
-            
-            {/* Delete Button - Only show when editing existing worksheet */}
-            {isEditingExistingWorksheet && (
-              <button
-                onClick={() => {
-                  if (window.confirm(`Are you sure you want to delete "${worksheetData.title}"? This will remove the worksheet from the assigned machine(s). This action cannot be undone.`)) {
-                    deleteCurrentWorksheet();
-                  }
-                }}
-                className="px-6 py-3 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition-colors flex items-center space-x-2"
-              >
-                <span>🗑️</span>
-                <span>Delete Worksheet</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
