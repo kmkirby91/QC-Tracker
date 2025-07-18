@@ -1967,13 +1967,35 @@ const Worksheets = () => {
 
           {/* Main Action Buttons */}
           <div className="mt-6 flex justify-between">
-            <button
-              onClick={saveAsTemplate}
-              className="px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
-            >
-              <span>💾</span>
-              <span>Save as Template</span>
-            </button>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  const hasChanges = customWorksheetInfo.title || customWorksheetInfo.description || 
+                                   customTests.some(test => test.testName) || 
+                                   dicomSeriesConfig.length > 0;
+                  
+                  if (hasChanges && !window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                    return;
+                  }
+                  
+                  setViewMode('worksheets');
+                  setWorksheetDataSafe(null);
+                  resetTemplateForm();
+                }}
+                className="px-6 py-3 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-500 transition-colors flex items-center space-x-2"
+              >
+                <span>←</span>
+                <span>Cancel</span>
+              </button>
+              
+              <button
+                onClick={saveAsTemplate}
+                className="px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <span>💾</span>
+                <span>Save as Template</span>
+              </button>
+            </div>
             
             <button
               onClick={createWorksheet}
@@ -2270,13 +2292,21 @@ const Worksheets = () => {
                 </h2>
                 <button
                   onClick={() => {
+                    const hasChanges = customWorksheetInfo.title || customWorksheetInfo.description || 
+                                     customTests.some(test => test.testName) || 
+                                     dicomSeriesConfig.length > 0;
+                    
+                    if (hasChanges && !window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                      return;
+                    }
+                    
                     setIsCreatingTemplate(false);
                     setSelectedTemplate(null);
                     resetTemplateForm();
                   }}
-                  className="text-gray-400 hover:text-gray-200"
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-500 transition-colors"
                 >
-                  ✕ Cancel
+                  ← Cancel
                 </button>
               </div>
 
