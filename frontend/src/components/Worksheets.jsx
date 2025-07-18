@@ -31,7 +31,7 @@ const Worksheets = () => {
     setWorksheetData(data);
   };
 
-  const [viewMode, setViewMode] = useState('overview'); // 'overview', 'worksheets', 'custom', 'templates', 'view-only', 'dicom-config'
+  const [viewMode, setViewMode] = useState('worksheets'); // 'worksheets', 'custom', 'templates', 'view-only', 'dicom-config'
   const [customTests, setCustomTests] = useState([
     { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '', calculatedFromDicom: false, dicomSeriesSource: '' }
   ]);
@@ -59,8 +59,6 @@ const Worksheets = () => {
   const [filterMachine, setFilterMachine] = useState('');
   const [filterFrequency, setFilterFrequency] = useState('');
   const [filterModality, setFilterModality] = useState('');
-  const [overviewFilterLocation, setOverviewFilterLocation] = useState('');
-  const [overviewFilterModality, setOverviewFilterModality] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState({});
   const [realTimeModifications, setRealTimeModifications] = useState([]);
   const [hasRealTimeModifications, setHasRealTimeModifications] = useState(false);
@@ -793,40 +791,6 @@ const Worksheets = () => {
     navigate({ search: newSearchParams.toString() }, { replace: true });
   };
 
-  const renderOverview = () => {
-    return (
-      <div className="space-y-6">
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Available Worksheets</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {frequencies.map(freq => (
-              <div key={freq.value} className="bg-gray-700 rounded-lg p-4">
-                <div className="flex items-center space-x-2 mb-2">
-                  <span className="text-2xl">{freq.icon}</span>
-                  <h3 className="text-lg font-medium text-white">{freq.label}</h3>
-                </div>
-                <p className="text-gray-300 text-sm mb-3">
-                  {freq.value === 'daily' ? 'Daily quality control tests' :
-                   freq.value === 'weekly' ? 'Weekly quality control tests' :
-                   freq.value === 'monthly' ? 'Monthly quality control tests' :
-                   'Annual quality control tests'}
-                </p>
-                <button
-                  onClick={() => {
-                    setViewMode('worksheets');
-                    setSelectedFrequency(freq.value);
-                  }}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors"
-                >
-                  Generate Worksheet
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const renderWorksheets = () => {
     return (
@@ -1978,16 +1942,6 @@ const Worksheets = () => {
       <div className="mb-6">
         <div className="flex space-x-4">
           <button
-            onClick={() => handleViewModeChange('overview')}
-            className={`px-4 py-2 rounded-md font-medium transition-colors ${
-              viewMode === 'overview' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            Overview
-          </button>
-          <button
             onClick={() => handleViewModeChange('worksheets')}
             className={`px-4 py-2 rounded-md font-medium transition-colors ${
               viewMode === 'worksheets' 
@@ -2021,7 +1975,6 @@ const Worksheets = () => {
       </div>
 
       {/* Render content based on view mode */}
-      {viewMode === 'overview' && renderOverview()}
       {viewMode === 'worksheets' && renderWorksheets()}
       {viewMode === 'custom' && renderCustomWorksheet()}
       {viewMode === 'view-only' && renderWorksheetContent()}
