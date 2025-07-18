@@ -1373,10 +1373,18 @@ const Worksheets = () => {
           </div>
         )}
         
-        {/* Load Template Dropdown - Hide when editing existing worksheet */}
+        {/* Load Template Section - Hide when editing existing worksheet */}
         {!isEditingExistingWorksheet && getModalityTemplates().length > 0 && (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4">Load from Template</h2>
+          <div className="bg-blue-900/20 border-2 border-blue-600 rounded-lg p-6 mb-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-blue-600 rounded-full p-2">
+                <span className="text-white text-lg">📋</span>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-blue-200">Load from Template</h2>
+                <p className="text-sm text-blue-300">Optional: Start with an existing template as a foundation</p>
+              </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
@@ -1455,9 +1463,38 @@ const Worksheets = () => {
           </div>
         )}
 
-        {/* Template Matching Control */}
+        {/* Template Loaded Indication */}
         {selectedTemplate && (
-          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+          <div className="bg-green-900/20 border-2 border-green-600 rounded-lg p-6 mb-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-green-600 rounded-full p-2">
+                <span className="text-white text-lg">✅</span>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-green-200">Template Loaded Successfully</h3>
+                <p className="text-sm text-green-300">
+                  "{selectedTemplate.title}" has been loaded as the foundation for this worksheet
+                </p>
+              </div>
+            </div>
+            
+            <div className="bg-green-800/30 rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="text-green-400 font-medium">Modality:</span>
+                  <div className="text-green-200">{selectedTemplate.modality}</div>
+                </div>
+                <div>
+                  <span className="text-green-400 font-medium">Frequency:</span>
+                  <div className="text-green-200">{getFrequencyLabel(selectedTemplate.frequency)}</div>
+                </div>
+                <div>
+                  <span className="text-green-400 font-medium">Tests:</span>
+                  <div className="text-green-200">{selectedTemplate.tests.length} tests loaded</div>
+                </div>
+              </div>
+            </div>
+            
             <div className="flex items-center space-x-3">
               <input
                 type="checkbox"
@@ -1471,17 +1508,27 @@ const Worksheets = () => {
                     setHasRealTimeModifications(false);
                   }
                 }}
-                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                className="w-4 h-4 text-green-600 bg-gray-700 border-gray-600 rounded focus:ring-green-500 focus:ring-2"
               />
-              <label htmlFor="matchedToTemplate" className="text-sm font-medium text-gray-300">
-                📋 Matched to template: "{selectedTemplate.title}"
+              <label htmlFor="matchedToTemplate" className="text-sm font-medium text-green-300">
+                📋 Track modifications from this template
               </label>
             </div>
-            <p className="text-xs text-gray-500 mt-2 ml-7">
-              When checked, modifications from the template will be tracked. Uncheck this if you want to treat this worksheet as created from scratch.
+            <p className="text-xs text-green-400 mt-2 ml-7">
+              When checked, any changes you make will be tracked as modifications from the template. 
+              Uncheck this if you want to treat this worksheet as created from scratch.
             </p>
           </div>
         )}
+
+        {/* Visual Separator */}
+        <div className="flex items-center my-8">
+          <div className="flex-grow border-t border-gray-600"></div>
+          <div className="px-4 text-gray-400 text-sm font-medium">
+            {selectedTemplate ? 'Continue customizing your worksheet' : 'Create your worksheet'}
+          </div>
+          <div className="flex-grow border-t border-gray-600"></div>
+        </div>
 
         {/* Worksheet Information */}
         <div className="bg-gray-800 rounded-lg p-6">
