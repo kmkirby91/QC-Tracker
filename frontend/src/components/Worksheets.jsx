@@ -2231,7 +2231,7 @@ const Worksheets = () => {
                                   onClick={() => createWorksheetFromTemplate(template)}
                                   className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
                                 >
-                                  📝 Create
+                                  📋 Assign
                                 </button>
                                 <button
                                   onClick={() => loadTemplateForEditing(template)}
