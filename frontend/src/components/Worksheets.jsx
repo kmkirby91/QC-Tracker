@@ -1166,14 +1166,28 @@ const Worksheets = () => {
                                 <div className="flex items-center justify-between">
                                   {/* Left side - Main info */}
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center space-x-3">
-                                      <h5 className="font-medium text-gray-100 text-sm truncate">
+                                    {/* Worksheet title on its own line */}
+                                    <div className="mb-1">
+                                      <h5 className="font-medium text-gray-100 text-sm">
                                         {worksheet.title}
                                       </h5>
+                                    </div>
+                                    
+                                    {/* Machine, protocol, and modification status */}
+                                    <div className="flex items-center space-x-3 text-xs text-gray-400">
+                                      {/* Machine assignment */}
+                                      {worksheet.assignedMachines && worksheet.assignedMachines.length > 0 && (
+                                        <span className="text-blue-300">
+                                          📍 {worksheet.assignedMachines.map(machineId => {
+                                            const machine = machines.find(m => m.machineId === machineId);
+                                            return machine ? machine.name : machineId;
+                                          }).join(', ')}
+                                        </span>
+                                      )}
                                       
-                                      {/* Template source badge */}
+                                      {/* Protocol/Template source */}
                                       {(worksheet.templateSource || worksheet.sourceTemplateName) && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-blue-900/50 text-blue-300">
+                                        <span className="text-blue-300">
                                           📋 {worksheet.sourceTemplateName || worksheet.templateSource}
                                         </span>
                                       )}
@@ -1185,35 +1199,19 @@ const Worksheets = () => {
                                         
                                         if (isModified) {
                                           return (
-                                            <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-amber-900/50 text-amber-300">
+                                            <span className="text-amber-300">
                                               🔧 Modified
                                             </span>
                                           );
                                         } else if (worksheet.templateSource || worksheet.sourceTemplateName) {
                                           return (
-                                            <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-green-900/50 text-green-300">
+                                            <span className="text-green-300">
                                               ✓ Unmodified
                                             </span>
                                           );
                                         }
                                         return null;
                                       })()}
-                                    </div>
-                                    
-                                    {/* Machine assignments and meta info */}
-                                    <div className="flex items-center space-x-4 mt-1 text-xs text-gray-400">
-                                      {worksheet.assignedMachines && worksheet.assignedMachines.length > 0 && (
-                                        <span>
-                                          {worksheet.assignedMachines.map(machineId => {
-                                            const machine = machines.find(m => m.machineId === machineId);
-                                            return machine ? machine.name : machineId;
-                                          }).join(', ')}
-                                        </span>
-                                      )}
-                                      <span>•</span>
-                                      <span>{worksheet.tests?.length || 0} tests</span>
-                                      <span>•</span>
-                                      <span>{new Date(worksheet.createdAt || Date.now()).toLocaleDateString()}</span>
                                     </div>
                                   </div>
                                   
