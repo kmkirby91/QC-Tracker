@@ -2197,56 +2197,59 @@ const Worksheets = () => {
                       <h4 className="text-lg font-semibold text-blue-300 mb-3 border-b border-gray-600 pb-2">
                         📱 {group.modality} Templates ({group.templates.length})
                       </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
                         {group.templates.map(template => (
-                          <div key={template.id} className="bg-gray-700 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <h5 className="font-medium text-gray-100 text-sm">
-                                {template.title}
-                              </h5>
-                              <span className="text-xs bg-green-600 text-white px-2 py-1 rounded-full">
-                                Template
-                              </span>
-                            </div>
-                            
-                            <div className="space-y-2 mb-4">
-                              <div className="text-xs text-gray-300">
-                                <strong>Modality:</strong> {template.modality}
+                          <div key={template.id} className="bg-gray-700 rounded-md p-3 border-l-2 border-green-500 hover:bg-gray-600 transition-colors">
+                            <div className="flex items-center justify-between">
+                              {/* Left side - Main info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-3">
+                                  <h5 className="font-medium text-gray-100 text-sm truncate">
+                                    {template.title}
+                                  </h5>
+                                  
+                                  <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-green-900/50 text-green-300">
+                                    📋 Template
+                                  </span>
+                                </div>
+                                
+                                {/* Template metadata */}
+                                <div className="flex items-center space-x-4 mt-1 text-xs text-gray-400">
+                                  <span>{template.modality}</span>
+                                  <span>•</span>
+                                  <span>{getFrequencyLabel(template.frequency)}</span>
+                                  <span>•</span>
+                                  <span>{template.tests.length} tests</span>
+                                  <span>•</span>
+                                  <span>{new Date(template.createdAt).toLocaleDateString()}</span>
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-400">
-                                <strong>Frequency:</strong> {getFrequencyLabel(template.frequency)}
+                              
+                              {/* Right side - Actions */}
+                              <div className="flex items-center space-x-2 ml-4">
+                                <button
+                                  onClick={() => createWorksheetFromTemplate(template)}
+                                  className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                                >
+                                  📝 Create
+                                </button>
+                                <button
+                                  onClick={() => loadTemplateForEditing(template)}
+                                  className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                                >
+                                  ✏️ Edit
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete "${template.title}"?`)) {
+                                      deleteModalityTemplate(template.id);
+                                    }
+                                  }}
+                                  className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
+                                >
+                                  🗑️ Delete
+                                </button>
                               </div>
-                              <div className="text-xs text-gray-400">
-                                <strong>Tests:</strong> {template.tests.length}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                Created: {new Date(template.createdAt).toLocaleDateString()}
-                              </div>
-                            </div>
-                            
-                            <div className="flex justify-center space-x-2">
-                              <button
-                                onClick={() => createWorksheetFromTemplate(template)}
-                                className="px-3 py-2 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
-                              >
-                                📝 Create Worksheet
-                              </button>
-                              <button
-                                onClick={() => loadTemplateForEditing(template)}
-                                className="px-3 py-2 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                              >
-                                ✏️ Edit
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (window.confirm(`Are you sure you want to delete "${template.title}"?`)) {
-                                    deleteModalityTemplate(template.id);
-                                  }
-                                }}
-                                className="px-3 py-2 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
-                              >
-                                🗑️ Delete
-                              </button>
                             </div>
                           </div>
                         ))}
