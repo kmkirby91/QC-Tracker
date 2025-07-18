@@ -33,7 +33,7 @@ const Worksheets = () => {
 
   const [viewMode, setViewMode] = useState('overview'); // 'overview', 'worksheets', 'custom', 'templates', 'view-only', 'dicom-config'
   const [customTests, setCustomTests] = useState([
-    { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '' }
+    { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '', calculatedFromDicom: false, dicomSeriesSource: '' }
   ]);
   const [customWorksheetInfo, setCustomWorksheetInfo] = useState({
     title: '',
@@ -464,6 +464,15 @@ const Worksheets = () => {
       return;
     }
 
+    // Validate DICOM series selection for calculated tests
+    const calculatedTestsWithoutSource = customTests.filter(test => 
+      test.calculatedFromDicom && !test.dicomSeriesSource
+    );
+    if (calculatedTestsWithoutSource.length > 0) {
+      toast.error('Please select a DICOM series source for all calculated tests');
+      return;
+    }
+
     const savedTemplates = getModalityTemplates();
     
     const templateData = {
@@ -673,7 +682,9 @@ const Worksheets = () => {
       testType: 'value',
       tolerance: '',
       units: '',
-      notes: ''
+      notes: '',
+      calculatedFromDicom: false,
+      dicomSeriesSource: ''
     };
     setCustomTests([...customTests, newTest]);
   };
@@ -1193,8 +1204,19 @@ const Worksheets = () => {
                       {test.units && <span className="text-sm text-gray-500 ml-1">({test.units})</span>}
                     </td>
                     <td className="border border-gray-400 px-4 py-3">
-                      {test.testType === 'visual' ? (
+                      {test.calculatedFromDicom ? (
+                        <div>
+                          <span className="text-sm text-blue-600">📊 Calculated from DICOM</span>
+                          {test.dicomSeriesSource && (
+                            <div className="text-xs text-blue-500 mt-1">
+                              Source: {test.dicomSeriesSourceName || test.dicomSeriesSource}
+                            </div>
+                          )}
+                        </div>
+                      ) : test.testType === 'visual' ? (
                         <span className="text-sm text-gray-600">Visual Check</span>
+                      ) : test.testType === 'passfail' ? (
+                        <span className="text-sm text-gray-600">Pass/Fail Check</span>
                       ) : (
                         <div>
                           {test.tolerance && (
@@ -1693,7 +1715,7 @@ const Worksheets = () => {
                     />
                   </div>
                   
-                  <div className="md:col-span-2">
+                  <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">
                       Notes/Instructions
                     </label>
@@ -1704,6 +1726,68 @@ const Worksheets = () => {
                       placeholder="Optional test instructions or notes"
                       className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
                     />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Automation
+                    </label>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`calculated-${test.id}`}
+                          checked={test.calculatedFromDicom || false}
+                          onChange={(e) => updateCustomTest(test.id, 'calculatedFromDicom', e.target.checked)}
+                          className="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                        <label htmlFor={`calculated-${test.id}`} className="text-sm text-blue-300">
+                          📊 Calculate from DICOM data
+                        </label>
+                      </div>
+                      
+                      {test.calculatedFromDicom && (
+                        <div className="ml-6 space-y-2">
+                          <label className="block text-xs font-medium text-gray-400">
+                            Source DICOM Series *
+                          </label>
+                          <select
+                            value={test.dicomSeriesSource || ''}
+                            onChange={(e) => updateCustomTest(test.id, 'dicomSeriesSource', e.target.value)}
+                            className={`w-full px-3 py-2 bg-gray-600 border rounded-md text-gray-100 focus:ring-2 text-sm ${
+                              test.calculatedFromDicom && !test.dicomSeriesSource 
+                                ? 'border-red-500 focus:ring-red-500' 
+                                : 'border-gray-500 focus:ring-blue-500'
+                            }`}
+                          >
+                            <option value="">
+                              {dicomSeriesConfig.filter(config => config.enabled !== false).length > 0 
+                                ? 'Select DICOM series...' 
+                                : 'No DICOM series configured'}
+                            </option>
+                            {dicomSeriesConfig.filter(config => config.enabled !== false).map((series, index) => (
+                              <option key={series.id || index} value={series.id || `series-${index}`}>
+                                {series.name || `Series Configuration ${index + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                          <p className={`text-xs mt-1 ${
+                            test.calculatedFromDicom && !test.dicomSeriesSource 
+                              ? 'text-red-400' 
+                              : 'text-gray-500'
+                          }`}>
+                            {test.calculatedFromDicom && !test.dicomSeriesSource 
+                              ? '⚠️ Required: Select which DICOM series will be used to calculate this test value'
+                              : 'Select which DICOM series will be used to calculate this test value'
+                            }
+                          </p>
+                        </div>
+                      )}
+                      
+                      <p className="text-xs text-gray-400">
+                        When checked, this test value will be automatically calculated from DICOM images
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1720,7 +1804,7 @@ const Worksheets = () => {
             </button>
             <button
               onClick={createWorksheet}
-              disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || customTests.some(test => !test.testName)}
+              disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
               className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               <span>📝</span>
@@ -2176,7 +2260,7 @@ const Worksheets = () => {
                               placeholder="e.g. HU, mm"
                             />
                           </div>
-                          <div className="md:col-span-2">
+                          <div>
                             <label className="block text-xs font-medium text-gray-400 mb-1">Notes</label>
                             <input
                               type="text"
@@ -2185,6 +2269,48 @@ const Worksheets = () => {
                               className="w-full p-2 bg-gray-600 border border-gray-500 rounded text-white text-sm"
                               placeholder="Additional notes or instructions"
                             />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-medium text-gray-400 mb-1">Automation</label>
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id={`template-calculated-${test.id}`}
+                                  checked={test.calculatedFromDicom || false}
+                                  onChange={(e) => updateCustomTest(test.id, 'calculatedFromDicom', e.target.checked)}
+                                  className="w-3 h-3 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <label htmlFor={`template-calculated-${test.id}`} className="text-xs text-blue-300">
+                                  📊 Calculate from DICOM
+                                </label>
+                              </div>
+                              
+                              {test.calculatedFromDicom && (
+                                <div className="ml-5">
+                                  <select
+                                    value={test.dicomSeriesSource || ''}
+                                    onChange={(e) => updateCustomTest(test.id, 'dicomSeriesSource', e.target.value)}
+                                    className={`w-full p-1 bg-gray-600 border rounded text-white text-xs ${
+                                      test.calculatedFromDicom && !test.dicomSeriesSource 
+                                        ? 'border-red-500' 
+                                        : 'border-gray-500'
+                                    }`}
+                                  >
+                                    <option value="">
+                                      {dicomSeriesConfig.filter(config => config.enabled !== false).length > 0 
+                                        ? 'Select DICOM series...' 
+                                        : 'No DICOM series configured'}
+                                    </option>
+                                    {dicomSeriesConfig.filter(config => config.enabled !== false).map((series, index) => (
+                                      <option key={series.id || index} value={series.id || `series-${index}`}>
+                                        {series.name || `Series ${index + 1}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>

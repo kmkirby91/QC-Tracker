@@ -7,13 +7,17 @@ const DICOMTemplateConfig = ({
   onSeriesConfigChange,
   initialConfig = []
 }) => {
-  const [seriesConfigs, setSeriesConfigs] = useState(initialConfig.length > 0 ? initialConfig : [
+  const [seriesConfigs, setSeriesConfigs] = useState(initialConfig.length > 0 ? initialConfig.map(config => ({
+    ...config,
+    enabled: config.enabled !== undefined ? config.enabled : true // Default to enabled for backward compatibility
+  })) : [
     {
       id: Date.now(),
       name: '',
       description: '',
       requiredFor: [],
       priority: 'required',
+      enabled: true,
       dicomCriteria: {
         seriesDescription: '',
         stationName: '',
@@ -45,6 +49,7 @@ const DICOMTemplateConfig = ({
       description: '',
       requiredFor: [],
       priority: 'optional',
+      enabled: true,
       dicomCriteria: {
         seriesDescription: '',
         stationName: '',
@@ -330,11 +335,25 @@ const DICOMTemplateConfig = ({
       </div>
 
       {seriesConfigs.map((config, index) => (
-        <div key={config.id} className="bg-gray-700 rounded-lg p-6 space-y-4">
+        <div key={config.id} className={`bg-gray-700 rounded-lg p-6 space-y-4 ${!config.enabled ? 'opacity-60' : ''}`}>
           <div className="flex items-center justify-between">
-            <h5 className="text-lg font-medium text-gray-100">
-              Series Configuration #{index + 1}
-            </h5>
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id={`enabled-${config.id}`}
+                  checked={config.enabled !== false}
+                  onChange={(e) => updateSeriesConfig(config.id, 'enabled', e.target.checked)}
+                  className="w-4 h-4 text-green-600 bg-gray-600 border-gray-500 rounded focus:ring-green-500 focus:ring-2"
+                />
+                <label htmlFor={`enabled-${config.id}`} className="text-sm text-green-300 font-medium">
+                  {config.enabled !== false ? '✅ Enabled' : '❌ Disabled'}
+                </label>
+              </div>
+              <h5 className="text-lg font-medium text-gray-100">
+                Series Configuration #{index + 1}
+              </h5>
+            </div>
             {seriesConfigs.length > 1 && (
               <button
                 onClick={() => removeSeriesConfig(config.id)}
@@ -344,6 +363,14 @@ const DICOMTemplateConfig = ({
               </button>
             )}
           </div>
+          
+          {!config.enabled && (
+            <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-3">
+              <p className="text-sm text-yellow-300">
+                ⚠️ This series configuration is disabled and will not be used for DICOM matching when assigned to machines.
+              </p>
+            </div>
+          )}
 
           {/* Basic Series Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -574,8 +601,14 @@ const DICOMTemplateConfig = ({
         <h4 className="text-blue-300 font-medium mb-2">📋 Configuration Summary</h4>
         <div className="text-sm text-blue-200">
           <p>This template defines {seriesConfigs.length} DICOM series configuration(s) for {modality ? `${modality} ` : ''}{frequency ? `${frequency} ` : ''}QC.</p>
+          <p className="mt-1">
+            <span className="text-green-300">✅ {seriesConfigs.filter(config => config.enabled !== false).length} enabled</span>
+            {seriesConfigs.filter(config => config.enabled === false).length > 0 && (
+              <span className="text-yellow-300 ml-3">❌ {seriesConfigs.filter(config => config.enabled === false).length} disabled</span>
+            )}
+          </p>
           <p className="mt-2">
-            When this template is used, the system will search for DICOM studies matching these criteria
+            When this template is used, the system will search for DICOM studies matching only the enabled criteria
             and present them to technologists for selection during QC performance.
           </p>
         </div>

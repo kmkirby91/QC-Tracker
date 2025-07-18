@@ -606,12 +606,25 @@ const QCForm = ({ viewOnly = false }) => {
                         {test.isCustomField && (
                           <span className="ml-2 text-xs text-blue-400 font-bold">🔧 Custom</span>
                         )}
+                        {test.calculatedFromDicom && (
+                          <span className="ml-2 text-xs text-blue-400 font-bold">📊 Auto-Calc</span>
+                        )}
                       </label>
                       {test.tolerance && (
                         <p className="text-xs text-gray-400">Tolerance: {test.tolerance}</p>
                       )}
                       {test.units && (
                         <p className="text-xs text-gray-400">Units: {test.units}</p>
+                      )}
+                      {test.calculatedFromDicom && (
+                        <p className="text-xs text-blue-300 bg-blue-900/20 px-2 py-1 rounded mt-1">
+                          📊 Automatically calculated from DICOM data
+                          {test.dicomSeriesSource && (
+                            <span className="block text-xs text-blue-200 mt-1">
+                              Source: {test.dicomSeriesSourceName || test.dicomSeriesSource}
+                            </span>
+                          )}
+                        </p>
                       )}
                       {test.description && (
                         <p className="text-xs text-gray-400 mt-1">{test.description}</p>
@@ -620,24 +633,39 @@ const QCForm = ({ viewOnly = false }) => {
                     
                     <div>
                       <label className="block text-xs font-medium text-gray-300 mb-1">
-                        Measured Value
+                        {test.calculatedFromDicom ? 'Calculated Value' : 'Measured Value'}
                       </label>
-                      <input
-                        type="text"
-                        value={formData[test.name || test.testName]?.value || ''}
-                        onChange={(e) => {
-                          const testName = test.name || test.testName;
-                          handleTestChange(testName, 'value', e.target.value);
-                          // Auto-determine result
-                          const result = determineResult(testName, e.target.value);
-                          if (result) {
-                            handleTestChange(testName, 'result', result);
-                          }
-                        }}
-                        className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
-                        placeholder={test.placeholder || "Enter value"}
-                        readOnly={viewOnly}
-                      />
+                      {test.calculatedFromDicom ? (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formData[test.name || test.testName]?.value || ''}
+                            className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm bg-blue-900/30 text-blue-200 border-blue-600"
+                            placeholder="Will be calculated from DICOM"
+                            readOnly
+                          />
+                          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-400 text-xs">
+                            📊 Auto
+                          </div>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={formData[test.name || test.testName]?.value || ''}
+                          onChange={(e) => {
+                            const testName = test.name || test.testName;
+                            handleTestChange(testName, 'value', e.target.value);
+                            // Auto-determine result
+                            const result = determineResult(testName, e.target.value);
+                            if (result) {
+                              handleTestChange(testName, 'result', result);
+                            }
+                          }}
+                          className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
+                          placeholder={test.placeholder || "Enter value"}
+                          readOnly={viewOnly}
+                        />
+                      )}
                     </div>
                     
                     <div>

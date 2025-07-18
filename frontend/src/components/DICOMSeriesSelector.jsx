@@ -273,7 +273,9 @@ const DICOMSeriesSelector = ({
 
   if (viewOnly && !templateMode) {
     // Show template's DICOM configuration if available
-    const dicomConfig = templateData?.dicomSeriesConfig || [];
+    const allDicomConfig = templateData?.dicomSeriesConfig || [];
+    const dicomConfig = allDicomConfig.filter(config => config.enabled !== false);
+    const disabledCount = allDicomConfig.length - dicomConfig.length;
     
     return (
       <div className="bg-gray-800 rounded-lg p-6 mb-6">
@@ -285,7 +287,12 @@ const DICOMSeriesSelector = ({
           <div className="space-y-4">
             <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-4">
               <p className="text-blue-300 text-sm">
-                This template is configured with {dicomConfig.length} DICOM series for automated image selection during QC performance.
+                This template is configured with {dicomConfig.length} enabled DICOM series for automated image selection during QC performance.
+                {disabledCount > 0 && (
+                  <span className="block mt-1 text-yellow-300">
+                    ⚠️ {disabledCount} additional series configuration(s) are disabled and won't be used.
+                  </span>
+                )}
               </p>
             </div>
             
