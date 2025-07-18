@@ -749,7 +749,7 @@ const Worksheets = () => {
     }
   };
 
-  const deleteWorksheet = () => {
+  const deleteCurrentWorksheet = () => {
     if (!worksheetData || !worksheetData.templateSource) {
       toast.error('Unable to delete worksheet - worksheet data not found');
       return;
@@ -1951,7 +1951,7 @@ const Worksheets = () => {
               <button
                 onClick={() => {
                   if (window.confirm(`Are you sure you want to delete "${worksheetData.title}"? This will remove the worksheet from the assigned machine(s). This action cannot be undone.`)) {
-                    deleteWorksheet();
+                    deleteCurrentWorksheet();
                   }
                 }}
                 className="px-6 py-3 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition-colors flex items-center space-x-2"
