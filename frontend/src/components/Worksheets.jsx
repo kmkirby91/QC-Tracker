@@ -1040,7 +1040,7 @@ const Worksheets = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {frequencyWorksheets.map((worksheet) => (
                               <div key={worksheet.id} className="bg-gray-900 rounded-lg p-4 border-l-4 border-blue-500">
-                                <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center justify-between mb-2">
                                   <h5 className="font-medium text-gray-100 text-sm">
                                     {worksheet.title}
                                   </h5>
@@ -1048,6 +1048,18 @@ const Worksheets = () => {
                                     Worksheet
                                   </span>
                                 </div>
+                                
+                                {/* Machine assignments - immediately below title */}
+                                {worksheet.assignedMachines && worksheet.assignedMachines.length > 0 && (
+                                  <div className="mb-3">
+                                    <div className="text-xs text-gray-400 mb-1">
+                                      {worksheet.assignedMachines.map(machineId => {
+                                        const machine = machines.find(m => m.machineId === machineId);
+                                        return machine ? machine.name : machineId;
+                                      }).join(', ')}
+                                    </div>
+                                  </div>
+                                )}
                                 
                                 {/* Template Source Info - More compact */}
                                 {(worksheet.templateSource || worksheet.sourceTemplateName) && (
@@ -1090,30 +1102,11 @@ const Worksheets = () => {
                                   <div className="text-xs text-gray-300">
                                     <strong>Tests:</strong> {worksheet.tests?.length || 0}
                                   </div>
-                                  <div className="text-xs text-gray-400">
-                                    <strong>Assigned to:</strong> {worksheet.assignedMachines?.length || 0} machine{worksheet.assignedMachines?.length !== 1 ? 's' : ''}
-                                  </div>
                                   <div className="text-xs text-gray-500">
                                     Created: {new Date(worksheet.createdAt || Date.now()).toLocaleDateString()}
                                   </div>
                                 </div>
 
-                                {/* Assigned Machines List */}
-                                {worksheet.assignedMachines && worksheet.assignedMachines.length > 0 && (
-                                  <div className="mb-4 p-2 bg-gray-800 rounded">
-                                    <div className="text-xs text-gray-300 font-medium mb-2">Assigned Machines:</div>
-                                    <div className="space-y-1">
-                                      {worksheet.assignedMachines.map(machineId => {
-                                        const machine = machines.find(m => m.machineId === machineId);
-                                        return machine ? (
-                                          <div key={machineId} className="text-xs text-gray-300">
-                                            {machine.name}
-                                          </div>
-                                        ) : null;
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
                                 
                                 <div className="space-y-2">
                                   {/* Edit Button - Always available */}
