@@ -1037,123 +1037,110 @@ const Worksheets = () => {
                             </span>
                           </h4>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div className="space-y-2">
                             {frequencyWorksheets.map((worksheet) => (
-                              <div key={worksheet.id} className="bg-gray-900 rounded-lg p-4 border-l-4 border-blue-500">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h5 className="font-medium text-gray-100 text-sm">
-                                    {worksheet.title}
-                                  </h5>
-                                  <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full">
-                                    Worksheet
-                                  </span>
-                                </div>
-                                
-                                {/* Machine assignments - immediately below title */}
-                                {worksheet.assignedMachines && worksheet.assignedMachines.length > 0 && (
-                                  <div className="mb-3">
-                                    <div className="text-xs text-gray-400 mb-1">
-                                      {worksheet.assignedMachines.map(machineId => {
-                                        const machine = machines.find(m => m.machineId === machineId);
-                                        return machine ? machine.name : machineId;
-                                      }).join(', ')}
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {/* Template Source Info - More compact */}
-                                {(worksheet.templateSource || worksheet.sourceTemplateName) && (
-                                  <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-2 mb-3">
-                                    <div className="text-xs text-blue-300 font-medium mb-1">
-                                      📋 Based on: {worksheet.sourceTemplateName || worksheet.templateSource}
-                                    </div>
-                                    {(() => {
-                                      // Check if worksheet has been modified from template
-                                      const isModified = worksheet.isModified || 
-                                                       (worksheet.modifications && worksheet.modifications.length > 0) ||
-                                                       (worksheet.customizations && worksheet.customizations.length > 0);
+                              <div key={worksheet.id} className="bg-gray-900 rounded-md p-3 border-l-2 border-blue-500 hover:bg-gray-800 transition-colors">
+                                <div className="flex items-center justify-between">
+                                  {/* Left side - Main info */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center space-x-3">
+                                      <h5 className="font-medium text-gray-100 text-sm truncate">
+                                        {worksheet.title}
+                                      </h5>
                                       
-                                      if (isModified) {
-                                        const modifications = worksheet.modifications || worksheet.customizations || [];
-                                        return (
-                                          <div className="text-xs text-amber-300">
-                                            <div className="font-medium mb-1 flex items-center">
-                                              <span className="mr-1">🔧</span>
-                                              <span>Modified from template</span>
-                                              <span className="ml-1 px-1 py-0.5 bg-amber-800/50 rounded text-amber-200">
-                                                {modifications.length > 0 ? `${modifications.length} changes` : 'customized'}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        );
-                                      } else {
-                                        return (
-                                          <div className="text-xs text-green-300 flex items-center">
-                                            <span className="mr-1">✓</span>
-                                            <span>Unmodified from template</span>
-                                          </div>
-                                        );
-                                      }
-                                    })()}
-                                  </div>
-                                )}
-                                
-                                <div className="space-y-2 mb-4">
-                                  <div className="text-xs text-gray-300">
-                                    <strong>Tests:</strong> {worksheet.tests?.length || 0}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    Created: {new Date(worksheet.createdAt || Date.now()).toLocaleDateString()}
-                                  </div>
-                                </div>
-
-                                
-                                <div className="space-y-2">
-                                  {/* Edit Button - Always available */}
-                                  <button
-                                    onClick={() => editCustomWorksheet(worksheet)}
-                                    className="w-full px-2 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
-                                  >
-                                    ✏️ Edit Worksheet
-                                  </button>
-                                  
-                                  {/* View Buttons - Based on machine assignments */}
-                                  {!worksheet.assignedMachines || worksheet.assignedMachines.length === 0 ? (
-                                    <button
-                                      onClick={() => viewCustomWorksheetReadOnly(worksheet)}
-                                      className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                                    >
-                                      👁️ View Template
-                                    </button>
-                                  ) : worksheet.assignedMachines.length === 1 ? (
-                                    <button
-                                      onClick={() => viewCustomWorksheetReadOnly(worksheet, worksheet.assignedMachines[0])}
-                                      className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                                    >
-                                      👁️ View for {machines.find(m => m.machineId === worksheet.assignedMachines[0])?.name || 'Machine'}
-                                    </button>
-                                  ) : (
-                                    <div className="space-y-1">
-                                      <div className="text-xs text-gray-400">View for machine:</div>
-                                      {worksheet.assignedMachines.slice(0, 2).map(machineId => {
-                                        const machine = machines.find(m => m.machineId === machineId);
-                                        return machine ? (
-                                          <button
-                                            key={machineId}
-                                            onClick={() => viewCustomWorksheetReadOnly(worksheet, machineId)}
-                                            className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors text-left"
-                                          >
-                                            👁️ {machine.name}
-                                          </button>
-                                        ) : null;
-                                      })}
-                                      {worksheet.assignedMachines.length > 2 && (
-                                        <div className="text-xs text-gray-400">
-                                          ... and {worksheet.assignedMachines.length - 2} more
-                                        </div>
+                                      {/* Template source badge */}
+                                      {(worksheet.templateSource || worksheet.sourceTemplateName) && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-blue-900/50 text-blue-300">
+                                          📋 {worksheet.sourceTemplateName || worksheet.templateSource}
+                                        </span>
                                       )}
+                                      
+                                      {/* Modified indicator */}
+                                      {(() => {
+                                        const isModified = worksheet.isModified || 
+                                                         (worksheet.modifications && worksheet.modifications.length > 0) ||
+                                                         (worksheet.customizations && worksheet.customizations.length > 0);
+                                        
+                                        if (isModified) {
+                                          return (
+                                            <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-amber-900/50 text-amber-300">
+                                              🔧 Modified
+                                            </span>
+                                          );
+                                        } else if (worksheet.templateSource) {
+                                          return (
+                                            <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-green-900/50 text-green-300">
+                                              ✓ Unmodified
+                                            </span>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
                                     </div>
-                                  )}
+                                    
+                                    {/* Machine assignments and meta info */}
+                                    <div className="flex items-center space-x-4 mt-1 text-xs text-gray-400">
+                                      {worksheet.assignedMachines && worksheet.assignedMachines.length > 0 && (
+                                        <span>
+                                          {worksheet.assignedMachines.map(machineId => {
+                                            const machine = machines.find(m => m.machineId === machineId);
+                                            return machine ? machine.name : machineId;
+                                          }).join(', ')}
+                                        </span>
+                                      )}
+                                      <span>•</span>
+                                      <span>{worksheet.tests?.length || 0} tests</span>
+                                      <span>•</span>
+                                      <span>{new Date(worksheet.createdAt || Date.now()).toLocaleDateString()}</span>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Right side - Actions */}
+                                  <div className="flex items-center space-x-2 ml-4">
+                                    <button
+                                      onClick={() => editCustomWorksheet(worksheet)}
+                                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                                    >
+                                      ✏️ Edit
+                                    </button>
+                                    
+                                    {/* View button */}
+                                    {!worksheet.assignedMachines || worksheet.assignedMachines.length === 0 ? (
+                                      <button
+                                        onClick={() => viewCustomWorksheetReadOnly(worksheet)}
+                                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                                      >
+                                        👁️ View
+                                      </button>
+                                    ) : worksheet.assignedMachines.length === 1 ? (
+                                      <button
+                                        onClick={() => viewCustomWorksheetReadOnly(worksheet, worksheet.assignedMachines[0])}
+                                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                                      >
+                                        👁️ View
+                                      </button>
+                                    ) : (
+                                      <div className="relative group">
+                                        <button className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+                                          👁️ View ▼
+                                        </button>
+                                        <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded shadow-lg z-10 min-w-32 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                                          {worksheet.assignedMachines.map(machineId => {
+                                            const machine = machines.find(m => m.machineId === machineId);
+                                            return machine ? (
+                                              <button
+                                                key={machineId}
+                                                onClick={() => viewCustomWorksheetReadOnly(worksheet, machineId)}
+                                                className="block w-full text-left px-3 py-1 text-xs text-gray-200 hover:bg-gray-700"
+                                              >
+                                                {machine.name}
+                                              </button>
+                                            ) : null;
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             ))}
