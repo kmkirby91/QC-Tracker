@@ -149,6 +149,41 @@ const QCForm = ({ viewOnly = false }) => {
       });
       initialData.performedBy = viewOnly ? '[Template - No User]' : '';
       initialData.comments = viewOnly ? 'This is a read-only template view showing the structure and parameters for this QC worksheet.' : '';
+      
+      // Check for saved draft (only for non-view-only mode)
+      if (!viewOnly) {
+        const draftKey = `qc_draft_${machineId}_${frequency}_${selectedDate}`;
+        const savedDraft = localStorage.getItem(draftKey);
+        
+        if (savedDraft) {
+          try {
+            const draftData = JSON.parse(savedDraft);
+            console.log('Found saved QC draft:', draftData);
+            
+            // Populate form with draft data
+            testsData.forEach(test => {
+              const testName = test.name || test.testName;
+              const draftTest = draftData.tests.find(t => t.testName === testName);
+              if (draftTest) {
+                initialData[testName] = {
+                  value: draftTest.value || '',
+                  result: draftTest.result || '',
+                  notes: draftTest.notes || ''
+                };
+              }
+            });
+            
+            initialData.performedBy = draftData.performedBy || '';
+            initialData.comments = draftData.comments || '';
+            
+            toast.success(`Loaded saved draft from ${new Date(draftData.savedAt).toLocaleString()}`);
+          } catch (error) {
+            console.error('Error loading draft:', error);
+            // Continue with blank form if draft is corrupted
+          }
+        }
+      }
+      
       setFormData(initialData);
       
     } catch (error) {
@@ -302,6 +337,39 @@ const QCForm = ({ viewOnly = false }) => {
     return 'pass'; // Default for qualitative tests
   };
 
+  const saveDraft = async () => {
+    try {
+      const draftData = {
+        machineId,
+        machineType: machine.type,
+        frequency,
+        date: selectedDate,
+        tests: tests.map(test => ({
+          testName: test.testName,
+          value: formData[test.testName]?.value || '',
+          result: formData[test.testName]?.result || '',
+          notes: formData[test.testName]?.notes || '',
+          tolerance: test.tolerance || '',
+          performedBy: formData.performedBy
+        })),
+        performedBy: formData.performedBy,
+        comments: formData.comments,
+        isDraft: true,
+        savedAt: new Date().toISOString()
+      };
+
+      // Save to localStorage as draft
+      const draftKey = `qc_draft_${machineId}_${frequency}_${selectedDate}`;
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+      
+      toast.success('QC draft saved successfully!');
+      console.log('QC draft saved:', draftData);
+    } catch (error) {
+      console.error('Error saving QC draft:', error);
+      toast.error('Failed to save QC draft');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -328,6 +396,11 @@ const QCForm = ({ viewOnly = false }) => {
       };
 
       await axios.post(`/api/qc/submit`, qcData);
+      
+      // Clear any saved draft after successful submission
+      const draftKey = `qc_draft_${machineId}_${frequency}_${selectedDate}`;
+      localStorage.removeItem(draftKey);
+      
       navigate(`/machines/${machineId}`, { 
         state: { message: `${frequency} QC completed successfully!` }
       });
@@ -771,9 +844,10 @@ const QCForm = ({ viewOnly = false }) => {
               <div className="flex space-x-3">
                 <button
                   type="button"
+                  onClick={saveDraft}
                   className="px-4 py-2 text-blue-300 bg-blue-900 rounded-md hover:bg-blue-800 transition-colors"
                 >
-                  Save Draft
+                  💾 Save Draft
                 </button>
                 <button
                   type="submit"
