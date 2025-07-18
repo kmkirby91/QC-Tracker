@@ -1465,33 +1465,18 @@ const Worksheets = () => {
 
         {/* Template Loaded Indication */}
         {selectedTemplate && (
-          <div className="bg-green-900/20 border-2 border-green-600 rounded-lg p-6 mb-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="bg-green-600 rounded-full p-2">
-                <span className="text-white text-lg">✅</span>
+          <div className="bg-green-900/20 border border-green-600 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                <span className="text-green-400 text-lg">✅</span>
+                <div>
+                  <h3 className="text-lg font-semibold text-green-200">Template Loaded</h3>
+                  <p className="text-sm text-green-300">"{selectedTemplate.title}"</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-semibold text-green-200">Template Loaded Successfully</h3>
-                <p className="text-sm text-green-300">
-                  "{selectedTemplate.title}" has been loaded as the foundation for this worksheet
-                </p>
-              </div>
-            </div>
-            
-            <div className="bg-green-800/30 rounded-lg p-4 mb-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-green-400 font-medium">Modality:</span>
-                  <div className="text-green-200">{selectedTemplate.modality}</div>
-                </div>
-                <div>
-                  <span className="text-green-400 font-medium">Frequency:</span>
-                  <div className="text-green-200">{getFrequencyLabel(selectedTemplate.frequency)}</div>
-                </div>
-                <div>
-                  <span className="text-green-400 font-medium">Tests:</span>
-                  <div className="text-green-200">{selectedTemplate.tests.length} tests loaded</div>
-                </div>
+              <div className="text-right text-sm text-green-300">
+                <div>{selectedTemplate.modality} • {getFrequencyLabel(selectedTemplate.frequency)}</div>
+                <div>{selectedTemplate.tests.length} tests loaded</div>
               </div>
             </div>
             
@@ -1514,10 +1499,6 @@ const Worksheets = () => {
                 📋 Track modifications from this template
               </label>
             </div>
-            <p className="text-xs text-green-400 mt-2 ml-7">
-              When checked, any changes you make will be tracked as modifications from the template. 
-              Uncheck this if you want to treat this worksheet as created from scratch.
-            </p>
           </div>
         )}
 
