@@ -750,21 +750,50 @@ const Worksheets = () => {
   };
 
   const deleteCurrentWorksheet = () => {
-    if (!worksheetData || !worksheetData.templateSource) {
+    console.log('deleteCurrentWorksheet called');
+    console.log('worksheetData:', worksheetData);
+    console.log('customWorksheetInfo:', customWorksheetInfo);
+    
+    // Try to get the worksheet info from multiple sources
+    const worksheetToDelete = worksheetData || customWorksheetInfo;
+    const templateSource = worksheetToDelete?.templateSource;
+    const worksheetTitle = worksheetToDelete?.title;
+    
+    console.log('worksheetToDelete:', worksheetToDelete);
+    console.log('templateSource:', templateSource);
+    console.log('worksheetTitle:', worksheetTitle);
+    
+    if (!worksheetToDelete || !worksheetTitle) {
       toast.error('Unable to delete worksheet - worksheet data not found');
       return;
     }
 
     try {
       const worksheets = JSON.parse(localStorage.getItem('qcWorksheets') || '[]');
+      console.log('All worksheets before deletion:', worksheets);
       
-      // Find and remove the worksheet by templateSource
-      const updatedWorksheets = worksheets.filter(w => 
-        w.templateSource !== worksheetData.templateSource
-      );
+      // Try multiple ways to find the worksheet to delete
+      let updatedWorksheets;
+      
+      if (templateSource) {
+        // Try to find by templateSource first
+        updatedWorksheets = worksheets.filter(w => w.templateSource !== templateSource);
+        console.log('Filtered by templateSource:', templateSource);
+      } else {
+        // Fallback: try to find by title and other properties
+        updatedWorksheets = worksheets.filter(w => 
+          !(w.title === worksheetTitle && 
+            w.modality === worksheetToDelete.modality && 
+            w.frequency === worksheetToDelete.frequency)
+        );
+        console.log('Filtered by title, modality, frequency');
+      }
+      
+      console.log('Worksheets after filter:', updatedWorksheets);
       
       if (updatedWorksheets.length === worksheets.length) {
         toast.error('Worksheet not found in storage');
+        console.log('No worksheet was removed - check matching criteria');
         return;
       }
       
@@ -790,7 +819,7 @@ const Worksheets = () => {
       setViewMode('worksheets');
       setRefreshKey(prev => prev + 1); // Force refresh of worksheets list
       
-      toast.success(`Worksheet "${worksheetData.title}" deleted successfully`);
+      toast.success(`Worksheet "${worksheetTitle}" deleted successfully`);
       
     } catch (error) {
       console.error('Error deleting worksheet:', error);
