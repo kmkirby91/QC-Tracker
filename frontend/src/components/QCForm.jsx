@@ -194,12 +194,17 @@ const QCForm = ({ viewOnly = false }) => {
     }
   };
 
-  const handleTestChange = (testName, field, value) => {
+  const handleTestChange = (testName, field, value, source = 'manual') => {
     setFormData(prev => ({
       ...prev,
       [testName]: {
         ...prev[testName],
-        [field]: value
+        [field]: value,
+        // Only update source info for value changes, not result/notes changes
+        ...(field === 'value' && source === 'manual' ? {
+          valueSource: 'manual',
+          manuallyEnteredAt: new Date().toISOString()
+        } : {})
       }
     }));
   };
@@ -642,7 +647,10 @@ const QCForm = ({ viewOnly = false }) => {
                       newFormData[testName] = {
                         ...newFormData[testName],
                         value: measurement.value,
-                        result: measurement.status
+                        result: measurement.status,
+                        valueSource: 'automated',
+                        automatedAt: new Date().toISOString(),
+                        automatedFrom: 'dicom_analysis'
                       };
                     }
                   });
@@ -679,9 +687,21 @@ const QCForm = ({ viewOnly = false }) => {
                         {test.isCustomField && (
                           <span className="ml-2 text-xs text-blue-400 font-bold">🔧 Custom</span>
                         )}
-                        {test.calculatedFromDicom && (
-                          <span className="ml-2 text-xs text-blue-400 font-bold">📊 Auto-Calc</span>
-                        )}
+{(() => {
+                          const testName = test.name || test.testName;
+                          const valueSource = formData[testName]?.valueSource;
+                          const isAutomated = valueSource === 'automated' || (test.calculatedFromDicom && !valueSource);
+                          
+                          return isAutomated ? (
+                            <span className="ml-2 text-xs text-blue-400 font-bold bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/50">
+                              🤖 Automated
+                            </span>
+                          ) : (
+                            <span className="ml-2 text-xs text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded border border-gray-600/50">
+                              ✋ Manual Entry
+                            </span>
+                          );
+                        })()}
                       </label>
                       {test.tolerance && (
                         <p className="text-xs text-gray-400">Tolerance: {test.tolerance}</p>
@@ -690,14 +710,21 @@ const QCForm = ({ viewOnly = false }) => {
                         <p className="text-xs text-gray-400">Units: {test.units}</p>
                       )}
                       {test.calculatedFromDicom && (
-                        <p className="text-xs text-blue-300 bg-blue-900/20 px-2 py-1 rounded mt-1">
-                          📊 Automatically calculated from DICOM data
+                        <div className="text-xs text-blue-300 bg-blue-900/20 px-2 py-1 rounded mt-1 border border-blue-600/30">
+                          <div className="flex items-center">
+                            <span className="mr-1">🤖</span>
+                            <span className="font-medium">Automated Analysis</span>
+                          </div>
+                          <p className="text-blue-200 mt-0.5">
+                            Value will be calculated from DICOM images
+                          </p>
                           {test.dicomSeriesSource && (
-                            <span className="block text-xs text-blue-200 mt-1">
-                              Source: {test.dicomSeriesSourceName || test.dicomSeriesSource}
-                            </span>
+                            <div className="text-xs text-blue-200 mt-1 flex items-center">
+                              <span className="mr-1">📊</span>
+                              <span>Source: {test.dicomSeriesSourceName || test.dicomSeriesSource}</span>
+                            </div>
                           )}
-                        </p>
+                        </div>
                       )}
                       {test.description && (
                         <p className="text-xs text-gray-400 mt-1">{test.description}</p>
@@ -705,40 +732,57 @@ const QCForm = ({ viewOnly = false }) => {
                     </div>
                     
                     <div>
-                      <label className="block text-xs font-medium text-gray-300 mb-1">
-                        {test.calculatedFromDicom ? 'Calculated Value' : 'Measured Value'}
-                      </label>
-                      {test.calculatedFromDicom ? (
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={formData[test.name || test.testName]?.value || ''}
-                            className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm bg-blue-900/30 text-blue-200 border-blue-600"
-                            placeholder="Will be calculated from DICOM"
-                            readOnly
-                          />
-                          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-400 text-xs">
-                            📊 Auto
-                          </div>
-                        </div>
-                      ) : (
-                        <input
-                          type="text"
-                          value={formData[test.name || test.testName]?.value || ''}
-                          onChange={(e) => {
-                            const testName = test.name || test.testName;
-                            handleTestChange(testName, 'value', e.target.value);
-                            // Auto-determine result
-                            const result = determineResult(testName, e.target.value);
-                            if (result) {
-                              handleTestChange(testName, 'result', result);
-                            }
-                          }}
-                          className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
-                          placeholder={test.placeholder || "Enter value"}
-                          readOnly={viewOnly}
-                        />
-                      )}
+{(() => {
+                        const testName = test.name || test.testName;
+                        const valueSource = formData[testName]?.valueSource;
+                        const isAutomated = valueSource === 'automated' || (test.calculatedFromDicom && !valueSource);
+                        const hasValue = formData[testName]?.value;
+                        
+                        return (
+                          <>
+                            <label className="block text-xs font-medium text-gray-300 mb-1">
+                              {isAutomated || (test.calculatedFromDicom && hasValue) ? 'Calculated Value' : 'Measured Value'}
+                            </label>
+                            {isAutomated || (test.calculatedFromDicom && hasValue) ? (
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={formData[testName]?.value || ''}
+                                  className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm bg-blue-900/30 text-blue-200 border-blue-600"
+                                  placeholder="Will be calculated from DICOM"
+                                  readOnly
+                                />
+                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-300 text-xs bg-blue-800/50 px-1.5 py-0.5 rounded border border-blue-400/30">
+                                  🤖 AUTO
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={formData[testName]?.value || ''}
+                                  onChange={(e) => {
+                                    handleTestChange(testName, 'value', e.target.value);
+                                    // Auto-determine result
+                                    const result = determineResult(testName, e.target.value);
+                                    if (result) {
+                                      handleTestChange(testName, 'result', result);
+                                    }
+                                  }}
+                                  className="w-full border border-gray-600 rounded-md px-3 py-2 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
+                                  placeholder={test.placeholder || "Enter value"}
+                                  readOnly={viewOnly}
+                                />
+                                {!viewOnly && (
+                                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
+                                    ✋ MANUAL
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     
                     <div>

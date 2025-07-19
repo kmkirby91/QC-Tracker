@@ -40,7 +40,10 @@ const Worksheets = () => {
     frequency: 'daily',
     machineId: '',
     modality: '',
-    description: ''
+    description: '',
+    startDate: '',
+    hasEndDate: false,
+    endDate: ''
   });
   const [templateMode, setTemplateMode] = useState('manage');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -65,6 +68,10 @@ const Worksheets = () => {
   const [matchedToTemplate, setMatchedToTemplate] = useState(false);
   const [dicomSeriesConfig, setDicomSeriesConfig] = useState([]);
   const [dicomConfigEnabled, setDicomConfigEnabled] = useState(true);
+  const [originalDicomConfigForCancel, setOriginalDicomConfigForCancel] = useState([]);
+  const [otherModalitySpecification, setOtherModalitySpecification] = useState('');
+  const [isCreatingFromCopy, setIsCreatingFromCopy] = useState(false);
+  const [templateJustLoadedFlag, setTemplateJustLoadedFlag] = useState(false);
 
   // Machine-specific DICOM configuration storage
   const getMachineSpecificDicomConfig = (machineId, modality, frequency) => {
@@ -169,6 +176,139 @@ const Worksheets = () => {
     return false;
   };
 
+  // Function to identify which tests are custom or modified from template
+  const getTestCustomizationStatus = (worksheet, test, testIndex) => {
+    // If no template source, all tests are custom
+    if (!worksheet.templateSource && !worksheet.sourceTemplateName) {
+      return 'custom';
+    }
+    
+    // Find the original template
+    const templates = getModalityTemplates();
+    const originalTemplate = templates.find(t => 
+      t.title === worksheet.templateSource || 
+      t.title === worksheet.sourceTemplateName ||
+      t.id === worksheet.templateId ||
+      t.id === worksheet.sourceTemplateId
+    );
+    
+    if (!originalTemplate || !originalTemplate.tests) {
+      return 'custom';
+    }
+    
+    // If test index is beyond original template, it's a new custom test
+    if (testIndex >= originalTemplate.tests.length) {
+      return 'custom';
+    }
+    
+    const templateTest = originalTemplate.tests[testIndex];
+    if (!templateTest) {
+      return 'custom';
+    }
+    
+    // Compare test properties to see if modified
+    if (test.testName !== templateTest.testName ||
+        test.testType !== templateTest.testType ||
+        test.tolerance !== templateTest.tolerance ||
+        test.units !== templateTest.units ||
+        test.notes !== templateTest.notes ||
+        test.calculatedFromDicom !== templateTest.calculatedFromDicom ||
+        test.dicomSeriesSource !== templateTest.dicomSeriesSource) {
+      return 'modified';
+    }
+    
+    return 'original';
+  };
+
+  // Function to identify which specific fields were modified
+  const getFieldModifications = (worksheet, test, testIndex) => {
+    const modifications = {
+      testName: false,
+      testType: false,
+      tolerance: false,
+      units: false,
+      notes: false,
+      calculatedFromDicom: false,
+      dicomSeriesSource: false
+    };
+
+    // If no template source, all fields are custom
+    if (!worksheet.templateSource && !worksheet.sourceTemplateName) {
+      return {
+        testName: true,
+        testType: true,
+        tolerance: true,
+        units: true,
+        notes: true,
+        calculatedFromDicom: true,
+        dicomSeriesSource: true,
+        isCustomTest: true
+      };
+    }
+    
+    // Find the original template
+    const templates = getModalityTemplates();
+    const originalTemplate = templates.find(t => 
+      t.title === worksheet.templateSource || 
+      t.title === worksheet.sourceTemplateName ||
+      t.id === worksheet.templateId ||
+      t.id === worksheet.sourceTemplateId
+    );
+    
+    if (!originalTemplate || !originalTemplate.tests) {
+      return {
+        testName: true,
+        testType: true,
+        tolerance: true,
+        units: true,
+        notes: true,
+        calculatedFromDicom: true,
+        dicomSeriesSource: true,
+        isCustomTest: true
+      };
+    }
+    
+    // If test index is beyond original template, it's a new custom test
+    if (testIndex >= originalTemplate.tests.length) {
+      return {
+        testName: true,
+        testType: true,
+        tolerance: true,
+        units: true,
+        notes: true,
+        calculatedFromDicom: true,
+        dicomSeriesSource: true,
+        isCustomTest: true
+      };
+    }
+    
+    const templateTest = originalTemplate.tests[testIndex];
+    if (!templateTest) {
+      return {
+        testName: true,
+        testType: true,
+        tolerance: true,
+        units: true,
+        notes: true,
+        calculatedFromDicom: true,
+        dicomSeriesSource: true,
+        isCustomTest: true
+      };
+    }
+    
+    // Compare each field individually
+    return {
+      testName: test.testName !== templateTest.testName,
+      testType: test.testType !== templateTest.testType,
+      tolerance: test.tolerance !== templateTest.tolerance,
+      units: test.units !== templateTest.units,
+      notes: test.notes !== templateTest.notes,
+      calculatedFromDicom: test.calculatedFromDicom !== templateTest.calculatedFromDicom,
+      dicomSeriesSource: test.dicomSeriesSource !== templateTest.dicomSeriesSource,
+      isCustomTest: false
+    };
+  };
+
   const getWorksheets = () => {
     try {
       const stored = localStorage.getItem('qcWorksheets');
@@ -176,6 +316,29 @@ const Worksheets = () => {
     } catch (error) {
       console.error('Error loading worksheets:', error);
       return [];
+    }
+  };
+
+  const clearAllWorksheets = () => {
+    try {
+      const confirmDelete = window.confirm(
+        'Are you sure you want to delete ALL worksheets? This will keep templates but remove all worksheet assignments. This action cannot be undone.'
+      );
+      
+      if (confirmDelete) {
+        const worksheets = getWorksheets();
+        console.log(`Deleting ${worksheets.length} worksheets...`);
+        
+        localStorage.setItem('qcWorksheets', JSON.stringify([]));
+        setRefreshKey(prev => prev + 1);
+        window.dispatchEvent(new Event('storage'));
+        
+        toast.success(`Successfully deleted ${worksheets.length} worksheets. Templates preserved.`);
+        console.log('All worksheets deleted. Templates preserved.');
+      }
+    } catch (error) {
+      console.error('Error clearing worksheets:', error);
+      toast.error('Failed to clear worksheets');
     }
   };
 
@@ -287,8 +450,14 @@ const Worksheets = () => {
       frequency: worksheet.frequency,
       machineId: worksheet.assignedMachines && worksheet.assignedMachines.length > 0 ? worksheet.assignedMachines[0] : '',
       modality: worksheet.modality,
-      description: worksheet.description || ''
+      description: worksheet.description || '',
+      startDate: worksheet.startDate || '',
+      hasEndDate: worksheet.hasEndDate || false,
+      endDate: worksheet.endDate || ''
     });
+    
+    // Restore other modality specification if it exists
+    setOtherModalitySpecification(worksheet.otherModalitySpecification || '');
     
     // Load the tests from the worksheet
     setCustomTests(worksheet.tests || []);
@@ -313,8 +482,30 @@ const Worksheets = () => {
     console.log('Setting worksheetData for editing:', worksheetForEditing);
     setWorksheetDataSafe(worksheetForEditing);
     
-    // Clear template selection since we're editing a worksheet, not a template
-    setSelectedTemplate(null);
+    // If worksheet came from a template, restore template information for proper tracking
+    if (worksheet.templateSource || worksheet.sourceTemplateName) {
+      const templates = getModalityTemplates();
+      const originalTemplate = templates.find(t => 
+        t.title === worksheet.templateSource || 
+        t.title === worksheet.sourceTemplateName ||
+        t.id === worksheet.templateId ||
+        t.id === worksheet.sourceTemplateId
+      );
+      
+      if (originalTemplate) {
+        setSelectedTemplate(originalTemplate);
+        setMatchedToTemplate(true); // Enable tracking for worksheets that came from templates
+        setTemplateJustLoadedFlag(false); // Allow modification detection since this is editing
+        console.log('Restored template for editing:', originalTemplate);
+      } else {
+        setSelectedTemplate(null);
+        setMatchedToTemplate(false);
+      }
+    } else {
+      // Clear template selection for worksheets not created from templates
+      setSelectedTemplate(null);
+      setMatchedToTemplate(false);
+    }
     
     // Set to custom mode for editing
     setViewMode('custom');
@@ -347,12 +538,17 @@ const Worksheets = () => {
 
   const modalities = [
     { value: 'CT', label: 'CT', icon: '🏥' },
+    { value: 'PET', label: 'PET', icon: '🔬' },
     { value: 'MRI', label: 'MRI', icon: '🧲' },
-    { value: 'X-Ray', label: 'X-Ray', icon: '📸' },
     { value: 'Ultrasound', label: 'Ultrasound', icon: '🔊' },
-    { value: 'Nuclear Medicine', label: 'Nuclear Medicine', icon: '☢️' },
     { value: 'Mammography', label: 'Mammography', icon: '🎗️' },
-    { value: 'PET-CT', label: 'PET-CT', icon: '🔬' }
+    { value: 'Other', label: 'Other', icon: '⚙️' }
+  ];
+
+  const otherModalityOptions = [
+    { value: 'Dose Calibrator', label: 'Dose Calibrator', icon: '☢️' },
+    { value: 'Apron', label: 'Apron', icon: '🦺' },
+    { value: 'General', label: 'General', icon: '🔧' }
   ];
 
   // Initialize sample data on mount
@@ -367,6 +563,25 @@ const Worksheets = () => {
     };
     
     initializeSampleData();
+    
+    // Prevent automatic printing by storing original function
+    const originalPrint = window.print;
+    let autoPrintPrevented = false;
+    
+    window.print = function() {
+      if (!autoPrintPrevented) {
+        console.log('Automatic print call intercepted and prevented');
+        autoPrintPrevented = true;
+        return;
+      }
+      // Allow manual print calls after first automatic one is blocked
+      originalPrint.call(window);
+    };
+    
+    return () => {
+      // Restore original print function on cleanup
+      window.print = originalPrint;
+    };
   }, []);
 
   // Load machines on mount
@@ -621,11 +836,12 @@ const Worksheets = () => {
       description: customWorksheetInfo.description,
       tests: customTests.filter(test => test.testName.trim()),
       dicomSeriesConfig: dicomSeriesConfig || [],
+      otherModalitySpecification: otherModalitySpecification,
       createdAt: selectedTemplate ? selectedTemplate.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    if (selectedTemplate) {
+    if (selectedTemplate && !isCreatingFromCopy) {
       // Update existing template
       const index = savedTemplates.findIndex(t => t.id === selectedTemplate.id);
       if (index !== -1) {
@@ -634,13 +850,13 @@ const Worksheets = () => {
         savedTemplates.push(templateData);
       }
     } else {
-      // Add new template
+      // Add new template (either from scratch or from copy)
       savedTemplates.push(templateData);
     }
 
     localStorage.setItem('qcModalityTemplates', JSON.stringify(savedTemplates));
     
-    toast.success(selectedTemplate ? 
+    toast.success(selectedTemplate && !isCreatingFromCopy ? 
       `Template updated successfully with ${dicomSeriesConfig.length} DICOM series configuration(s)!` : 
       `Template saved successfully with ${dicomSeriesConfig.length} DICOM series configuration(s)!`);
     setIsCreatingTemplate(false);
@@ -663,6 +879,7 @@ const Worksheets = () => {
     })));
     setSelectedTemplate(template);
     setIsCreatingTemplate(true);
+    setOtherModalitySpecification(template.otherModalitySpecification || '');
     
     // Load DICOM series configuration if it exists
     if (template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0) {
@@ -678,9 +895,16 @@ const Worksheets = () => {
 
   const deleteModalityTemplate = (templateId) => {
     const savedTemplates = getModalityTemplates();
+    const templateToDelete = savedTemplates.find(t => t.id === templateId);
     const updatedTemplates = savedTemplates.filter(t => t.id !== templateId);
+    
     localStorage.setItem('qcModalityTemplates', JSON.stringify(updatedTemplates));
-    toast.success('Template deleted successfully!');
+    
+    // Force refresh to update the UI
+    setRefreshKey(prev => prev + 1);
+    window.dispatchEvent(new Event('storage'));
+    
+    toast.success(`Template "${templateToDelete?.title || 'Unknown'}" deleted successfully!`);
   };
 
   const createWorksheetFromTemplate = (template) => {
@@ -692,7 +916,10 @@ const Worksheets = () => {
       frequency: template.frequency,
       machineId: '',
       modality: template.modality || '',
-      description: template.description || ''
+      description: template.description || '',
+      startDate: '',
+      hasEndDate: false,
+      endDate: ''
     });
     setCustomTests(template.tests.map(test => ({
       ...test,
@@ -721,7 +948,10 @@ const Worksheets = () => {
       frequency: 'daily',
       machineId: '',
       modality: '',
-      description: ''
+      description: '',
+      startDate: '',
+      hasEndDate: false,
+      endDate: ''
     });
     setCustomTests([
       { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '' }
@@ -730,8 +960,12 @@ const Worksheets = () => {
     setSelectedTemplateForGeneration('');
     setIsCreatingTemplate(false);
     setTemplateJustLoaded(false);
+    setMatchedToTemplate(false);
     setDicomSeriesConfig([]);
     setDicomConfigEnabled(false);
+    setOtherModalitySpecification('');
+    setIsCreatingFromCopy(false);
+    setTemplateJustLoadedFlag(false);
   };
 
   const saveWorksheet = (worksheetData) => {
@@ -770,6 +1004,21 @@ const Worksheets = () => {
 
     if (!customWorksheetInfo.machineId) {
       toast.error('Please select a machine');
+      return;
+    }
+
+    if (!customWorksheetInfo.startDate) {
+      toast.error('Please specify a QC start date');
+      return;
+    }
+
+    if (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) {
+      toast.error('Please specify a QC end date or uncheck the end date option');
+      return;
+    }
+
+    if (customWorksheetInfo.hasEndDate && customWorksheetInfo.endDate && customWorksheetInfo.startDate && customWorksheetInfo.endDate <= customWorksheetInfo.startDate) {
+      toast.error('QC end date must be after the start date');
       return;
     }
 
@@ -850,7 +1099,11 @@ const Worksheets = () => {
       isWorksheet: true,
       assignedMachines: [customWorksheetInfo.machineId],
       specificMachine: customWorksheetInfo.machineId,
-      dicomSeriesConfig: dicomSeriesConfig
+      dicomSeriesConfig: dicomSeriesConfig,
+      otherModalitySpecification: otherModalitySpecification,
+      startDate: customWorksheetInfo.startDate,
+      hasEndDate: customWorksheetInfo.hasEndDate,
+      endDate: customWorksheetInfo.hasEndDate ? customWorksheetInfo.endDate : null
     };
 
     console.log('Creating worksheet:', uniqueWorksheetData);
@@ -863,10 +1116,11 @@ const Worksheets = () => {
       
       toast.success(`New worksheet created and assigned to ${machine?.name || 'machine'} successfully!`);
       
-      // Switch to worksheets view to see the result
-      setTimeout(() => {
-        setViewMode('worksheets');
-      }, 500);
+      // Switch to worksheets view to see the result (removed automatic switch)
+      // User can manually navigate to see the result
+      // setTimeout(() => {
+      //   setViewMode('worksheets');
+      // }, 500);
     } else {
       toast.error('Failed to create worksheet');
     }
@@ -879,11 +1133,14 @@ const Worksheets = () => {
     
     // Try to get the worksheet info from multiple sources
     const worksheetToDelete = worksheetData || customWorksheetInfo;
-    const templateSource = worksheetToDelete?.templateSource;
+    const worksheetId = worksheetToDelete?.id;
+    const machineId = worksheetToDelete?.machineId || worksheetToDelete?.specificMachine || 
+                     (worksheetToDelete?.assignedMachines && worksheetToDelete.assignedMachines[0]);
     const worksheetTitle = worksheetToDelete?.title;
     
     console.log('worksheetToDelete:', worksheetToDelete);
-    console.log('templateSource:', templateSource);
+    console.log('worksheetId:', worksheetId);
+    console.log('machineId:', machineId);
     console.log('worksheetTitle:', worksheetTitle);
     
     if (!worksheetToDelete || !worksheetTitle) {
@@ -891,36 +1148,38 @@ const Worksheets = () => {
       return;
     }
 
+    if (!worksheetId) {
+      toast.error('Unable to delete worksheet - worksheet ID not found');
+      return;
+    }
+
     try {
-      const worksheets = JSON.parse(localStorage.getItem('qcWorksheets') || '[]');
-      console.log('All worksheets before deletion:', worksheets);
+      const worksheets = getWorksheets();
+      const worksheet = worksheets.find(w => w.id === worksheetId);
       
-      // Try multiple ways to find the worksheet to delete
-      let updatedWorksheets;
-      
-      if (templateSource) {
-        // Try to find by templateSource first
-        updatedWorksheets = worksheets.filter(w => w.templateSource !== templateSource);
-        console.log('Filtered by templateSource:', templateSource);
-      } else {
-        // Fallback: try to find by title and other properties
-        updatedWorksheets = worksheets.filter(w => 
-          !(w.title === worksheetTitle && 
-            w.modality === worksheetToDelete.modality && 
-            w.frequency === worksheetToDelete.frequency)
-        );
-        console.log('Filtered by title, modality, frequency');
-      }
-      
-      console.log('Worksheets after filter:', updatedWorksheets);
-      
-      if (updatedWorksheets.length === worksheets.length) {
+      if (!worksheet) {
         toast.error('Worksheet not found in storage');
-        console.log('No worksheet was removed - check matching criteria');
         return;
       }
       
-      localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+      // Check if this worksheet is assigned to multiple machines
+      const assignedMachines = worksheet.assignedMachines || [];
+      
+      if (assignedMachines.length > 1 && machineId) {
+        // If assigned to multiple machines, just unassign from this machine
+        const success = unassignWorksheetFromMachine(worksheetId, machineId);
+        if (success) {
+          toast.success(`Worksheet "${worksheetTitle}" removed from this machine`);
+        } else {
+          toast.error('Failed to remove worksheet from machine');
+          return;
+        }
+      } else {
+        // If only assigned to one machine (or no specific machine), delete the entire worksheet
+        const updatedWorksheets = worksheets.filter(w => w.id !== worksheetId);
+        localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+        toast.success(`Worksheet "${worksheetTitle}" deleted successfully`);
+      }
       
       // Clear the current editing state
       setWorksheetDataSafe(null);
@@ -941,8 +1200,6 @@ const Worksheets = () => {
       // Navigate back to worksheets view
       setViewMode('worksheets');
       setRefreshKey(prev => prev + 1); // Force refresh of worksheets list
-      
-      toast.success(`Worksheet "${worksheetTitle}" deleted successfully`);
       
     } catch (error) {
       console.error('Error deleting worksheet:', error);
@@ -974,10 +1231,14 @@ const Worksheets = () => {
     setCustomTests(customTests.map(test => 
       test.id === id ? { ...test, [field]: value } : test
     ));
+    // Clear the "just loaded" flag when user makes modifications
+    setTemplateJustLoadedFlag(false);
   };
 
   const updateCustomWorksheetInfo = (field, value) => {
     setCustomWorksheetInfo(prev => ({ ...prev, [field]: value }));
+    // Clear the "just loaded" flag when user makes modifications
+    setTemplateJustLoadedFlag(false);
   };
 
   const getModalityIcon = (modality) => {
@@ -991,6 +1252,12 @@ const Worksheets = () => {
     setSelectedTemplate(null);
     setSelectedMachine('');
     setSelectedFrequency('');
+    setMatchedToTemplate(false);
+    setRealTimeModifications([]);
+    setHasRealTimeModifications(false);
+    setOtherModalitySpecification('');
+    setIsCreatingFromCopy(false);
+    setTemplateJustLoadedFlag(false);
     
     // Clear URL params when switching modes
     const newSearchParams = new URLSearchParams(searchParams);
@@ -1078,6 +1345,22 @@ const Worksheets = () => {
                 </button>
               </div>
             )}
+            
+            {/* Admin Actions */}
+            <div className="mt-4 flex justify-between items-center">
+              <div className="text-sm text-gray-400">
+                {getWorksheets().length} worksheet{getWorksheets().length !== 1 ? 's' : ''} total
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={clearAllWorksheets}
+                  className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+                  title="Delete all worksheets (keeps templates)"
+                >
+                  🗑️ Clear All Worksheets
+                </button>
+              </div>
+            </div>
           </div>
           
           {/* Worksheet listing organized by modality, then frequency */}
@@ -1162,14 +1445,19 @@ const Worksheets = () => {
                           
                           <div className="space-y-2">
                             {frequencyWorksheets.map((worksheet) => (
-                              <div key={worksheet.id} className="bg-gray-900 rounded-md p-3 border-l-2 border-blue-500 hover:bg-gray-800 transition-colors">
+                              <div key={worksheet.id} className={`bg-gray-900 rounded-md p-3 border-l-2 ${worksheet.hasEndDate && worksheet.endDate ? 'border-red-500' : 'border-blue-500'} hover:bg-gray-800 transition-colors`}>
                                 <div className="flex items-center justify-between">
                                   {/* Left side - Main info */}
                                   <div className="flex-1 min-w-0">
                                     {/* Worksheet title on its own line */}
                                     <div className="mb-1">
-                                      <h5 className="font-medium text-gray-100 text-sm">
-                                        {worksheet.title}
+                                      <h5 className="font-medium text-gray-100 text-sm flex items-center space-x-2">
+                                        <span>{worksheet.title}</span>
+                                        {worksheet.hasEndDate && worksheet.endDate && (
+                                          <span className="text-xs bg-red-900 text-red-200 px-2 py-1 rounded-full">
+                                            Decommissioning
+                                          </span>
+                                        )}
                                       </h5>
                                     </div>
                                     
@@ -1182,6 +1470,20 @@ const Worksheets = () => {
                                             const machine = machines.find(m => m.machineId === machineId);
                                             return machine ? machine.name : machineId;
                                           }).join(', ')}
+                                        </span>
+                                      )}
+                                      
+                                      {/* Start Date */}
+                                      {worksheet.startDate && (
+                                        <span className="text-green-300">
+                                          📅 Start: {new Date(worksheet.startDate).toLocaleDateString()}
+                                        </span>
+                                      )}
+                                      
+                                      {/* End Date */}
+                                      {worksheet.hasEndDate && worksheet.endDate && (
+                                        <span className="text-red-300">
+                                          🔚 End: {new Date(worksheet.endDate).toLocaleDateString()}
                                         </span>
                                       )}
                                       
@@ -1316,7 +1618,14 @@ const Worksheets = () => {
           </h2>
           <div className="flex space-x-2">
             <button
-              onClick={() => window.print()}
+              onClick={() => {
+                // Force manual print by creating a new print call
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(document.documentElement.outerHTML);
+                printWindow.document.close();
+                printWindow.print();
+                printWindow.close();
+              }}
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
             >
               Print
@@ -1336,6 +1645,8 @@ const Worksheets = () => {
                   }
                   
                   setDicomSeriesConfig(dicomConfig);
+                  // Store original config for cancel functionality
+                  setOriginalDicomConfigForCancel([...dicomConfig]);
                   setCustomWorksheetInfo({
                     title: worksheetData.title,
                     frequency: worksheetData.frequency,
@@ -1364,7 +1675,7 @@ const Worksheets = () => {
               console.log('Worksheet view DICOM series selection:', series);
             }}
             viewOnly={worksheetData.viewOnly || false}
-            templateData={worksheetData.viewOnly ? (() => {
+            templateData={(() => {
               const machineId = worksheetData.machineId || (worksheetData.assignedMachines && worksheetData.assignedMachines[0]);
               let dicomConfig = [];
               
@@ -1380,7 +1691,7 @@ const Worksheets = () => {
                 ...worksheetData,
                 dicomSeriesConfig: dicomConfig
               };
-            })() : null}
+            })()}
           />
         )}
 
@@ -1415,19 +1726,72 @@ const Worksheets = () => {
                 </tr>
               </thead>
               <tbody>
-                {worksheetData.tests && worksheetData.tests.map((test, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="border border-gray-400 px-4 py-3 font-medium">
-                      {test.testName}
-                      {test.units && <span className="text-sm text-gray-500 ml-1">({test.units})</span>}
-                    </td>
+                {worksheetData.tests && worksheetData.tests.map((test, index) => {
+                  const fieldMods = getFieldModifications(worksheetData, test, index);
+                  return (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="border border-gray-400 px-4 py-3 font-medium">
+                        <div className="flex items-center space-x-1">
+                          <span>
+                            {test.testName}
+                            {fieldMods.testName && (
+                              <span className={`inline-flex items-center px-1.5 py-0.5 ml-1 text-xs font-bold rounded border shadow-sm ${
+                                fieldMods.isCustomTest 
+                                  ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                                  : 'text-orange-700 bg-orange-100 border-orange-300'
+                              }`} 
+                                    title={fieldMods.isCustomTest ? "Custom test name" : "Modified test name"}>
+                                🔧
+                              </span>
+                            )}
+                          </span>
+                          {test.units && (
+                            <span className="text-sm text-gray-500 ml-1">
+                              ({test.units}
+                              {fieldMods.units && (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 ml-1 text-xs font-bold rounded border ${
+                                  fieldMods.isCustomTest 
+                                    ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                                    : 'text-orange-700 bg-orange-100 border-orange-300'
+                                }`} 
+                                      title={fieldMods.isCustomTest ? "Custom units" : "Modified units"}>
+                                  🔧
+                                </span>
+                              )}
+                              )
+                            </span>
+                          )}
+                        </div>
+                      </td>
                     <td className="border border-gray-400 px-4 py-3">
                       {test.calculatedFromDicom ? (
                         <div>
-                          <span className="text-sm text-blue-600">📊 Calculated from DICOM</span>
+                          <div className="flex items-center">
+                            <span className="text-sm text-blue-600">📊 Calculated from DICOM</span>
+                            {fieldMods.calculatedFromDicom && (
+                              <span className={`inline-flex items-center px-1.5 py-0.5 ml-1 text-xs font-bold rounded border ${
+                                fieldMods.isCustomTest 
+                                  ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                                  : 'text-orange-700 bg-orange-100 border-orange-300'
+                              }`} 
+                                    title={fieldMods.isCustomTest ? "Custom DICOM automation" : "Modified DICOM automation"}>
+                                🔧
+                              </span>
+                            )}
+                          </div>
                           {test.dicomSeriesSource && (
-                            <div className="text-xs text-blue-500 mt-1">
-                              Source: {test.dicomSeriesSourceName || test.dicomSeriesSource}
+                            <div className="text-xs text-blue-500 mt-1 flex items-center">
+                              <span>Source: {test.dicomSeriesSourceName || test.dicomSeriesSource}</span>
+                              {fieldMods.dicomSeriesSource && (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 ml-1 text-xs font-bold rounded border ${
+                                  fieldMods.isCustomTest 
+                                    ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                                    : 'text-orange-700 bg-orange-100 border-orange-300'
+                                }`} 
+                                      title={fieldMods.isCustomTest ? "Custom DICOM source" : "Modified DICOM source"}>
+                                  🔧
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1438,8 +1802,18 @@ const Worksheets = () => {
                       ) : (
                         <div>
                           {test.tolerance && (
-                            <div className="text-sm text-gray-600">
-                              Tolerance: ±{test.tolerance}{test.units && ` ${test.units}`}
+                            <div className="text-sm text-gray-600 flex items-center">
+                              <span>Tolerance: ±{test.tolerance}{test.units && ` ${test.units}`}</span>
+                              {fieldMods.tolerance && (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 ml-1 text-xs font-bold rounded border ${
+                                  fieldMods.isCustomTest 
+                                    ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                                    : 'text-orange-700 bg-orange-100 border-orange-300'
+                                }`} 
+                                      title={fieldMods.isCustomTest ? "Custom tolerance" : "Modified tolerance"}>
+                                  🔧
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1464,7 +1838,8 @@ const Worksheets = () => {
                       <div className="border-b border-gray-400 h-8 w-full"></div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1608,6 +1983,7 @@ const Worksheets = () => {
                       setSelectedTemplate(template);
                       setTemplateJustLoaded(true); // Flag that template was just loaded
                       setMatchedToTemplate(true); // Auto-check the "matched to template" checkbox
+                      setTemplateJustLoadedFlag(true); // Flag to prevent showing modifications initially
                       
                       // Clear real-time modifications since template was just loaded
                       setRealTimeModifications([]);
@@ -1754,6 +2130,63 @@ const Worksheets = () => {
                 ))}
               </select>
             </div>
+            
+            {/* Start Date Field */}
+            {customWorksheetInfo.machineId && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  QC Start Date *
+                </label>
+                <input
+                  type="date"
+                  value={customWorksheetInfo.startDate}
+                  onChange={(e) => updateCustomWorksheetInfo('startDate', e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Specify when QC requirements start being due for this machine
+                </p>
+              </div>
+            )}
+            
+            {/* End Date Field */}
+            {customWorksheetInfo.machineId && (
+              <div>
+                <div className="flex items-center space-x-3 mb-2">
+                  <input
+                    type="checkbox"
+                    id="hasEndDate"
+                    checked={customWorksheetInfo.hasEndDate}
+                    onChange={(e) => {
+                      updateCustomWorksheetInfo('hasEndDate', e.target.checked);
+                      if (!e.target.checked) {
+                        updateCustomWorksheetInfo('endDate', '');
+                      }
+                    }}
+                    className="w-4 h-4 text-red-600 bg-gray-700 border-gray-600 rounded focus:ring-red-500 focus:ring-2"
+                  />
+                  <label htmlFor="hasEndDate" className="text-sm font-medium text-gray-300">
+                    Set QC End Date (for machine decommissioning)
+                  </label>
+                </div>
+                
+                {customWorksheetInfo.hasEndDate && (
+                  <div>
+                    <input
+                      type="date"
+                      value={customWorksheetInfo.endDate}
+                      onChange={(e) => updateCustomWorksheetInfo('endDate', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-red-500"
+                      min={customWorksheetInfo.startDate}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      QC requirements will stop being due after this date (machine decommissioned)
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1908,10 +2341,31 @@ const Worksheets = () => {
           </div>
           
           <div className="space-y-4">
-            {customTests.map(test => (
-              <div key={test.id} className="bg-gray-700 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-300 font-medium">Test {customTests.indexOf(test) + 1}</span>
+            {customTests.map(test => {
+              const testIndex = customTests.indexOf(test);
+              const fieldMods = worksheetData 
+                ? getFieldModifications(worksheetData, test, testIndex)
+                : selectedTemplate && matchedToTemplate && !templateJustLoadedFlag
+                  ? getFieldModifications({ 
+                      templateSource: selectedTemplate.title,
+                      sourceTemplateName: selectedTemplate.title,
+                      templateId: selectedTemplate.id,
+                      sourceTemplateId: selectedTemplate.id,
+                      tests: customTests 
+                    }, test, testIndex)
+                  : templateJustLoadedFlag
+                    ? {
+                        testName: false, testType: false, tolerance: false, units: false, notes: false, 
+                        calculatedFromDicom: false, dicomSeriesSource: false, isCustomTest: false
+                      }
+                    : {
+                        testName: true, testType: true, tolerance: true, units: true, notes: true, 
+                        calculatedFromDicom: true, dicomSeriesSource: true, isCustomTest: true
+                      };
+              return (
+                <div key={test.id} className="bg-gray-700 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-gray-300 font-medium">Test {testIndex + 1}</span>
                   {customTests.length > 1 && (
                     <button
                       onClick={() => removeCustomTest(test.id)}
@@ -1924,8 +2378,18 @@ const Worksheets = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Test Name *
+                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
+                      <span>Test Name *</span>
+                      {fieldMods.testName && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                          fieldMods.isCustomTest 
+                            ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                            : 'text-orange-700 bg-orange-100 border-orange-300'
+                        }`} 
+                              title={fieldMods.isCustomTest ? "Custom test name" : "Modified test name"}>
+                          🔧
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
@@ -1937,8 +2401,18 @@ const Worksheets = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Test Type
+                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
+                      <span>Test Type</span>
+                      {fieldMods.testType && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                          fieldMods.isCustomTest 
+                            ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                            : 'text-orange-700 bg-orange-100 border-orange-300'
+                        }`} 
+                              title={fieldMods.isCustomTest ? "Custom test type" : "Modified test type"}>
+                          🔧
+                        </span>
+                      )}
                     </label>
                     <select
                       value={test.testType}
@@ -1953,8 +2427,18 @@ const Worksheets = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Tolerance/Range
+                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
+                      <span>Tolerance/Range</span>
+                      {fieldMods.tolerance && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                          fieldMods.isCustomTest 
+                            ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                            : 'text-orange-700 bg-orange-100 border-orange-300'
+                        }`} 
+                              title={fieldMods.isCustomTest ? "Custom tolerance" : "Modified tolerance"}>
+                          🔧
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
@@ -1966,8 +2450,18 @@ const Worksheets = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Units
+                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
+                      <span>Units</span>
+                      {fieldMods.units && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                          fieldMods.isCustomTest 
+                            ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                            : 'text-orange-700 bg-orange-100 border-orange-300'
+                        }`} 
+                              title={fieldMods.isCustomTest ? "Custom units" : "Modified units"}>
+                          🔧
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
@@ -1979,8 +2473,18 @@ const Worksheets = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Notes/Instructions
+                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
+                      <span>Notes/Instructions</span>
+                      {fieldMods.notes && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                          fieldMods.isCustomTest 
+                            ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                            : 'text-orange-700 bg-orange-100 border-orange-300'
+                        }`} 
+                              title={fieldMods.isCustomTest ? "Custom notes" : "Modified notes"}>
+                          🔧
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
@@ -1992,8 +2496,18 @@ const Worksheets = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Automation
+                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
+                      <span>Automation</span>
+                      {fieldMods.calculatedFromDicom && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                          fieldMods.isCustomTest 
+                            ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                            : 'text-orange-700 bg-orange-100 border-orange-300'
+                        }`} 
+                              title={fieldMods.isCustomTest ? "Custom automation" : "Modified automation"}>
+                          🔧
+                        </span>
+                      )}
                     </label>
                     <div className="space-y-3">
                       <div className="flex items-center space-x-2">
@@ -2011,8 +2525,18 @@ const Worksheets = () => {
                       
                       {test.calculatedFromDicom && (
                         <div className="ml-6 space-y-2">
-                          <label className="block text-xs font-medium text-gray-400">
-                            Source DICOM Series *
+                          <label className="block text-xs font-medium text-gray-400 flex items-center">
+                            <span>Source DICOM Series *</span>
+                            {fieldMods.dicomSeriesSource && (
+                              <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                                fieldMods.isCustomTest 
+                                  ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                                  : 'text-orange-700 bg-orange-100 border-orange-300'
+                              }`} 
+                                    title={fieldMods.isCustomTest ? "Custom DICOM source" : "Modified DICOM source"}>
+                                🔧
+                              </span>
+                            )}
                           </label>
                           <select
                             value={test.dicomSeriesSource || ''}
@@ -2054,7 +2578,8 @@ const Worksheets = () => {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
 
           {/* Delete Section - Only show when editing existing worksheet */}
@@ -2119,11 +2644,11 @@ const Worksheets = () => {
             
             <button
               onClick={createWorksheet}
-              disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
+              disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || !customWorksheetInfo.startDate || (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
               className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               <span>📝</span>
-              <span>{isEditingExistingWorksheet ? 'Update Worksheet' : 'Create Worksheet'}</span>
+              <span>{isEditingExistingWorksheet ? 'Update Worksheet' : 'Assign Worksheet to Machine'}</span>
             </button>
           </div>
         </div>
@@ -2132,43 +2657,72 @@ const Worksheets = () => {
   };
 
   const renderDicomConfig = () => {
+    const handleSaveDicomConfig = () => {
+      const machineId = customWorksheetInfo.machineId;
+      const modality = customWorksheetInfo.modality;
+      const frequency = customWorksheetInfo.frequency;
+      
+      if (machineId && modality && frequency) {
+        const success = saveMachineSpecificDicomConfig(machineId, modality, frequency, dicomSeriesConfig);
+        if (success) {
+          toast.success('DICOM configuration saved successfully');
+          setViewMode('custom'); // Return to worksheet editing
+          // Update the original config since we saved successfully
+          setOriginalDicomConfigForCancel([...dicomSeriesConfig]);
+        } else {
+          toast.error('Failed to save DICOM configuration');
+        }
+      } else {
+        toast.error('Missing machine, modality, or frequency information');
+      }
+    };
+    
+    const handleCancelDicomConfig = () => {
+      // Restore original config
+      setDicomSeriesConfig([...originalDicomConfigForCancel]);
+      setViewMode('custom'); // Return to worksheet editing
+      toast.info('DICOM configuration changes cancelled');
+    };
+    
     return (
       <div className="space-y-6">
         <div className="bg-gray-800 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-white">DICOM Configuration</h2>
-            <button
-              onClick={() => setViewMode('worksheets')}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-            >
-              Back to Worksheets
-            </button>
+            <div>
+              <h2 className="text-xl font-semibold text-white">DICOM Configuration</h2>
+              <p className="text-sm text-gray-400 mt-1">
+                Configure DICOM series identification for {customWorksheetInfo.machineId} - {customWorksheetInfo.modality} {customWorksheetInfo.frequency}
+              </p>
+            </div>
           </div>
 
           <DICOMTemplateConfig
-            templateData={{
-              ...customWorksheetInfo,
-              dicomSeriesConfig: dicomSeriesConfig
-            }}
-            onConfigChange={(config) => {
+            modality={customWorksheetInfo.modality}
+            frequency={customWorksheetInfo.frequency}
+            onSeriesConfigChange={(config) => {
               setDicomSeriesConfig(config);
             }}
-            onSave={(updatedTemplate) => {
-              const machineId = customWorksheetInfo.machineId;
-              const modality = customWorksheetInfo.modality;
-              const frequency = customWorksheetInfo.frequency;
-              
-              if (machineId && modality && frequency) {
-                const success = saveMachineSpecificDicomConfig(machineId, modality, frequency, updatedTemplate.dicomSeriesConfig);
-                if (success) {
-                  toast.success('DICOM configuration saved successfully');
-                  setViewMode('worksheets');
-                } else {
-                  toast.error('Failed to save DICOM configuration');
-                }
-              }
-            }}
+            initialConfig={dicomSeriesConfig}
           />
+          
+          {/* Action buttons */}
+          <div className="mt-6 flex justify-between">
+            <button
+              onClick={handleCancelDicomConfig}
+              className="px-6 py-3 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-500 transition-colors flex items-center space-x-2"
+            >
+              <span>←</span>
+              <span>Cancel Changes</span>
+            </button>
+            
+            <button
+              onClick={handleSaveDicomConfig}
+              className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+            >
+              <span>💾</span>
+              <span>Save DICOM Configuration</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2255,63 +2809,8 @@ const Worksheets = () => {
             <div className="bg-gray-800 rounded-lg p-6 space-y-4">
               <h2 className="text-xl font-semibold text-gray-100 mb-4">Generate New Template</h2>
               
-              {/* Create from existing template */}
-              <div className="flex items-end space-x-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Select Template
-                  </label>
-                  <select
-                    value={selectedTemplateForGeneration}
-                    onChange={(e) => setSelectedTemplateForGeneration(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Choose a template...</option>
-                    {getModalityTemplates().map(template => (
-                      <option key={template.id} value={template.id}>
-                        {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={() => {
-                    if (selectedTemplateForGeneration) {
-                      const template = getModalityTemplates().find(t => t.id.toString() === selectedTemplateForGeneration);
-                      if (template) {
-                        // Load template for editing as a new template
-                        setSelectedTemplate({ ...template, id: Date.now() }); // Give it a new ID
-                        setCustomWorksheetInfo({
-                          title: `Copy of ${template.title}`,
-                          frequency: template.frequency,
-                          machineId: '',
-                          modality: template.modality,
-                          description: template.description || ''
-                        });
-                        setCustomTests(template.tests.map(test => ({ ...test, id: Date.now() + Math.random() })));
-                        setDicomSeriesConfig(template.dicomSeriesConfig || []); // Load DICOM configuration
-                        setDicomConfigEnabled(template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0);
-                        setIsCreatingTemplate(true);
-                        toast.success(`Template "${template.title}" loaded for editing as new template`);
-                      }
-                    } else {
-                      toast.error('Please select a template first');
-                    }
-                  }}
-                  disabled={!selectedTemplateForGeneration}
-                  className={`px-4 py-2 rounded-md transition-colors flex items-center space-x-2 ${
-                    selectedTemplateForGeneration 
-                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <span>📋</span>
-                  <span>Create From Selected</span>
-                </button>
-              </div>
-              
               {/* Create new template from scratch */}
-              <div className="pt-2 border-t border-gray-600">
+              <div className="pb-2">
                 <button
                   onClick={() => {
                     resetTemplateForm();
@@ -2322,6 +2821,67 @@ const Worksheets = () => {
                   <span>➕</span>
                   <span>Create New Template from Scratch</span>
                 </button>
+              </div>
+              
+              {/* Create from existing template */}
+              <div className="pt-2 border-t border-gray-600">
+                <div className="flex items-end space-x-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Select Template
+                    </label>
+                    <select
+                      value={selectedTemplateForGeneration}
+                      onChange={(e) => setSelectedTemplateForGeneration(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Choose a template...</option>
+                      {getModalityTemplates().map(template => (
+                        <option key={template.id} value={template.id}>
+                          {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (selectedTemplateForGeneration) {
+                        const template = getModalityTemplates().find(t => t.id.toString() === selectedTemplateForGeneration);
+                        if (template) {
+                          // Load template for editing as a new template
+                          setSelectedTemplate({ ...template, id: Date.now() }); // Give it a new ID
+                          setCustomWorksheetInfo({
+                            title: `Copy of ${template.title}`,
+                            frequency: template.frequency,
+                            machineId: '',
+                            modality: template.modality,
+                            description: template.description || '',
+                            startDate: '',
+                            hasEndDate: false,
+                            endDate: ''
+                          });
+                          setCustomTests(template.tests.map(test => ({ ...test, id: Date.now() + Math.random() })));
+                          setDicomSeriesConfig(template.dicomSeriesConfig || []); // Load DICOM configuration
+                          setDicomConfigEnabled(template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0);
+                          setIsCreatingTemplate(true);
+                          setIsCreatingFromCopy(true);
+                          toast.success(`Template "${template.title}" loaded for editing as new template`);
+                        }
+                      } else {
+                        toast.error('Please select a template first');
+                      }
+                    }}
+                    disabled={!selectedTemplateForGeneration}
+                    className={`px-4 py-2 rounded-md transition-colors flex items-center space-x-2 ${
+                      selectedTemplateForGeneration 
+                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <span>📋</span>
+                    <span>Create From Selected</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -2458,6 +3018,23 @@ const Worksheets = () => {
                       ))}
                     </select>
                   </div>
+                  {customWorksheetInfo.modality === 'Other' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Other Modality Type</label>
+                      <select
+                        value={otherModalitySpecification}
+                        onChange={(e) => setOtherModalitySpecification(e.target.value)}
+                        className="w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white"
+                      >
+                        <option value="">Select type</option>
+                        {otherModalityOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.icon} {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Frequency</label>
                     <select
@@ -2658,7 +3235,7 @@ const Worksheets = () => {
                     onClick={saveAsTemplate}
                     className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                   >
-                    💾 {selectedTemplate ? 'Update Template' : 'Save Template'}
+                    💾 {selectedTemplate && !isCreatingFromCopy ? 'Update Template' : 'Save Template'}
                   </button>
                   <button
                     onClick={() => {
