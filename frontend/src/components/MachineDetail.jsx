@@ -233,7 +233,7 @@ const MachineDetail = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">Equipment Details</h3>
             <dl className="space-y-1 text-sm">
@@ -278,180 +278,6 @@ const MachineDetail = () => {
             </dl>
           </div>
 
-          <div>
-            <h3 className="font-semibold text-gray-300 mb-2">QC Worksheets</h3>
-            <dl className="space-y-1 text-sm">
-              {getAssignedFrequencies(machine).includes('daily') && (
-                <div className="flex flex-col">
-                  <div className="flex justify-between">
-                    <dt className="text-gray-400">Daily QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
-                  </div>
-                  {(() => {
-                    const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'daily');
-                    return worksheets.length > 0 ? (
-                      <div className="text-xs text-blue-300 ml-2 mt-1">
-                        📋 {worksheets.length} custom worksheet{worksheets.length !== 1 ? 's' : ''}
-                        {worksheets.length === 1 && (
-                          <div className="text-gray-400">
-                            {worksheets[0].title}
-                            {worksheets[0].templateSource && (
-                              <span className="text-gray-500"> (from {worksheets[0].templateSource})</span>
-                            )}
-                          </div>
-                        )}
-                        {worksheets.length > 1 && (
-                          <div className="text-gray-400">
-                            Primary: {worksheets[0].title}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Daily Template
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              {getAssignedFrequencies(machine).includes('weekly') && (
-                <div className="flex flex-col">
-                  <div className="flex justify-between">
-                    <dt className="text-gray-400">Weekly QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
-                  </div>
-                  {(() => {
-                    const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'weekly');
-                    return worksheets.length > 0 ? (
-                      <div className="text-xs text-blue-300 ml-2 mt-1">
-                        📋 {worksheets.length} custom worksheet{worksheets.length !== 1 ? 's' : ''}
-                        {worksheets.length === 1 && (
-                          <div className="text-gray-400">
-                            {worksheets[0].title}
-                            {worksheets[0].templateSource && (
-                              <span className="text-gray-500"> (from {worksheets[0].templateSource})</span>
-                            )}
-                          </div>
-                        )}
-                        {worksheets.length > 1 && (
-                          <div className="text-gray-400">
-                            Primary: {worksheets[0].title}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Weekly Template
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              {getAssignedFrequencies(machine).includes('monthly') && (
-                <div className="flex flex-col">
-                  <div className="flex justify-between">
-                    <dt className="text-gray-400">Monthly QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
-                  </div>
-                  {(() => {
-                    const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'monthly');
-                    return worksheets.length > 0 ? (
-                      <div className="text-xs text-blue-300 ml-2 mt-1">
-                        📋 {worksheets.length} custom worksheet{worksheets.length !== 1 ? 's' : ''}
-                        {worksheets.length === 1 && (
-                          <div className="text-gray-400">
-                            {worksheets[0].title}
-                            {worksheets[0].templateSource && (
-                              <span className="text-gray-500"> (from {worksheets[0].templateSource})</span>
-                            )}
-                          </div>
-                        )}
-                        {worksheets.length > 1 && (
-                          <div className="text-gray-400">
-                            Primary: {worksheets[0].title}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Monthly Template
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              {getAssignedFrequencies(machine).includes('quarterly') && (
-                <div className="flex flex-col">
-                  <div className="flex justify-between">
-                    <dt className="text-gray-400">Quarterly QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
-                  </div>
-                  {(() => {
-                    const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'quarterly');
-                    return worksheets.length > 0 ? (
-                      <div className="text-xs text-blue-300 ml-2 mt-1">
-                        📋 {worksheets.length} custom worksheet{worksheets.length !== 1 ? 's' : ''}
-                        {worksheets.length === 1 && (
-                          <div className="text-gray-400">
-                            {worksheets[0].title}
-                            {worksheets[0].templateSource && (
-                              <span className="text-gray-500"> (from {worksheets[0].templateSource})</span>
-                            )}
-                          </div>
-                        )}
-                        {worksheets.length > 1 && (
-                          <div className="text-gray-400">
-                            Primary: {worksheets[0].title}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Quarterly Template
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              {getAssignedFrequencies(machine).includes('annual') && (
-                <div className="flex flex-col">
-                  <div className="flex justify-between">
-                    <dt className="text-gray-400">Annual QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
-                  </div>
-                  {(() => {
-                    const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'annual');
-                    return worksheets.length > 0 ? (
-                      <div className="text-xs text-blue-300 ml-2 mt-1">
-                        📋 {worksheets.length} custom worksheet{worksheets.length !== 1 ? 's' : ''}
-                        {worksheets.length === 1 && (
-                          <div className="text-gray-400">
-                            {worksheets[0].title}
-                            {worksheets[0].templateSource && (
-                              <span className="text-gray-500"> (from {worksheets[0].templateSource})</span>
-                            )}
-                          </div>
-                        )}
-                        {worksheets.length > 1 && (
-                          <div className="text-gray-400">
-                            Primary: {worksheets[0].title}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Annual Template
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              <div className="flex justify-between border-t border-gray-700 pt-1 mt-2">
-                <dt className="text-gray-400">Next QC Due:</dt>
-                <dd className="font-medium text-blue-400">{new Date(machine.nextQCDue).toLocaleDateString()}</dd>
-              </div>
-            </dl>
-          </div>
 
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">Last QC</h3>
@@ -479,50 +305,47 @@ const MachineDetail = () => {
 
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">Perform QC</h3>
-            <div className="space-y-2">
-              {getWorksheetAssignedFrequencies(machine).includes('daily') && (
-                <Link
-                  to={`/qc/perform/${machine.machineId}/daily`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-                >
-                  ▶️ Perform Daily QC
-                </Link>
-              )}
-              {getWorksheetAssignedFrequencies(machine).includes('weekly') && (
-                <Link
-                  to={`/qc/perform/${machine.machineId}/weekly`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
-                >
-                  ▶️ Perform Weekly QC
-                </Link>
-              )}
-              {getWorksheetAssignedFrequencies(machine).includes('monthly') && (
-                <Link
-                  to={`/qc/perform/${machine.machineId}/monthly`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-yellow-600 hover:bg-yellow-700 rounded-md transition-colors"
-                >
-                  ▶️ Perform Monthly QC
-                </Link>
-              )}
-              {getWorksheetAssignedFrequencies(machine).includes('quarterly') && (
-                <Link
-                  to={`/qc/perform/${machine.machineId}/quarterly`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors"
-                >
-                  ▶️ Perform Quarterly QC
-                </Link>
-              )}
-              {getWorksheetAssignedFrequencies(machine).includes('annual') && (
-                <Link
-                  to={`/qc/perform/${machine.machineId}/annual`}
-                  className="block w-full px-3 py-2 text-sm font-medium text-center text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
-                >
-                  ▶️ Perform Annual QC
-                </Link>
-              )}
+            <div className="space-y-1">
+              {/* Get all assigned worksheets and create individual buttons */}
+              {customWorksheets
+                .filter(ws => 
+                  ws.modality === machine.type && 
+                  ws.assignedMachines && 
+                  ws.assignedMachines.includes(machine.machineId) &&
+                  ws.isWorksheet === true
+                )
+                .sort((a, b) => {
+                  // Sort by frequency priority: daily, weekly, monthly, quarterly, annual
+                  const order = { daily: 0, weekly: 1, monthly: 2, quarterly: 3, annual: 4 };
+                  return (order[a.frequency] || 5) - (order[b.frequency] || 5);
+                })
+                .map((worksheet) => {
+                  const frequencyColors = {
+                    daily: 'bg-blue-600 hover:bg-blue-700',
+                    weekly: 'bg-green-600 hover:bg-green-700', 
+                    monthly: 'bg-yellow-600 hover:bg-yellow-700',
+                    quarterly: 'bg-purple-600 hover:bg-purple-700',
+                    annual: 'bg-red-600 hover:bg-red-700'
+                  };
+                  
+                  return (
+                    <Link
+                      key={worksheet.id}
+                      to={`/qc/perform/${machine.machineId}/${worksheet.frequency}/${worksheet.id}`}
+                      className={`block w-full px-2 py-1 text-xs font-medium text-center text-white rounded transition-colors ${frequencyColors[worksheet.frequency] || 'bg-gray-600 hover:bg-gray-700'}`}
+                    >
+                      ▶️ {worksheet.title}
+                    </Link>
+                  );
+                })}
               
               {/* Show message when no worksheets are assigned */}
-              {getWorksheetAssignedFrequencies(machine).length === 0 && (
+              {customWorksheets.filter(ws => 
+                ws.modality === machine.type && 
+                ws.assignedMachines && 
+                ws.assignedMachines.includes(machine.machineId) &&
+                ws.isWorksheet === true
+              ).length === 0 && (
                 <div className="text-center py-4">
                   <div className="text-sm text-gray-400 mb-2">No QC worksheets assigned</div>
                   <Link
@@ -569,6 +392,17 @@ const MachineDetail = () => {
               
               if (!hasWorksheet) return null; // Skip frequencies without actual worksheets
               
+              // Get all worksheets for this frequency
+              const frequencyWorksheets = customWorksheets.filter(ws => 
+                ws.modality === machine.type && 
+                ws.frequency === frequency && 
+                ws.assignedMachines && 
+                ws.assignedMachines.includes(machine.machineId) &&
+                ws.isWorksheet === true
+              );
+              
+              if (frequencyWorksheets.length === 0) return null; // No worksheets found
+              
               return (
                 <div key={frequency} className="border border-gray-600 rounded-lg p-4">
                   <div className="flex items-center justify-between">
@@ -577,16 +411,14 @@ const MachineDetail = () => {
                         {frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC
                       </h3>
                       
-                      {worksheets.filter(ws => !ws.needsWorksheet).map(worksheet => {
-                        // Find the actual worksheet data to check modification status
-                        const worksheetData = customWorksheets.find(ws => 
-                          ws.modality === machine.type && 
-                          ws.frequency === frequency && 
-                          ws.assignedMachines && 
-                          ws.assignedMachines.includes(machine.machineId) &&
-                          ws.isWorksheet === true
-                        );
-                        
+                      {/* Get all worksheets for this frequency */}
+                      {customWorksheets.filter(ws => 
+                        ws.modality === machine.type && 
+                        ws.frequency === frequency && 
+                        ws.assignedMachines && 
+                        ws.assignedMachines.includes(machine.machineId) &&
+                        ws.isWorksheet === true
+                      ).map(worksheetData => {
                         const isModified = worksheetData && (
                           worksheetData.isModified || 
                           (worksheetData.modifications && worksheetData.modifications.length > 0) ||
@@ -594,49 +426,49 @@ const MachineDetail = () => {
                         );
                         
                         return (
-                          <div key={worksheet.id} className="mb-2 last:mb-0">
-                            <p className="text-sm text-gray-200">{worksheet.title}</p>
-                            {worksheetData && (worksheetData.templateSource || worksheetData.sourceTemplateName) && (
-                              <p className="text-xs text-gray-400">
-                                {isModified ? (
-                                  <span className="text-amber-400">🔧 Modified</span>
-                                ) : (
-                                  <span className="text-green-400">✓ Unmodified</span>
+                          <div key={worksheetData.id} className="mb-3 p-3 bg-gray-700 rounded border-l-4 border-blue-500">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-200">{worksheetData.title}</p>
+                                {worksheetData && (worksheetData.templateSource || worksheetData.sourceTemplateName) && (
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    {isModified ? (
+                                      <span className="text-amber-400">🔧 Modified</span>
+                                    ) : (
+                                      <span className="text-green-400">✓ Unmodified</span>
+                                    )}
+                                    {worksheetData.templateSource && (
+                                      <span className="ml-2 text-gray-500">• From: {worksheetData.templateSource}</span>
+                                    )}
+                                  </p>
                                 )}
-                              </p>
-                            )}
+                              </div>
+                              
+                              <div className="flex space-x-2 ml-4">
+                                <Link
+                                  to={`/qc/view-worksheet/${machine.machineId}/${frequency}/${worksheetData.id}`}
+                                  onClick={() => {
+                                    localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
+                                  }}
+                                  className="px-2 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-500 transition-colors"
+                                >
+                                  👁️ View
+                                </Link>
+                                
+                                <Link
+                                  to={`/qc/perform/${machine.machineId}/${frequency}/${worksheetData.id}`}
+                                  className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                                >
+                                  ▶️ Perform
+                                </Link>
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
                     
-                    <div className="flex space-x-2 ml-4">
-                      <Link
-                        to={`/qc/view-worksheet/${machine.machineId}/${frequency}`}
-                        onClick={() => {
-                          const worksheetData = customWorksheets.find(ws => 
-                            ws.modality === machine.type && 
-                            ws.frequency === frequency && 
-                            ws.assignedMachines && 
-                            ws.assignedMachines.includes(machine.machineId) &&
-                            ws.isWorksheet === true
-                          );
-                          if (worksheetData) {
-                            localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
-                          }
-                        }}
-                        className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
-                      >
-                        👁️ View
-                      </Link>
-                      
-                      <Link
-                        to={`/qc/perform/${machine.machineId}/${frequency}`}
-                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                      >
-                        ▶️ Perform
-                      </Link>
-                    </div>
+                    {/* Individual worksheet buttons are now rendered inside each worksheet block above */}
                   </div>
                 </div>
               );

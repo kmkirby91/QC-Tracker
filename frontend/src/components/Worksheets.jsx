@@ -72,6 +72,7 @@ const Worksheets = () => {
   const [otherModalitySpecification, setOtherModalitySpecification] = useState('');
   const [isCreatingFromCopy, setIsCreatingFromCopy] = useState(false);
   const [templateJustLoadedFlag, setTemplateJustLoadedFlag] = useState(false);
+  const [isViewingWorksheet, setIsViewingWorksheet] = useState(false);
 
   // Machine-specific DICOM configuration storage
   const getMachineSpecificDicomConfig = (machineId, modality, frequency) => {
@@ -268,22 +269,13 @@ const Worksheets = () => {
       };
     }
     
-    // If test index is beyond original template, it's a new custom test
-    if (testIndex >= originalTemplate.tests.length) {
-      return {
-        testName: true,
-        testType: true,
-        tolerance: true,
-        units: true,
-        notes: true,
-        calculatedFromDicom: true,
-        dicomSeriesSource: true,
-        isCustomTest: true
-      };
-    }
+    // Find matching template test by name instead of index to handle deletions correctly
+    const templateTest = originalTemplate.tests.find(t => 
+      t.testName === test.testName || t.name === test.testName
+    );
     
-    const templateTest = originalTemplate.tests[testIndex];
     if (!templateTest) {
+      // Test doesn't exist in original template, it's a new custom test
       return {
         testName: true,
         testType: true,
@@ -296,17 +288,28 @@ const Worksheets = () => {
       };
     }
     
-    // Compare each field individually
-    return {
-      testName: test.testName !== templateTest.testName,
+    // Compare each field individually, handling undefined template values
+    const fieldMods = {
+      testName: test.testName !== (templateTest.testName || templateTest.name),
       testType: test.testType !== templateTest.testType,
       tolerance: test.tolerance !== templateTest.tolerance,
       units: test.units !== templateTest.units,
       notes: test.notes !== templateTest.notes,
-      calculatedFromDicom: test.calculatedFromDicom !== templateTest.calculatedFromDicom,
+      calculatedFromDicom: (test.calculatedFromDicom || false) !== (templateTest.calculatedFromDicom || false),
       dicomSeriesSource: test.dicomSeriesSource !== templateTest.dicomSeriesSource,
       isCustomTest: false
     };
+    
+    // Debug logging for calculatedFromDicom changes
+    if (fieldMods.calculatedFromDicom) {
+      console.log(`Field modification detected for test "${test.testName}":`, {
+        testCalculatedFromDicom: test.calculatedFromDicom,
+        templateCalculatedFromDicom: templateTest.calculatedFromDicom,
+        fieldMods
+      });
+    }
+    
+    return fieldMods;
   };
 
   const getWorksheets = () => {
@@ -508,6 +511,7 @@ const Worksheets = () => {
     }
     
     // Set to custom mode for editing
+    setIsViewingWorksheet(false);  // Set edit mode (not read-only)
     setViewMode('custom');
     
     toast.success(`Editing worksheet: ${worksheet.title}`);
@@ -516,16 +520,29 @@ const Worksheets = () => {
   const viewCustomWorksheetReadOnly = (worksheet, machineId = null) => {
     console.log('viewCustomWorksheetReadOnly called with worksheet:', worksheet, 'machineId:', machineId);
     
-    // Store worksheet data temporarily for QCForm to use
-    localStorage.setItem('tempWorksheetView', JSON.stringify(worksheet));
+    // Load worksheet for viewing in read-only edit mode (same as edit but read-only)
+    setWorksheetDataSafe(worksheet);
+    setViewMode('custom');  // Use same mode as edit
     
-    // Navigate to QCForm in view-only mode for custom worksheets
-    if (machineId) {
-      navigate(`/qc/view-worksheet/${machineId}/${worksheet.frequency}`);
-    } else {
-      // For unassigned worksheets, use the modality route
-      navigate(`/qc/view/${worksheet.modality}/${worksheet.frequency}`);
-    }
+    // Set state to match the worksheet
+    setSelectedTemplate(null);
+    setMatchedToTemplate(false);
+    setTemplateJustLoadedFlag(false);
+    setCustomWorksheetInfo({
+      title: worksheet.title || '',
+      frequency: worksheet.frequency || 'daily',
+      machineId: worksheet.machineId || '',
+      modality: worksheet.modality || '',
+      description: worksheet.description || '',
+      startDate: worksheet.startDate || '',
+      hasEndDate: worksheet.hasEndDate || false,
+      endDate: worksheet.endDate || ''
+    });
+    setCustomTests(worksheet.tests || []);
+    setDicomSeriesConfig(worksheet.dicomSeriesConfig || []);
+    setOtherModalitySpecification(worksheet.otherModalitySpecification || '');
+    setIsViewingWorksheet(true);  // Set read-only mode
+    
     toast.success(`Viewing worksheet: ${worksheet.title}`);
   };
 
@@ -1027,6 +1044,59 @@ const Worksheets = () => {
       return;
     }
 
+    // Check for duplicate template assignments to the same machine
+    if (selectedTemplate && matchedToTemplate && !worksheetData?.isEditing) {
+      const existingWorksheets = getWorksheets();
+      const conflictingWorksheet = existingWorksheets.find(ws => 
+        ws.assignedMachines && 
+        ws.assignedMachines.includes(customWorksheetInfo.machineId) &&
+        ws.frequency === customWorksheetInfo.frequency &&
+        (ws.templateSource === selectedTemplate.title || 
+         ws.sourceTemplateName === selectedTemplate.title ||
+         ws.templateId === selectedTemplate.id ||
+         ws.sourceTemplateId === selectedTemplate.id) &&
+        ws.id !== worksheetData?.id // Don't conflict with itself when editing
+      );
+
+      if (conflictingWorksheet) {
+        const machine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
+        const confirmed = window.confirm(
+          `⚠️ Template Conflict Warning\n\n` +
+          `The machine "${machine?.name || customWorksheetInfo.machineId}" already has a ${customWorksheetInfo.frequency} QC worksheet based on the "${selectedTemplate.title}" template.\n\n` +
+          `Existing worksheet: "${conflictingWorksheet.title}"\n` +
+          `New worksheet: "${customWorksheetInfo.title}"\n\n` +
+          `Having multiple worksheets from the same template on one machine can cause confusion and duplicate QC requirements.\n\n` +
+          `Do you want to proceed anyway?`
+        );
+        
+        if (!confirmed) {
+          return;
+        }
+      }
+    }
+
+    // Check for modality mismatch between template and machine
+    if (selectedTemplate && matchedToTemplate) {
+      const machine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
+      const templateModality = selectedTemplate.modality;
+      const machineModality = machine?.type;
+      
+      if (templateModality && machineModality && templateModality !== machineModality) {
+        const confirmed = window.confirm(
+          `⚠️ Modality Mismatch Warning\n\n` +
+          `You are assigning a "${templateModality}" template to a "${machineModality}" machine.\n\n` +
+          `Template: "${selectedTemplate.title}" (${templateModality})\n` +
+          `Machine: "${machine?.name || customWorksheetInfo.machineId}" (${machineModality})\n\n` +
+          `This may result in inappropriate QC tests being assigned to this machine. QC tests designed for ${templateModality} equipment may not be suitable for ${machineModality} equipment.\n\n` +
+          `Are you sure you want to proceed with this modality mismatch?`
+        );
+        
+        if (!confirmed) {
+          return;
+        }
+      }
+    }
+
     const machine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
     
     // Function to properly detect if worksheet is modified from template
@@ -1083,44 +1153,97 @@ const Worksheets = () => {
     
     const isActuallyModified = detectActualModifications();
     
-    // Create unique worksheet for this specific machine
-    const uniqueWorksheetData = {
-      ...customWorksheetInfo,
-      title: `${customWorksheetInfo.title} - ${machine?.name || customWorksheetInfo.machineId}`,
-      tests: [...customTests],
-      id: `${Date.now()}-${customWorksheetInfo.machineId}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      isModified: isActuallyModified,
-      sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
-      sourceTemplateName: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
-      templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
-      templateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
-      isWorksheet: true,
-      assignedMachines: [customWorksheetInfo.machineId],
-      specificMachine: customWorksheetInfo.machineId,
-      dicomSeriesConfig: dicomSeriesConfig,
-      otherModalitySpecification: otherModalitySpecification,
-      startDate: customWorksheetInfo.startDate,
-      hasEndDate: customWorksheetInfo.hasEndDate,
-      endDate: customWorksheetInfo.hasEndDate ? customWorksheetInfo.endDate : null
-    };
+    // Check if we're updating an existing worksheet
+    const isEditingExistingWorksheet = worksheetData && (worksheetData.templateSource || worksheetData.isEditing);
+    
+    let worksheetToSave;
+    
+    if (isEditingExistingWorksheet) {
+      // Update existing worksheet - preserve original ID and creation date
+      worksheetToSave = {
+        ...worksheetData, // Start with original worksheet data
+        ...customWorksheetInfo, // Update with new form data
+        tests: [...customTests],
+        updatedAt: new Date().toISOString(),
+        isModified: isActuallyModified,
+        sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : worksheetData.sourceTemplateId,
+        sourceTemplateName: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : worksheetData.sourceTemplateName,
+        templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : worksheetData.templateSource,
+        templateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : worksheetData.templateId,
+        dicomSeriesConfig: dicomSeriesConfig,
+        otherModalitySpecification: otherModalitySpecification,
+        startDate: customWorksheetInfo.startDate,
+        hasEndDate: customWorksheetInfo.hasEndDate,
+        endDate: customWorksheetInfo.hasEndDate ? customWorksheetInfo.endDate : null
+      };
+      console.log('Updating existing worksheet:', worksheetToSave);
+    } else {
+      // Create new worksheet for this specific machine
+      worksheetToSave = {
+        ...customWorksheetInfo,
+        title: `${customWorksheetInfo.title} - ${machine?.name || customWorksheetInfo.machineId}`,
+        tests: [...customTests],
+        id: `${Date.now()}-${customWorksheetInfo.machineId}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isModified: isActuallyModified,
+        sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
+        sourceTemplateName: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
+        templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null,
+        templateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
+        isWorksheet: true,
+        assignedMachines: [customWorksheetInfo.machineId],
+        specificMachine: customWorksheetInfo.machineId,
+        dicomSeriesConfig: dicomSeriesConfig,
+        otherModalitySpecification: otherModalitySpecification,
+        startDate: customWorksheetInfo.startDate,
+        hasEndDate: customWorksheetInfo.hasEndDate,
+        endDate: customWorksheetInfo.hasEndDate ? customWorksheetInfo.endDate : null
+      };
+      console.log('Creating new worksheet:', worksheetToSave);
+    }
 
-    console.log('Creating worksheet:', uniqueWorksheetData);
+    console.log('Template info being saved:', {
+      templateSource: worksheetToSave.templateSource,
+      sourceTemplateName: worksheetToSave.sourceTemplateName,
+      templateId: worksheetToSave.templateId,
+      sourceTemplateId: worksheetToSave.sourceTemplateId,
+      selectedTemplate: selectedTemplate ? selectedTemplate.title : 'none'
+    });
 
-    const savedWorksheet = saveWorksheet(uniqueWorksheetData);
+    const savedWorksheet = saveWorksheet(worksheetToSave);
     
     if (savedWorksheet) {
       setRefreshKey(prev => prev + 1);
       window.dispatchEvent(new Event('storage'));
       
-      toast.success(`New worksheet created and assigned to ${machine?.name || 'machine'} successfully!`);
+      toast.success(`${isEditingExistingWorksheet ? 'Worksheet updated' : 'New worksheet created and assigned to ' + (machine?.name || 'machine')} successfully!`);
       
-      // Switch to worksheets view to see the result (removed automatic switch)
-      // User can manually navigate to see the result
-      // setTimeout(() => {
-      //   setViewMode('worksheets');
-      // }, 500);
+      // Switch to worksheets view to see the result
+      setTimeout(() => {
+        setViewMode('worksheets');
+        // Clear worksheet editing state to prevent showing the form at the bottom
+        setWorksheetDataSafe(null);
+        setIsViewingWorksheet(false);
+        setCustomWorksheetInfo({
+          title: '',
+          frequency: 'daily',
+          machineId: '',
+          modality: '',
+          description: '',
+          startDate: '',
+          hasEndDate: false,
+          endDate: ''
+        });
+        setCustomTests([
+          { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '', calculatedFromDicom: false, dicomSeriesSource: '' }
+        ]);
+        setSelectedTemplate(null);
+        setMatchedToTemplate(false);
+        setTemplateJustLoadedFlag(false);
+        setDicomSeriesConfig([]);
+        setOtherModalitySpecification('');
+      }, 500);
     } else {
       toast.error('Failed to create worksheet');
     }
@@ -1258,6 +1381,7 @@ const Worksheets = () => {
     setOtherModalitySpecification('');
     setIsCreatingFromCopy(false);
     setTemplateJustLoadedFlag(false);
+    setIsViewingWorksheet(false);
     
     // Clear URL params when switching modes
     const newSearchParams = new URLSearchParams(searchParams);
@@ -1728,6 +1852,16 @@ const Worksheets = () => {
               <tbody>
                 {worksheetData.tests && worksheetData.tests.map((test, index) => {
                   const fieldMods = getFieldModifications(worksheetData, test, index);
+                  
+                  // Debug logging for view mode
+                  if (index === 0) {
+                    console.log('View mode debug:', {
+                      worksheetData: worksheetData,
+                      hasTemplateSource: !!(worksheetData.templateSource || worksheetData.sourceTemplateName),
+                      firstTestMods: fieldMods
+                    });
+                  }
+                  
                   return (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="border border-gray-400 px-4 py-3 font-medium">
@@ -2090,7 +2224,10 @@ const Worksheets = () => {
                 value={customWorksheetInfo.title}
                 onChange={(e) => updateCustomWorksheetInfo('title', e.target.value)}
                 placeholder="e.g., MRI Weekly QC Protocol"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                disabled={isViewingWorksheet}
+                className={`w-full px-3 py-2 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                  isViewingWorksheet ? 'bg-gray-600 cursor-not-allowed' : 'bg-gray-700'
+                }`}
               />
             </div>
             
@@ -2197,7 +2334,10 @@ const Worksheets = () => {
               <select
                 value={customWorksheetInfo.frequency}
                 onChange={(e) => updateCustomWorksheetInfo('frequency', e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                disabled={isViewingWorksheet}
+                className={`w-full px-3 py-2 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                  isViewingWorksheet ? 'bg-gray-600 cursor-not-allowed' : 'bg-gray-700'
+                }`}
               >
                 {frequencies.map(freq => (
                   <option key={freq.value} value={freq.value}>
@@ -2331,13 +2471,15 @@ const Worksheets = () => {
         <div className="bg-gray-800 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-100">QC Tests</h2>
-            <button
-              onClick={addCustomTest}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
-            >
-              <span>➕</span>
-              <span>Add Test</span>
-            </button>
+            {!isViewingWorksheet && (
+              <button
+                onClick={addCustomTest}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+              >
+                <span>➕</span>
+                <span>Add Test</span>
+              </button>
+            )}
           </div>
           
           <div className="space-y-4">
@@ -2345,20 +2487,22 @@ const Worksheets = () => {
               const testIndex = customTests.indexOf(test);
               const fieldMods = worksheetData 
                 ? getFieldModifications(worksheetData, test, testIndex)
-                : selectedTemplate && matchedToTemplate && !templateJustLoadedFlag
-                  ? getFieldModifications({ 
-                      templateSource: selectedTemplate.title,
-                      sourceTemplateName: selectedTemplate.title,
-                      templateId: selectedTemplate.id,
-                      sourceTemplateId: selectedTemplate.id,
-                      tests: customTests 
-                    }, test, testIndex)
-                  : templateJustLoadedFlag
-                    ? {
-                        testName: false, testType: false, tolerance: false, units: false, notes: false, 
-                        calculatedFromDicom: false, dicomSeriesSource: false, isCustomTest: false
-                      }
+                : templateJustLoadedFlag
+                  ? {
+                      // When template is just loaded, show no modifications
+                      testName: false, testType: false, tolerance: false, units: false, notes: false, 
+                      calculatedFromDicom: false, dicomSeriesSource: false, isCustomTest: false
+                    }
+                  : selectedTemplate && matchedToTemplate
+                    ? getFieldModifications({ 
+                        templateSource: selectedTemplate.title,
+                        sourceTemplateName: selectedTemplate.title,
+                        templateId: selectedTemplate.id,
+                        sourceTemplateId: selectedTemplate.id,
+                        tests: selectedTemplate.tests // Compare against original template tests, not current customTests
+                      }, test, testIndex)
                     : {
+                        // Only for completely custom worksheets with no template base
                         testName: true, testType: true, tolerance: true, units: true, notes: true, 
                         calculatedFromDicom: true, dicomSeriesSource: true, isCustomTest: true
                       };
@@ -2366,7 +2510,7 @@ const Worksheets = () => {
                 <div key={test.id} className="bg-gray-700 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-gray-300 font-medium">Test {testIndex + 1}</span>
-                  {customTests.length > 1 && (
+                  {customTests.length > 1 && !isViewingWorksheet && (
                     <button
                       onClick={() => removeCustomTest(test.id)}
                       className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition-colors"
@@ -2396,7 +2540,10 @@ const Worksheets = () => {
                       value={test.testName}
                       onChange={(e) => updateCustomTest(test.id, 'testName', e.target.value)}
                       placeholder="e.g., Signal-to-Noise Ratio"
-                      className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      disabled={isViewingWorksheet}
+                      className={`w-full px-3 py-2 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                        isViewingWorksheet ? 'bg-gray-500 cursor-not-allowed' : 'bg-gray-600'
+                      }`}
                     />
                   </div>
                   
@@ -2445,7 +2592,10 @@ const Worksheets = () => {
                       value={test.tolerance}
                       onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
                       placeholder="e.g., ±5%, >100, 0-10"
-                      className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      disabled={isViewingWorksheet}
+                      className={`w-full px-3 py-2 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                        isViewingWorksheet ? 'bg-gray-500 cursor-not-allowed' : 'bg-gray-600'
+                      }`}
                     />
                   </div>
                   
@@ -2516,7 +2666,10 @@ const Worksheets = () => {
                           id={`calculated-${test.id}`}
                           checked={test.calculatedFromDicom || false}
                           onChange={(e) => updateCustomTest(test.id, 'calculatedFromDicom', e.target.checked)}
-                          className="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2"
+                          disabled={isViewingWorksheet}
+                          className={`w-4 h-4 text-blue-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2 ${
+                            isViewingWorksheet ? 'bg-gray-500 cursor-not-allowed' : 'bg-gray-600'
+                          }`}
                         />
                         <label htmlFor={`calculated-${test.id}`} className="text-sm text-blue-300">
                           📊 Calculate from DICOM data
@@ -2615,12 +2768,14 @@ const Worksheets = () => {
             <div className="flex space-x-3">
               <button
                 onClick={() => {
-                  const hasChanges = customWorksheetInfo.title || customWorksheetInfo.description || 
-                                   customTests.some(test => test.testName) || 
-                                   dicomSeriesConfig.length > 0;
-                  
-                  if (hasChanges && !window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-                    return;
+                  if (!isViewingWorksheet) {
+                    const hasChanges = customWorksheetInfo.title || customWorksheetInfo.description || 
+                                     customTests.some(test => test.testName) || 
+                                     dicomSeriesConfig.length > 0;
+                    
+                    if (hasChanges && !window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                      return;
+                    }
                   }
                   
                   setViewMode('worksheets');
@@ -2630,26 +2785,30 @@ const Worksheets = () => {
                 className="px-6 py-3 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-500 transition-colors flex items-center space-x-2"
               >
                 <span>←</span>
-                <span>Cancel</span>
+                <span>{isViewingWorksheet ? 'Back' : 'Cancel'}</span>
               </button>
               
-              <button
-                onClick={saveAsTemplate}
-                className="px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
-              >
-                <span>💾</span>
-                <span>Save as Template</span>
-              </button>
+              {!isViewingWorksheet && (
+                <button
+                  onClick={saveAsTemplate}
+                  className="px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                >
+                  <span>💾</span>
+                  <span>Save as Template</span>
+                </button>
+              )}
             </div>
             
-            <button
-              onClick={createWorksheet}
-              disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || !customWorksheetInfo.startDate || (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
-              className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              <span>📝</span>
-              <span>{isEditingExistingWorksheet ? 'Update Worksheet' : 'Assign Worksheet to Machine'}</span>
-            </button>
+            {!isViewingWorksheet && (
+              <button
+                onClick={createWorksheet}
+                disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || !customWorksheetInfo.startDate || (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
+                className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                <span>📝</span>
+                <span>{isEditingExistingWorksheet ? 'Update Worksheet' : 'Assign Worksheet to Machine'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

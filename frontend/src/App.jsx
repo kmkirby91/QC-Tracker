@@ -151,8 +151,10 @@ function App() {
               <Route path="/machines/:machineId" element={<MachineDetail />} />
               <Route path="/machines/:machineId/qc/:date" element={<QCTestDetail />} />
               <Route path="/qc/perform/:machineId/:frequency" element={<QCForm />} />
+              <Route path="/qc/perform/:machineId/:frequency/:worksheetId" element={<QCForm />} />
               <Route path="/qc/view/:machineType/:frequency" element={<QCForm viewOnly={true} />} />
               <Route path="/qc/view-worksheet/:machineId/:frequency" element={<QCForm viewOnly={true} />} />
+              <Route path="/qc/view-worksheet/:machineId/:frequency/:worksheetId" element={<QCForm viewOnly={true} />} />
             </Routes>
           </main>
         </div>
@@ -277,6 +279,8 @@ function Dashboard() {
 function MachineList() {
   const [machines, setMachines] = useState([])
   const [loading, setLoading] = useState(true)
+  const [sortBy, setSortBy] = useState('name')
+  const [sortDirection, setSortDirection] = useState('asc')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -292,6 +296,50 @@ function MachineList() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortedMachines = () => {
+    return [...machines].sort((a, b) => {
+      let aValue, bValue
+      
+      switch (sortBy) {
+        case 'name':
+          aValue = a.name.toLowerCase()
+          bValue = b.name.toLowerCase()
+          break
+        case 'type':
+          aValue = a.type.toLowerCase()
+          bValue = b.type.toLowerCase()
+          break
+        case 'location':
+          aValue = `${a.location.building} ${a.location.room}`.toLowerCase()
+          bValue = `${b.location.building} ${b.location.room}`.toLowerCase()
+          break
+        case 'status':
+          aValue = a.status.toLowerCase()
+          bValue = b.status.toLowerCase()
+          break
+        case 'nextQC':
+          aValue = new Date(a.nextQCDue)
+          bValue = new Date(b.nextQCDue)
+          break
+        default:
+          return 0
+      }
+      
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
   }
 
   const getAssignedFrequencies = (machine) => {
@@ -319,6 +367,28 @@ function MachineList() {
     return assignedFrequencies;
   }
 
+  const getAssignedWorksheets = (machine) => {
+    // Return actual worksheet objects assigned to this machine
+    const assignedWorksheets = [];
+    try {
+      const storedWorksheets = localStorage.getItem('qcWorksheets');
+      if (storedWorksheets) {
+        const worksheets = JSON.parse(storedWorksheets);
+        worksheets.forEach(worksheet => {
+          if (worksheet.modality === machine.type && 
+              worksheet.assignedMachines && 
+              worksheet.assignedMachines.includes(machine.machineId) &&
+              worksheet.isWorksheet === true) {
+            assignedWorksheets.push(worksheet);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error loading worksheets:', error);
+    }
+    return assignedWorksheets;
+  }
+
   const getFrequencyColor = (frequency) => {
     const colors = {
       daily: 'bg-blue-600 hover:bg-blue-700',
@@ -340,6 +410,22 @@ function MachineList() {
     };
     return labels[frequency] || frequency;
   }
+
+  const SortableHeader = ({ column, children }) => (
+    <th 
+      className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-800 transition-colors"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center space-x-1">
+        <span>{children}</span>
+        {sortBy === column && (
+          <span className="text-blue-400">
+            {sortDirection === 'asc' ? '↑' : '↓'}
+          </span>
+        )}
+      </div>
+    </th>
+  )
 
   if (loading) {
     return (
@@ -366,82 +452,67 @@ function MachineList() {
           <table className="min-w-full divide-y divide-gray-700">
             <thead className="bg-gray-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Machine</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Location</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Next QC Due</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions & Worksheets</th>
+                <SortableHeader column="name">Machine</SortableHeader>
+                <SortableHeader column="type">Type</SortableHeader>
+                <SortableHeader column="location">Location</SortableHeader>
+                <SortableHeader column="nextQC">Next QC</SortableHeader>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Perform QC</th>
               </tr>
             </thead>
             <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {machines.map((machine) => (
+              {getSortedMachines().map((machine) => (
                 <tr key={machine.machineId} className="hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-100">{machine.name}</div>
-                      <div className="text-sm text-gray-400">{machine.machineId}</div>
+                  <td className="px-3 py-3 whitespace-nowrap">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-3 h-3 rounded-full ${
+                        machine.status === 'operational' ? 'bg-green-500' :
+                        machine.status === 'maintenance' ? 'bg-yellow-500' :
+                        machine.status === 'critical' ? 'bg-red-500' :
+                        'bg-gray-500'
+                      }`} title={machine.status.toUpperCase()}></div>
+                      <div>
+                        <Link 
+                          to={`/machines/${machine.machineId}`}
+                          className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                        >
+                          {machine.name}
+                        </Link>
+                        <div className="text-xs text-gray-400">{machine.machineId}</div>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{machine.type}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {machine.location.building} - {machine.location.room}
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">{machine.type}</td>
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">
+                    <div className="text-sm">{machine.location.building}</div>
+                    <div className="text-xs text-gray-400">{machine.location.room}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      machine.status === 'operational' ? 'bg-green-900 text-green-200' :
-                      machine.status === 'maintenance' ? 'bg-yellow-900 text-yellow-200' :
-                      machine.status === 'critical' ? 'bg-red-900 text-red-200' :
-                      'bg-gray-900 text-gray-200'
-                    }`}>
-                      {machine.status.toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">
                     {new Date(machine.nextQCDue).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex flex-col space-y-2">
-                      {/* Machine Actions */}
-                      <div className="flex space-x-2">
-                        <Link
-                          to={`/machines/${machine.machineId}`}
-                          className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                        >
-                          📊 Details
-                        </Link>
-                      </div>
-                      
-                      {/* Assigned Worksheets */}
+                  <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
+                    <div className="flex flex-col space-y-1">
+                      {/* Assigned QC Performance Buttons */}
                       {(() => {
-                        const assignedFrequencies = getAssignedFrequencies(machine);
-                        if (assignedFrequencies.length === 0) {
+                        const assignedWorksheets = getAssignedWorksheets(machine);
+                        if (assignedWorksheets.length === 0) {
                           return (
                             <div className="text-xs text-gray-500 italic">
-                              No QC worksheets assigned
+                              No QC assigned
                             </div>
                           );
                         } else {
                           return (
                             <div className="space-y-1">
-                              <div className="text-xs text-gray-400 font-medium">Assigned Worksheets:</div>
-                              {assignedFrequencies.map(frequency => (
-                                <div key={frequency} className="flex items-center space-x-1">
-                                  <button
-                                    onClick={() => navigate(`/qc/view-worksheet/${machine.machineId}/${frequency}`)}
-                                    className={`px-1 py-0.5 text-xs text-white rounded transition-colors ${getFrequencyColor(frequency).replace('600', '500').replace('700', '600')}`}
-                                    title={`View ${getFrequencyLabel(frequency)} worksheet`}
-                                  >
-                                    📋 {getFrequencyLabel(frequency)}
-                                  </button>
-                                  <button
-                                    onClick={() => navigate(`/qc/perform/${machine.machineId}/${frequency}`)}
-                                    className={`px-1 py-0.5 text-xs text-white rounded transition-colors ${getFrequencyColor(frequency)}`}
-                                    title={`Perform ${getFrequencyLabel(frequency)} QC`}
-                                  >
-                                    ▶️
-                                  </button>
-                                </div>
+                              {assignedWorksheets.map(worksheet => (
+                                <button
+                                  key={worksheet.id}
+                                  onClick={() => navigate(`/qc/perform/${machine.machineId}/${worksheet.frequency}/${worksheet.id}`)}
+                                  className={`px-2 py-1 text-xs text-white rounded transition-colors flex items-center space-x-1 ${getFrequencyColor(worksheet.frequency)}`}
+                                  title={`Perform ${worksheet.name} QC`}
+                                >
+                                  <span>▶️</span>
+                                  <span>{worksheet.name}</span>
+                                </button>
                               ))}
                             </div>
                           );

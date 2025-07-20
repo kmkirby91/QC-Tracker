@@ -6,7 +6,7 @@ import DICOMAnalysis from './DICOMAnalysis';
 import DICOMSeriesSelector from './DICOMSeriesSelector';
 
 const QCForm = ({ viewOnly = false }) => {
-  const { machineId, frequency, machineType } = useParams();
+  const { machineId, frequency, machineType, worksheetId } = useParams();
   const navigate = useNavigate();
   const [machine, setMachine] = useState(null);
   const [formData, setFormData] = useState({});
@@ -24,7 +24,7 @@ const QCForm = ({ viewOnly = false }) => {
 
   useEffect(() => {
     fetchMachineAndTests();
-  }, [machineId, frequency, machineType, viewOnly]);
+  }, [machineId, frequency, machineType, worksheetId, viewOnly]);
 
   const fetchMachineAndTests = async () => {
     try {
@@ -53,13 +53,23 @@ const QCForm = ({ viewOnly = false }) => {
         const storedWorksheets = localStorage.getItem('qcWorksheets');
         if (storedWorksheets) {
           const worksheets = JSON.parse(storedWorksheets);
-          const customWorksheet = worksheets.find(ws => 
-            ws.modality === foundMachine.type && 
-            ws.frequency === frequency && 
-            ws.assignedMachines && 
-            ws.assignedMachines.includes(foundMachine.machineId) &&
-            ws.isWorksheet === true // Only actual worksheets, not templates
-          );
+          let customWorksheet;
+          
+          if (worksheetId) {
+            // If worksheetId is provided, find the specific worksheet
+            customWorksheet = worksheets.find(ws => ws.id === worksheetId);
+            console.log('Looking for specific worksheet with ID:', worksheetId, 'Found:', customWorksheet);
+          } else {
+            // Otherwise, use the original logic (find first matching worksheet)
+            customWorksheet = worksheets.find(ws => 
+              ws.modality === foundMachine.type && 
+              ws.frequency === frequency && 
+              ws.assignedMachines && 
+              ws.assignedMachines.includes(foundMachine.machineId) &&
+              ws.isWorksheet === true // Only actual worksheets, not templates
+            );
+            console.log('Looking for worksheet by frequency/machine, found:', customWorksheet);
+          }
           
           if (customWorksheet) {
             testsData = customWorksheet.tests.map(test => ({
@@ -692,15 +702,25 @@ const QCForm = ({ viewOnly = false }) => {
                           const valueSource = formData[testName]?.valueSource;
                           const isAutomated = valueSource === 'automated' || (test.calculatedFromDicom && !valueSource);
                           
-                          return isAutomated ? (
-                            <span className="ml-2 text-xs text-blue-400 font-bold bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/50">
-                              🤖 Automated
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-xs text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded border border-gray-600/50">
-                              ✋ Manual Entry
-                            </span>
-                          );
+                          if (valueSource === 'manual' && test.calculatedFromDicom) {
+                            return (
+                              <span className="ml-2 text-xs text-amber-400 font-bold bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/50">
+                                ⚠️ Overridden
+                              </span>
+                            );
+                          } else if (isAutomated) {
+                            return (
+                              <span className="ml-2 text-xs text-blue-400 font-bold bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/50">
+                                🤖 Automated
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="ml-2 text-xs text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded border border-gray-600/50">
+                                ✋ Manual Entry
+                              </span>
+                            );
+                          }
                         })()}
                       </label>
                       {test.tolerance && (
@@ -741,20 +761,63 @@ const QCForm = ({ viewOnly = false }) => {
                         return (
                           <>
                             <label className="block text-xs font-medium text-gray-300 mb-1">
-                              {isAutomated || (test.calculatedFromDicom && hasValue) ? 'Calculated Value' : 'Measured Value'}
+                              {formData[testName]?.valueSource === 'manual' ? 'Override Value' : 
+                               isAutomated || (test.calculatedFromDicom && hasValue) ? 'Calculated Value' : 'Measured Value'}
                             </label>
                             {isAutomated || (test.calculatedFromDicom && hasValue) ? (
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  value={formData[testName]?.value || ''}
-                                  className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm bg-blue-900/30 text-blue-200 border-blue-600"
-                                  placeholder="Will be calculated from DICOM"
-                                  readOnly
-                                />
-                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-300 text-xs bg-blue-800/50 px-1.5 py-0.5 rounded border border-blue-400/30">
-                                  🤖 AUTO
+                              <div className="space-y-2">
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    value={formData[testName]?.value || ''}
+                                    onChange={(e) => {
+                                      handleTestChange(testName, 'value', e.target.value, 'manual');
+                                      // Auto-determine result
+                                      const result = determineResult(testName, e.target.value);
+                                      if (result) {
+                                        handleTestChange(testName, 'result', result);
+                                      }
+                                    }}
+                                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                      formData[testName]?.valueSource === 'manual' 
+                                        ? 'bg-amber-900/30 text-amber-200 border-amber-600' 
+                                        : 'bg-blue-900/30 text-blue-200 border-blue-600'
+                                    }`}
+                                    placeholder={formData[testName]?.valueSource === 'manual' ? "Manual override value" : "Will be calculated from DICOM"}
+                                    readOnly={viewOnly}
+                                  />
+                                  <div className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-xs px-1.5 py-0.5 rounded border ${
+                                    formData[testName]?.valueSource === 'manual'
+                                      ? 'text-amber-300 bg-amber-800/50 border-amber-400/30'
+                                      : 'text-blue-300 bg-blue-800/50 border-blue-400/30'
+                                  }`}>
+                                    {formData[testName]?.valueSource === 'manual' ? '⚠️ OVERRIDE' : '🤖 AUTO'}
+                                  </div>
                                 </div>
+                                {!viewOnly && formData[testName]?.valueSource === 'manual' && (
+                                  <div className="flex items-center justify-between bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1">
+                                    <span className="text-xs text-amber-300">
+                                      ⚠️ Manual override active
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleTestChange(testName, 'value', '');
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          [testName]: {
+                                            ...prev[testName],
+                                            valueSource: undefined,
+                                            manuallyEnteredAt: undefined
+                                          }
+                                        }));
+                                      }}
+                                      className="text-xs text-amber-300 hover:text-amber-200 underline"
+                                    >
+                                      Reset to Auto
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div className="relative">
