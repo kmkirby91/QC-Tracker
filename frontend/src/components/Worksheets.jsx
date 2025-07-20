@@ -1181,9 +1181,9 @@ const Worksheets = () => {
       // Create new worksheet for this specific machine
       worksheetToSave = {
         ...customWorksheetInfo,
-        title: `${customWorksheetInfo.title} - ${machine?.name || customWorksheetInfo.machineId}`,
+        title: customWorksheetInfo.title, // Keep original title unchanged
         tests: [...customTests],
-        id: `${Date.now()}-${customWorksheetInfo.machineId}`,
+        id: `worksheet_${Date.now()}_${customWorksheetInfo.machineId}_${Math.random().toString(36).substr(2, 9)}`, // Unique internal ID
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isModified: isActuallyModified,

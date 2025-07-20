@@ -508,10 +508,10 @@ function MachineList() {
                                   key={worksheet.id}
                                   onClick={() => navigate(`/qc/perform/${machine.machineId}/${worksheet.frequency}/${worksheet.id}`)}
                                   className={`px-2 py-1 text-xs text-white rounded transition-colors flex items-center space-x-1 ${getFrequencyColor(worksheet.frequency)}`}
-                                  title={`Perform ${worksheet.name} QC`}
+                                  title={`Perform ${worksheet.title} QC`}
                                 >
                                   <span>▶️</span>
-                                  <span>{worksheet.name}</span>
+                                  <span>{worksheet.title}</span>
                                 </button>
                               ))}
                             </div>
