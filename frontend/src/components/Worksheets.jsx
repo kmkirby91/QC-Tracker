@@ -1137,8 +1137,34 @@ const Worksheets = () => {
           localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
           toast.success(`Existing worksheet "${conflictingWorksheet.title}" has been overwritten`);
         } else if (choice === 'new') {
-          // Continue with creating new worksheet (no special action needed)
-          toast.info('Creating new worksheet alongside existing one');
+          // Modify the new worksheet to have a unique identifier
+          const originalTitle = customWorksheetInfo.title;
+          let newTitle = originalTitle;
+          let counter = 2;
+          
+          // Find a unique title by appending a number
+          const existingWorksheets = getWorksheets();
+          while (existingWorksheets.some(ws => 
+            ws.assignedMachines && 
+            ws.assignedMachines.includes(customWorksheetInfo.machineId) &&
+            ws.frequency === customWorksheetInfo.frequency &&
+            ws.title === newTitle
+          )) {
+            newTitle = `${originalTitle} (${counter})`;
+            counter++;
+          }
+          
+          // Update the customWorksheetInfo immediately with the new title
+          // This ensures it's available for the worksheet creation below
+          customWorksheetInfo.title = newTitle;
+          
+          // Also update state for UI consistency (but don't rely on it for creation)
+          setCustomWorksheetInfo(prev => ({
+            ...prev,
+            title: newTitle
+          }));
+          
+          toast.success(`Creating new worksheet "${newTitle}" alongside existing one`);
         }
       }
     }
