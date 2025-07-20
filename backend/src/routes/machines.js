@@ -437,6 +437,387 @@ const mockMachines = [
       quarterly: true,
       annual: true
     }
+  },
+  // Houma Location
+  {
+    machineId: 'CT-HOU-001',
+    name: 'Canon Aquilion Prime',
+    type: 'CT',
+    manufacturer: 'Canon Medical',
+    model: 'Aquilion Prime SP',
+    serialNumber: 'SN-CT-2022-005',
+    location: {
+      building: 'Houma',
+      floor: '1',
+      room: 'CT Suite 1'
+    },
+    installationDate: '2022-03-18',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Lisa Anderson',
+      notes: 'All quality metrics within specifications'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'MRI-HOU-001',
+    name: 'GE SIGNA Explorer',
+    type: 'MRI',
+    manufacturer: 'GE Healthcare',
+    model: 'SIGNA Explorer 1.5T',
+    serialNumber: 'SN-MRI-2021-005',
+    location: {
+      building: 'Houma',
+      floor: '2',
+      room: 'MRI Room 1'
+    },
+    installationDate: '2021-11-08',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-02',
+      result: 'pass',
+      performedBy: 'Mark Thompson',
+      notes: 'SNR and uniformity tests passed'
+    },
+    nextQCDue: '2024-01-09',
+    qcSchedule: {
+      daily: false,
+      weekly: true,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'MAMMO-HOU-001',
+    name: 'Fujifilm Amulet Innovality',
+    type: 'Mammography',
+    manufacturer: 'Fujifilm',
+    model: 'Amulet Innovality',
+    serialNumber: 'SN-MAMMO-2023-002',
+    location: {
+      building: 'Houma',
+      floor: '1',
+      room: 'Mammography Suite'
+    },
+    installationDate: '2023-05-12',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Rachel White',
+      notes: 'ACR phantom test results excellent'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: true,
+      weekly: true,
+      monthly: true,
+      quarterly: true,
+      annual: true
+    }
+  },
+  // Natchez Location
+  {
+    machineId: 'CT-NAT-001',
+    name: 'Siemens SOMATOM Go',
+    type: 'CT',
+    manufacturer: 'Siemens',
+    model: 'SOMATOM Go.Top',
+    serialNumber: 'SN-CT-2020-006',
+    location: {
+      building: 'Natchez',
+      floor: '1',
+      room: 'CT Room B'
+    },
+    installationDate: '2020-10-14',
+    status: 'critical',
+    lastQC: {
+      date: '2024-01-01',
+      result: 'fail',
+      performedBy: 'Emergency Tech',
+      notes: 'Urgent: Detector calibration out of range - service required'
+    },
+    nextQCDue: '2024-01-05',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'US-NAT-001',
+    name: 'Philips EPIQ 7',
+    type: 'Ultrasound',
+    manufacturer: 'Philips',
+    model: 'EPIQ 7',
+    serialNumber: 'SN-US-2019-003',
+    location: {
+      building: 'Natchez',
+      floor: '1',
+      room: 'Ultrasound Suite A'
+    },
+    installationDate: '2019-07-25',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-02',
+      result: 'pass',
+      performedBy: 'Jennifer Lopez',
+      notes: 'All probes functioning within specs'
+    },
+    nextQCDue: '2024-01-09',
+    qcSchedule: {
+      daily: false,
+      weekly: true,
+      monthly: false,
+      quarterly: true,
+      annual: true
+    }
+  },
+  {
+    machineId: 'DR-NAT-001',
+    name: 'Carestream DRX-Revolution',
+    type: 'Digital Radiography',
+    manufacturer: 'Carestream',
+    model: 'DRX-Revolution',
+    serialNumber: 'SN-DR-2021-001',
+    location: {
+      building: 'Natchez',
+      floor: '1',
+      room: 'X-Ray Room 1'
+    },
+    installationDate: '2021-04-30',
+    status: 'maintenance',
+    lastQC: {
+      date: '2024-01-02',
+      result: 'conditional',
+      performedBy: 'Tech Support',
+      notes: 'Detector cleaning scheduled - minor artifacts noted'
+    },
+    nextQCDue: '2024-01-08',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  // Hammond Location
+  {
+    machineId: 'MRI-HAM-001',
+    name: 'Philips Ingenia Ambition',
+    type: 'MRI',
+    manufacturer: 'Philips',
+    model: 'Ingenia Ambition 1.5T',
+    serialNumber: 'SN-MRI-2022-006',
+    location: {
+      building: 'Hammond',
+      floor: '2',
+      room: 'MRI Suite 1'
+    },
+    installationDate: '2022-01-20',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Michael Davis',
+      notes: 'Excellent image quality and system stability'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: false,
+      weekly: true,
+      monthly: true,
+      quarterly: true,
+      annual: true
+    }
+  },
+  {
+    machineId: 'CT-HAM-001',
+    name: 'GE Optima CT660',
+    type: 'CT',
+    manufacturer: 'GE Healthcare',
+    model: 'Optima CT660',
+    serialNumber: 'SN-CT-2019-007',
+    location: {
+      building: 'Hammond',
+      floor: '1',
+      room: 'CT Suite A'
+    },
+    installationDate: '2019-09-12',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Kevin Brown',
+      notes: 'Routine calibration completed successfully'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'PET-HAM-001',
+    name: 'Siemens Biograph Horizon',
+    type: 'PET',
+    manufacturer: 'Siemens',
+    model: 'Biograph Horizon',
+    serialNumber: 'SN-PET-2023-004',
+    location: {
+      building: 'Hammond',
+      floor: '3',
+      room: 'Nuclear Medicine'
+    },
+    installationDate: '2023-07-08',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-02',
+      result: 'pass',
+      performedBy: 'Nuclear Med Team',
+      notes: 'Daily flood and calibration passed'
+    },
+    nextQCDue: '2024-01-09',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: false,
+      quarterly: true,
+      annual: true
+    }
+  },
+  // Covington Location
+  {
+    machineId: 'CT-COV-001',
+    name: 'Philips Incisive CT',
+    type: 'CT',
+    manufacturer: 'Philips',
+    model: 'Incisive CT',
+    serialNumber: 'SN-CT-2023-008',
+    location: {
+      building: 'Covington',
+      floor: '1',
+      room: 'CT Room 1'
+    },
+    installationDate: '2023-02-15',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Amanda Wilson',
+      notes: 'Latest generation CT performing excellently'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'MRI-COV-001',
+    name: 'Canon Vantage Orian',
+    type: 'MRI',
+    manufacturer: 'Canon Medical',
+    model: 'Vantage Orian 1.5T',
+    serialNumber: 'SN-MRI-2020-007',
+    location: {
+      building: 'Covington',
+      floor: '2',
+      room: 'MRI Suite B'
+    },
+    installationDate: '2020-12-03',
+    status: 'offline',
+    lastQC: {
+      date: '2023-12-28',
+      result: 'fail',
+      performedBy: 'Service Engineer',
+      notes: 'System offline for major upgrade - service in progress'
+    },
+    nextQCDue: '2024-01-15',
+    qcSchedule: {
+      daily: false,
+      weekly: true,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'US-COV-001',
+    name: 'Samsung RS85',
+    type: 'Ultrasound',
+    manufacturer: 'Samsung',
+    model: 'RS85 Prestige',
+    serialNumber: 'SN-US-2022-004',
+    location: {
+      building: 'Covington',
+      floor: '1',
+      room: 'Ultrasound Room 1'
+    },
+    installationDate: '2022-08-22',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Ultrasound Team',
+      notes: 'All transducers calibrated and functional'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: false,
+      weekly: true,
+      monthly: false,
+      quarterly: true,
+      annual: true
+    }
+  },
+  {
+    machineId: 'MAMMO-COV-001',
+    name: 'Siemens Mammomat Inspiration',
+    type: 'Mammography',
+    manufacturer: 'Siemens',
+    model: 'Mammomat Inspiration Prime',
+    serialNumber: 'SN-MAMMO-2021-003',
+    location: {
+      building: 'Covington',
+      floor: '1',
+      room: 'Women\'s Health Center'
+    },
+    installationDate: '2021-10-11',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-02',
+      result: 'pass',
+      performedBy: 'Women\'s Health Tech',
+      notes: 'ACR accreditation standards maintained'
+    },
+    nextQCDue: '2024-01-09',
+    qcSchedule: {
+      daily: true,
+      weekly: true,
+      monthly: true,
+      quarterly: true,
+      annual: true
+    }
   }
 ];
 
