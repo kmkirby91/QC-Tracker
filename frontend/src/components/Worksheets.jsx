@@ -255,6 +255,17 @@ const Worksheets = () => {
       t.id === worksheet.sourceTemplateId
     );
     
+    // Debug logging for template finding
+    if (!originalTemplate) {
+      console.log('Template not found for modification check:', {
+        worksheetTemplateSource: worksheet.templateSource,
+        worksheetSourceTemplateName: worksheet.sourceTemplateName,
+        worksheetTemplateId: worksheet.templateId,
+        worksheetSourceTemplateId: worksheet.sourceTemplateId,
+        availableTemplates: templates.map(t => ({ id: t.id, title: t.title }))
+      });
+    }
+    
     if (!originalTemplate || !originalTemplate.tests) {
       return {
         testName: true,
@@ -268,22 +279,16 @@ const Worksheets = () => {
       };
     }
     
-    // If test index is beyond original template, it's a new custom test
-    if (testIndex >= originalTemplate.tests.length) {
-      return {
-        testName: true,
-        testType: true,
-        tolerance: true,
-        units: true,
-        notes: true,
-        calculatedFromDicom: true,
-        dicomSeriesSource: true,
-        isCustomTest: true
-      };
-    }
+    // Find matching template test by testName (templates use testName property)
+    const templateTest = originalTemplate.tests.find(t => 
+      t.testName === test.testName
+    );
     
-    const templateTest = originalTemplate.tests[testIndex];
     if (!templateTest) {
+      // Test doesn't exist in original template, it's a new custom test
+      console.log(`Template test not found for "${test.testName}". Available template tests:`, 
+        originalTemplate.tests.map(t => t.testName)
+      );
       return {
         testName: true,
         testType: true,
@@ -296,17 +301,36 @@ const Worksheets = () => {
       };
     }
     
-    // Compare each field individually
-    return {
-      testName: test.testName !== templateTest.testName,
-      testType: test.testType !== templateTest.testType,
-      tolerance: test.tolerance !== templateTest.tolerance,
-      units: test.units !== templateTest.units,
-      notes: test.notes !== templateTest.notes,
-      calculatedFromDicom: test.calculatedFromDicom !== templateTest.calculatedFromDicom,
-      dicomSeriesSource: test.dicomSeriesSource !== templateTest.dicomSeriesSource,
+    // Helper function to safely compare values, handling undefined/null
+    const safeCompare = (value1, value2, defaultValue = '') => {
+      const val1 = value1 ?? defaultValue;
+      const val2 = value2 ?? defaultValue;
+      return val1 !== val2;
+    };
+    
+    // Compare each field individually, handling undefined template values
+    const fieldMods = {
+      testName: safeCompare(test.testName, templateTest.testName),
+      testType: safeCompare(test.testType, templateTest.testType),
+      tolerance: safeCompare(test.tolerance, templateTest.tolerance),
+      units: safeCompare(test.units, templateTest.units),
+      notes: safeCompare(test.notes, templateTest.notes),
+      calculatedFromDicom: safeCompare(test.calculatedFromDicom, templateTest.calculatedFromDicom, false),
+      dicomSeriesSource: safeCompare(test.dicomSeriesSource, templateTest.dicomSeriesSource),
       isCustomTest: false
     };
+    
+    // Debug logging for field modifications
+    const hasAnyModification = Object.entries(fieldMods).some(([key, value]) => key !== 'isCustomTest' && value);
+    if (hasAnyModification) {
+      console.log(`Field modification detected for test "${test.testName}":`, {
+        currentTest: test,
+        templateTest: templateTest,
+        fieldMods
+      });
+    }
+    
+    return fieldMods;
   };
 
   const getWorksheets = () => {
@@ -2350,8 +2374,7 @@ const Worksheets = () => {
                       templateSource: selectedTemplate.title,
                       sourceTemplateName: selectedTemplate.title,
                       templateId: selectedTemplate.id,
-                      sourceTemplateId: selectedTemplate.id,
-                      tests: customTests 
+                      sourceTemplateId: selectedTemplate.id
                     }, test, testIndex)
                   : templateJustLoadedFlag
                     ? {
