@@ -345,7 +345,7 @@ function MachineList() {
       const storedWorksheets = localStorage.getItem('qcWorksheets');
       if (storedWorksheets) {
         const worksheets = JSON.parse(storedWorksheets);
-        ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
+        ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'on-demand'].forEach(frequency => {
           const hasWorksheet = worksheets.some(ws => 
             ws.modality === machine.type && 
             ws.frequency === frequency && 
@@ -391,7 +391,8 @@ function MachineList() {
       weekly: 'bg-green-600 hover:bg-green-700', 
       monthly: 'bg-purple-600 hover:bg-purple-700',
       quarterly: 'bg-yellow-600 hover:bg-yellow-700',
-      annual: 'bg-red-600 hover:bg-red-700'
+      annual: 'bg-red-600 hover:bg-red-700',
+      'on-demand': 'bg-gray-600 hover:bg-gray-700'
     };
     return colors[frequency] || 'bg-gray-600 hover:bg-gray-700';
   }
@@ -568,7 +569,7 @@ function Reporting() {
   }
 
   const getQCTypes = () => {
-    return ['daily', 'weekly', 'monthly', 'quarterly', 'annual']
+    return ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'on-demand']
   }
 
   const handleLocationChange = (location, checked) => {

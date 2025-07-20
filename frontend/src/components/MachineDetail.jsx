@@ -123,7 +123,7 @@ const MachineDetail = () => {
     // Return frequencies where the machine has custom worksheets assigned OR has a QC schedule
     const assignedFrequencies = [];
     if (machine) {
-      ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
+      ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'on-demand'].forEach(frequency => {
         // Check for custom worksheets first
         const hasCustomWorksheet = customWorksheets.some(ws => 
           ws.modality === machine.type && 
@@ -148,7 +148,7 @@ const MachineDetail = () => {
     // No worksheet = no QC can be performed
     const worksheetFrequencies = [];
     if (machine) {
-      ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
+      ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'on-demand'].forEach(frequency => {
         const hasWorksheet = customWorksheets.some(ws => 
           ws.modality === machine.type && 
           ws.frequency === frequency && 
@@ -315,8 +315,8 @@ const MachineDetail = () => {
                   ws.isWorksheet === true
                 )
                 .sort((a, b) => {
-                  // Sort by frequency priority: daily, weekly, monthly, quarterly, annual
-                  const order = { daily: 0, weekly: 1, monthly: 2, quarterly: 3, annual: 4 };
+                  // Sort by frequency priority: daily, weekly, monthly, quarterly, annual, on-demand
+                  const order = { daily: 0, weekly: 1, monthly: 2, quarterly: 3, annual: 4, 'on-demand': 5 };
                   return (order[a.frequency] || 5) - (order[b.frequency] || 5);
                 })
                 .map((worksheet) => {
@@ -325,7 +325,8 @@ const MachineDetail = () => {
                     weekly: 'bg-green-600 hover:bg-green-700', 
                     monthly: 'bg-yellow-600 hover:bg-yellow-700',
                     quarterly: 'bg-purple-600 hover:bg-purple-700',
-                    annual: 'bg-red-600 hover:bg-red-700'
+                    annual: 'bg-red-600 hover:bg-red-700',
+                    'on-demand': 'bg-gray-600 hover:bg-gray-700'
                   };
                   
                   return (
@@ -387,7 +388,8 @@ const MachineDetail = () => {
                 weekly: 'text-green-400', 
                 monthly: 'text-yellow-400',
                 quarterly: 'text-purple-400',
-                annual: 'text-red-400'
+                annual: 'text-red-400',
+                'on-demand': 'text-gray-400'
               };
               
               if (!hasWorksheet) return null; // Skip frequencies without actual worksheets

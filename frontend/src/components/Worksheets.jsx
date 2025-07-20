@@ -105,7 +105,7 @@ const Worksheets = () => {
 
   // Helper functions for comprehensive worksheet management
   const getAllFrequencies = () => {
-    return ['daily', 'weekly', 'monthly', 'quarterly', 'annual'];
+    return ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'on-demand'];
   };
 
   // Helper function to detect if a worksheet is actually modified from its template
@@ -361,7 +361,8 @@ const Worksheets = () => {
       weekly: 'bg-green-100 text-green-800 border-green-200',
       monthly: 'bg-purple-100 text-purple-800 border-purple-200',
       quarterly: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      annual: 'bg-red-100 text-red-800 border-red-200'
+      annual: 'bg-red-100 text-red-800 border-red-200',
+      'on-demand': 'bg-gray-100 text-gray-800 border-gray-200'
     };
     return colors[freq] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
@@ -550,7 +551,9 @@ const Worksheets = () => {
     { value: 'daily', label: 'Daily QC', icon: '📅' },
     { value: 'weekly', label: 'Weekly QC', icon: '📆' },
     { value: 'monthly', label: 'Monthly QC', icon: '📊' },
-    { value: 'annual', label: 'Annual QC', icon: '🗓️' }
+    { value: 'quarterly', label: 'Quarterly QC', icon: '📝' },
+    { value: 'annual', label: 'Annual QC', icon: '🗓️' },
+    { value: 'on-demand', label: 'On Demand', icon: '⚡' }
   ];
 
   const modalities = [
@@ -791,7 +794,7 @@ const Worksheets = () => {
 
   const getGroupedModalityTemplates = () => {
     const templates = getModalityTemplates();
-    const frequencyOrder = ['daily', 'weekly', 'monthly', 'quarterly', 'annual'];
+    const frequencyOrder = ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'on-demand'];
     
     // Group by modality
     const grouped = templates.reduce((acc, template) => {
@@ -1024,7 +1027,7 @@ const Worksheets = () => {
       return;
     }
 
-    if (!customWorksheetInfo.startDate) {
+    if (customWorksheetInfo.frequency !== 'on-demand' && !customWorksheetInfo.startDate) {
       toast.error('Please specify a QC start date');
       return;
     }
@@ -2268,8 +2271,8 @@ const Worksheets = () => {
               </select>
             </div>
             
-            {/* Start Date Field */}
-            {customWorksheetInfo.machineId && (
+            {/* Start Date Field - Only for scheduled frequencies */}
+            {customWorksheetInfo.machineId && customWorksheetInfo.frequency !== 'on-demand' && (
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   QC Start Date *
@@ -2287,8 +2290,21 @@ const Worksheets = () => {
               </div>
             )}
             
-            {/* End Date Field */}
-            {customWorksheetInfo.machineId && (
+            {/* On-Demand Info */}
+            {customWorksheetInfo.machineId && customWorksheetInfo.frequency === 'on-demand' && (
+              <div className="bg-gray-700 border border-gray-600 rounded-md p-4">
+                <div className="flex items-center space-x-2 text-gray-300">
+                  <span className="text-lg">⚡</span>
+                  <div>
+                    <p className="text-sm font-medium">On-Demand QC</p>
+                    <p className="text-xs text-gray-400">This worksheet can be performed anytime without a schedule</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* End Date Field - Only for scheduled frequencies */}
+            {customWorksheetInfo.machineId && customWorksheetInfo.frequency !== 'on-demand' && (
               <div>
                 <div className="flex items-center space-x-3 mb-2">
                   <input
@@ -2808,7 +2824,7 @@ const Worksheets = () => {
             {!isViewingWorksheet && (
               <button
                 onClick={createWorksheet}
-                disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || !customWorksheetInfo.startDate || (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
+                disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || (customWorksheetInfo.frequency !== 'on-demand' && !customWorksheetInfo.startDate) || (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
                 className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 <span>📝</span>
