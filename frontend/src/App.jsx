@@ -464,12 +464,19 @@ function MachineList() {
                 <tr key={machine.machineId} className="hover:bg-gray-700">
                   <td className="px-3 py-3 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${
-                        machine.status === 'operational' ? 'bg-green-500' :
-                        machine.status === 'maintenance' ? 'bg-yellow-500' :
-                        machine.status === 'critical' ? 'bg-red-500' :
-                        'bg-gray-500'
-                      }`} title={machine.status.toUpperCase()}></div>
+                      <div className="flex items-center justify-center w-4 h-4" title={machine.status.toUpperCase()}>
+                        {machine.status === 'operational' ? (
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        ) : machine.status === 'maintenance' ? (
+                          <span className="text-yellow-500 text-sm font-bold">⚠️</span>
+                        ) : machine.status === 'critical' ? (
+                          <span className="text-red-500 text-sm font-bold">🚨</span>
+                        ) : machine.status === 'offline' ? (
+                          <span className="text-gray-500 text-sm font-bold">⭕</span>
+                        ) : (
+                          <div className="w-3 h-3 rounded-full bg-gray-500"></div>
+                        )}
+                      </div>
                       <div>
                         <Link 
                           to={`/machines/${machine.machineId}`}
