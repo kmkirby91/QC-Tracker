@@ -453,8 +453,8 @@ function MachineList() {
             <thead className="bg-gray-900">
               <tr>
                 <SortableHeader column="name">Machine</SortableHeader>
-                <SortableHeader column="type">Type</SortableHeader>
                 <SortableHeader column="location">Location</SortableHeader>
+                <SortableHeader column="type">Type</SortableHeader>
                 <SortableHeader column="nextQC">Next QC</SortableHeader>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Perform QC</th>
               </tr>
@@ -488,11 +488,11 @@ function MachineList() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">{machine.type}</td>
                   <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">
                     <div className="text-sm">{machine.location.building}</div>
                     <div className="text-xs text-gray-400">{machine.location.room}</div>
                   </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">{machine.type}</td>
                   <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">
                     {new Date(machine.nextQCDue).toLocaleDateString()}
                   </td>
