@@ -321,6 +321,122 @@ const mockMachines = [
       quarterly: true,
       annual: true
     }
+  },
+  {
+    machineId: 'CT-MBPBI-001',
+    name: 'Philips Brilliance CT',
+    type: 'CT',
+    manufacturer: 'Philips',
+    model: 'Brilliance CT 64',
+    serialNumber: 'SN-CT-2019-004',
+    location: {
+      building: 'MBPBI',
+      floor: '1',
+      room: 'CT Room A'
+    },
+    installationDate: '2019-12-10',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-02',
+      result: 'pass',
+      performedBy: 'Dr. Martinez',
+      notes: 'All calibration parameters within tolerance'
+    },
+    nextQCDue: '2024-01-09',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: true,
+      quarterly: false,
+      annual: true
+    }
+  },
+  {
+    machineId: 'MRI-MBPBI-001',
+    name: 'Siemens MAGNETOM Skyra',
+    type: 'MRI',
+    manufacturer: 'Siemens',
+    model: 'MAGNETOM Skyra 3T',
+    serialNumber: 'SN-MRI-2020-004',
+    location: {
+      building: 'MBPBI',
+      floor: '2',
+      room: 'MRI Suite B'
+    },
+    installationDate: '2020-09-22',
+    status: 'maintenance',
+    lastQC: {
+      date: '2024-01-01',
+      result: 'conditional',
+      performedBy: 'Tech Team',
+      notes: 'Minor gradient coil adjustment needed'
+    },
+    nextQCDue: '2024-01-08',
+    qcSchedule: {
+      daily: false,
+      weekly: true,
+      monthly: true,
+      quarterly: true,
+      annual: true
+    }
+  },
+  {
+    machineId: 'US-MBPBI-001',
+    name: 'GE Logiq E10',
+    type: 'Ultrasound',
+    manufacturer: 'GE Healthcare',
+    model: 'Logiq E10',
+    serialNumber: 'SN-US-2021-002',
+    location: {
+      building: 'MBPBI',
+      floor: '1',
+      room: 'Ultrasound Room 1'
+    },
+    installationDate: '2021-06-15',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-03',
+      result: 'pass',
+      performedBy: 'Sarah Chen',
+      notes: 'All transducers functioning properly'
+    },
+    nextQCDue: '2024-01-10',
+    qcSchedule: {
+      daily: false,
+      weekly: true,
+      monthly: false,
+      quarterly: true,
+      annual: true
+    }
+  },
+  {
+    machineId: 'PET-MBPBI-001',
+    name: 'GE Discovery MI',
+    type: 'PET',
+    manufacturer: 'GE Healthcare',
+    model: 'Discovery MI 4-Ring',
+    serialNumber: 'SN-PET-2023-003',
+    location: {
+      building: 'MBPBI',
+      floor: '3',
+      room: 'Nuclear Medicine'
+    },
+    installationDate: '2023-04-12',
+    status: 'operational',
+    lastQC: {
+      date: '2024-01-02',
+      result: 'pass',
+      performedBy: 'Nuclear Medicine Team',
+      notes: 'Daily detector checks passed'
+    },
+    nextQCDue: '2024-01-09',
+    qcSchedule: {
+      daily: true,
+      weekly: false,
+      monthly: false,
+      quarterly: true,
+      annual: true
+    }
   }
 ];
 

@@ -238,32 +238,32 @@ const Locations = () => {
         </div>
       </div>
 
-      {/* Location Selection */}
-      <div className="bg-gray-800 rounded-lg p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-100">Select Locations</h2>
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-400">
-              {machinesForSelectedLocations.length} machine(s) in {selectedLocations.length} location(s)
+      {/* Location Selection - Compact */}
+      <div className="bg-gray-800 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-gray-100">Locations</h2>
+          <div className="flex items-center space-x-3">
+            <div className="text-xs text-gray-400">
+              {machinesForSelectedLocations.length} machines • {selectedLocations.length}/{locations.length} selected
             </div>
-            <div className="flex space-x-2">
+            <div className="flex space-x-1">
               <button
                 onClick={selectAllLocations}
-                className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
               >
-                Select All
+                All
               </button>
               <button
                 onClick={clearAllLocations}
-                className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
+                className="px-2 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
               >
-                Clear All
+                None
               </button>
             </div>
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
           {locations.map(location => {
             const isSelected = selectedLocations.includes(location);
             const machineCount = getMachinesForLocation(location).length;
@@ -272,24 +272,24 @@ const Locations = () => {
               <div
                 key={location}
                 onClick={() => toggleLocation(location)}
-                className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                className={`p-2 rounded border cursor-pointer transition-colors ${
                   isSelected
                     ? 'bg-blue-600 border-blue-500 text-white'
                     : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleLocation(location)}
-                    className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                    className="w-3 h-3 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-1"
                     onClick={(e) => e.stopPropagation()}
                   />
-                  <div className="flex-1">
-                    <div className="font-medium">{location}</div>
-                    <div className="text-sm opacity-75">
-                      {machineCount} machine{machineCount !== 1 ? 's' : ''}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{location}</div>
+                    <div className="text-xs opacity-75">
+                      {machineCount}
                     </div>
                   </div>
                 </div>
