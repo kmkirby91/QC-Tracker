@@ -362,7 +362,12 @@ const Locations = () => {
                     <tr key={machine.machineId} className="hover:bg-gray-700">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-sm font-medium text-gray-100">{machine.name}</div>
+                          <Link 
+                            to={`/machines/${machine.machineId}`}
+                            className="text-sm font-medium text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                          >
+                            {machine.name}
+                          </Link>
                           <div className="text-sm text-gray-400">{machine.machineId}</div>
                           <div className="text-xs text-gray-500">{machine.location.building} - {machine.location.room}</div>
                         </div>
