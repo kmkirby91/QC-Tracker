@@ -974,15 +974,17 @@ const Worksheets = () => {
       endDate: ''
     });
     setCustomTests([
-      { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '' }
+      { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '', calculatedFromDicom: false, dicomSeriesSource: '' }
     ]);
     setSelectedTemplate(null);
     setSelectedTemplateForGeneration('');
     setIsCreatingTemplate(false);
     setTemplateJustLoaded(false);
     setMatchedToTemplate(false);
+    setRealTimeModifications([]);
+    setHasRealTimeModifications(false);
     setDicomSeriesConfig([]);
-    setDicomConfigEnabled(false);
+    setDicomConfigEnabled(true);
     setOtherModalitySpecification('');
     setIsCreatingFromCopy(false);
     setTemplateJustLoadedFlag(false);
@@ -2176,9 +2178,24 @@ const Worksheets = () => {
                   <p className="text-sm text-green-300">"{selectedTemplate.title}"</p>
                 </div>
               </div>
-              <div className="text-right text-sm text-green-300">
-                <div>{selectedTemplate.modality} • {getFrequencyLabel(selectedTemplate.frequency)}</div>
-                <div>{selectedTemplate.tests.length} tests loaded</div>
+              <div className="flex items-center space-x-3">
+                <div className="text-right text-sm text-green-300">
+                  <div>{selectedTemplate.modality} • {getFrequencyLabel(selectedTemplate.frequency)}</div>
+                  <div>{selectedTemplate.tests.length} tests loaded</div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to clear the template and reset the form? All current changes will be lost.')) {
+                      resetTemplateForm();
+                      toast.success('Template cleared - form reset to blank state');
+                    }
+                  }}
+                  className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors flex items-center space-x-1"
+                  title="Clear template and reset form"
+                >
+                  <span>🗑️</span>
+                  <span>Clear</span>
+                </button>
               </div>
             </div>
             
