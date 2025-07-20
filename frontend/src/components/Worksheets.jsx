@@ -256,6 +256,17 @@ const Worksheets = () => {
       t.id === worksheet.sourceTemplateId
     );
     
+    // Debug logging for template finding
+    if (!originalTemplate) {
+      console.log('Template not found for modification check:', {
+        worksheetTemplateSource: worksheet.templateSource,
+        worksheetSourceTemplateName: worksheet.sourceTemplateName,
+        worksheetTemplateId: worksheet.templateId,
+        worksheetSourceTemplateId: worksheet.sourceTemplateId,
+        availableTemplates: templates.map(t => ({ id: t.id, title: t.title }))
+      });
+    }
+    
     if (!originalTemplate || !originalTemplate.tests) {
       return {
         testName: true,
@@ -269,13 +280,16 @@ const Worksheets = () => {
       };
     }
     
-    // Find matching template test by name instead of index to handle deletions correctly
+    // Find matching template test by testName (templates use testName property)
     const templateTest = originalTemplate.tests.find(t => 
-      t.testName === test.testName || t.name === test.testName
+      t.testName === test.testName
     );
     
     if (!templateTest) {
       // Test doesn't exist in original template, it's a new custom test
+      console.log(`Template test not found for "${test.testName}". Available template tests:`, 
+        originalTemplate.tests.map(t => t.testName)
+      );
       return {
         testName: true,
         testType: true,
@@ -288,23 +302,31 @@ const Worksheets = () => {
       };
     }
     
+    // Helper function to safely compare values, handling undefined/null
+    const safeCompare = (value1, value2, defaultValue = '') => {
+      const val1 = value1 ?? defaultValue;
+      const val2 = value2 ?? defaultValue;
+      return val1 !== val2;
+    };
+    
     // Compare each field individually, handling undefined template values
     const fieldMods = {
-      testName: test.testName !== (templateTest.testName || templateTest.name),
-      testType: test.testType !== templateTest.testType,
-      tolerance: test.tolerance !== templateTest.tolerance,
-      units: test.units !== templateTest.units,
-      notes: test.notes !== templateTest.notes,
-      calculatedFromDicom: (test.calculatedFromDicom || false) !== (templateTest.calculatedFromDicom || false),
-      dicomSeriesSource: test.dicomSeriesSource !== templateTest.dicomSeriesSource,
+      testName: safeCompare(test.testName, templateTest.testName),
+      testType: safeCompare(test.testType, templateTest.testType),
+      tolerance: safeCompare(test.tolerance, templateTest.tolerance),
+      units: safeCompare(test.units, templateTest.units),
+      notes: safeCompare(test.notes, templateTest.notes),
+      calculatedFromDicom: safeCompare(test.calculatedFromDicom, templateTest.calculatedFromDicom, false),
+      dicomSeriesSource: safeCompare(test.dicomSeriesSource, templateTest.dicomSeriesSource),
       isCustomTest: false
     };
     
-    // Debug logging for calculatedFromDicom changes
-    if (fieldMods.calculatedFromDicom) {
+    // Debug logging for field modifications
+    const hasAnyModification = Object.entries(fieldMods).some(([key, value]) => key !== 'isCustomTest' && value);
+    if (hasAnyModification) {
       console.log(`Field modification detected for test "${test.testName}":`, {
-        testCalculatedFromDicom: test.calculatedFromDicom,
-        templateCalculatedFromDicom: templateTest.calculatedFromDicom,
+        currentTest: test,
+        templateTest: templateTest,
         fieldMods
       });
     }
@@ -445,8 +467,6 @@ const Worksheets = () => {
   };
 
   const editCustomWorksheet = (worksheet) => {
-    console.log('editCustomWorksheet called with worksheet:', worksheet);
-    console.log('Worksheet templateSource:', worksheet.templateSource);
     
     // Load worksheet data into the custom worksheet form for editing
     setCustomWorksheetInfo({
@@ -514,8 +534,6 @@ const Worksheets = () => {
     // Set to custom mode for editing
     setIsViewingWorksheet(false);  // Set edit mode (not read-only)
     setViewMode('custom');
-    
-    toast.success(`Editing worksheet: ${worksheet.title}`);
   };
 
   const viewCustomWorksheetReadOnly = (worksheet, machineId = null) => {
@@ -658,8 +676,16 @@ const Worksheets = () => {
     const templateId = searchParams.get('templateId');
     const templateSource = searchParams.get('templateSource');
     const viewOnly = searchParams.get('viewOnly');
+    const editWorksheetId = searchParams.get('editWorksheet');
 
-    if (mode === 'template' && templateId) {
+    if (editWorksheetId) {
+      // Find and load the specific worksheet for editing
+      const worksheets = JSON.parse(localStorage.getItem('qcWorksheets') || '[]');
+      const worksheetToEdit = worksheets.find(ws => ws.id === editWorksheetId);
+      if (worksheetToEdit) {
+        editCustomWorksheet(worksheetToEdit);
+      }
+    } else if (mode === 'template' && templateId) {
       setViewMode('templates');
       loadTemplateForView(templateId);
     } else if (mode === 'view-only' && machineId && frequency) {
@@ -756,8 +782,6 @@ const Worksheets = () => {
       
       // Set to custom mode for editing
       setViewMode('custom');
-      
-      toast.success(`Loaded worksheet "${worksheet.title}" for editing`);
       
     } catch (error) {
       console.error('Error loading worksheet for editing:', error);
@@ -1260,10 +1284,10 @@ const Worksheets = () => {
         tests: [...customTests],
         updatedAt: new Date().toISOString(),
         isModified: isActuallyModified,
-        sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : worksheetData.sourceTemplateId,
-        sourceTemplateName: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : worksheetData.sourceTemplateName,
-        templateSource: (selectedTemplate && matchedToTemplate) ? selectedTemplate.title : worksheetData.templateSource,
-        templateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : worksheetData.templateId,
+        templateSource: worksheetData.templateSource || ((selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null),
+        templateId: worksheetData.templateId || ((selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null),
+        sourceTemplateName: worksheetData.sourceTemplateName || ((selectedTemplate && matchedToTemplate) ? selectedTemplate.title : null),
+        sourceTemplateId: worksheetData.sourceTemplateId || ((selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null),
         dicomSeriesConfig: dicomSeriesConfig,
         otherModalitySpecification: otherModalitySpecification,
         startDate: customWorksheetInfo.startDate,
@@ -2620,8 +2644,7 @@ const Worksheets = () => {
                         templateSource: selectedTemplate.title,
                         sourceTemplateName: selectedTemplate.title,
                         templateId: selectedTemplate.id,
-                        sourceTemplateId: selectedTemplate.id,
-                        tests: selectedTemplate.tests // Compare against original template tests, not current customTests
+                        sourceTemplateId: selectedTemplate.id
                       }, test, testIndex)
                     : selectedTemplate && !matchedToTemplate
                       ? {
