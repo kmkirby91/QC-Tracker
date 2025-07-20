@@ -7,7 +7,7 @@ const Locations = () => {
   const navigate = useNavigate();
   const [machines, setMachines] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedLocation, setSelectedLocation] = useState('');
+  const [selectedLocations, setSelectedLocations] = useState([]);
   const [sortBy, setSortBy] = useState('machine'); // 'machine', 'type', 'status', 'nextQC'
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
 
@@ -21,10 +21,10 @@ const Locations = () => {
       const response = await axios.get('/api/machines');
       setMachines(response.data);
       
-      // Auto-select first location if available
-      if (response.data.length > 0 && !selectedLocation) {
-        const firstLocation = response.data[0].location.building;
-        setSelectedLocation(firstLocation);
+      // Auto-select all locations by default
+      if (response.data.length > 0 && selectedLocations.length === 0) {
+        const allLocations = [...new Set(response.data.map(machine => machine.location.building))].sort();
+        setSelectedLocations(allLocations);
       }
     } catch (error) {
       console.error('Error fetching machines:', error);
@@ -43,7 +43,16 @@ const Locations = () => {
     return Array.from(locationSet).sort();
   };
 
-  // Filter machines by selected location (building)
+  // Filter machines by selected locations (buildings)
+  const getMachinesForSelectedLocations = () => {
+    if (selectedLocations.length === 0) return [];
+    
+    return machines.filter(machine => 
+      selectedLocations.includes(machine.location.building)
+    );
+  };
+  
+  // Filter machines by specific location (for counts)
   const getMachinesForLocation = (location) => {
     if (!location) return [];
     
@@ -68,7 +77,7 @@ const Locations = () => {
     const worksheets = getQCWorksheets();
     const activeQC = [];
     
-    ['daily', 'weekly', 'monthly', 'quarterly', 'annual'].forEach(frequency => {
+    ['daily', 'weekly', 'monthly', 'quarterly', 'annual', 'on-demand'].forEach(frequency => {
       const worksheet = worksheets.find(ws => 
         ws.modality === machineType && 
         ws.frequency === frequency && 
@@ -169,7 +178,8 @@ const Locations = () => {
       weekly: 'bg-green-600 hover:bg-green-700',
       monthly: 'bg-purple-600 hover:bg-purple-700',
       quarterly: 'bg-yellow-600 hover:bg-yellow-700',
-      annual: 'bg-red-600 hover:bg-red-700'
+      annual: 'bg-red-600 hover:bg-red-700',
+      'on-demand': 'bg-gray-600 hover:bg-gray-700'
     };
     return colors[frequency] || 'bg-gray-600 hover:bg-gray-700';
   };
@@ -188,6 +198,25 @@ const Locations = () => {
     return sortOrder === 'asc' ? '↑' : '↓';
   };
 
+  // Toggle location selection
+  const toggleLocation = (location) => {
+    setSelectedLocations(prev => 
+      prev.includes(location)
+        ? prev.filter(loc => loc !== location)
+        : [...prev, location]
+    );
+  };
+
+  // Select all locations
+  const selectAllLocations = () => {
+    setSelectedLocations(getLocations());
+  };
+
+  // Clear all selections
+  const clearAllLocations = () => {
+    setSelectedLocations([]);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -197,8 +226,8 @@ const Locations = () => {
   }
 
   const locations = getLocations();
-  const machinesForLocation = selectedLocation ? getMachinesForLocation(selectedLocation) : [];
-  const sortedMachines = sortMachines(machinesForLocation);
+  const machinesForSelectedLocations = getMachinesForSelectedLocations();
+  const sortedMachines = sortMachines(machinesForSelectedLocations);
 
   return (
     <div>
@@ -212,39 +241,71 @@ const Locations = () => {
       {/* Location Selection */}
       <div className="bg-gray-800 rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-100">Select Location</h2>
-          <div className="text-sm text-gray-400">
-            {machinesForLocation.length} machine(s) in selected location
+          <h2 className="text-lg font-semibold text-gray-100">Select Locations</h2>
+          <div className="flex items-center space-x-4">
+            <div className="text-sm text-gray-400">
+              {machinesForSelectedLocations.length} machine(s) in {selectedLocations.length} location(s)
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={selectAllLocations}
+                className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+              >
+                Select All
+              </button>
+              <button
+                onClick={clearAllLocations}
+                className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
+              >
+                Clear All
+              </button>
+            </div>
           </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {locations.map(location => (
-            <button
-              key={location}
-              onClick={() => setSelectedLocation(location)}
-              className={`p-4 rounded-lg border text-left transition-colors ${
-                selectedLocation === location
-                  ? 'bg-blue-600 border-blue-500 text-white'
-                  : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
-              }`}
-            >
-              <div className="font-medium">{location}</div>
-              <div className="text-sm opacity-75">
-                {getMachinesForLocation(location).length} machine(s)
+          {locations.map(location => {
+            const isSelected = selectedLocations.includes(location);
+            const machineCount = getMachinesForLocation(location).length;
+            
+            return (
+              <div
+                key={location}
+                onClick={() => toggleLocation(location)}
+                className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                  isSelected
+                    ? 'bg-blue-600 border-blue-500 text-white'
+                    : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleLocation(location)}
+                    className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">{location}</div>
+                    <div className="text-sm opacity-75">
+                      {machineCount} machine{machineCount !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* Machine List with QC Status */}
-      {selectedLocation && (
+      {selectedLocations.length > 0 && (
         <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
           <div className="p-6 border-b border-gray-700">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-100">
-                Active QC for {selectedLocation}
+                Active QC for {selectedLocations.length === 1 ? selectedLocations[0] : `${selectedLocations.length} Selected Locations`}
               </h2>
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-400">Sort by:</span>
