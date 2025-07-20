@@ -2501,11 +2501,17 @@ const Worksheets = () => {
                         sourceTemplateId: selectedTemplate.id,
                         tests: selectedTemplate.tests // Compare against original template tests, not current customTests
                       }, test, testIndex)
-                    : {
-                        // Only for completely custom worksheets with no template base
-                        testName: true, testType: true, tolerance: true, units: true, notes: true, 
-                        calculatedFromDicom: true, dicomSeriesSource: true, isCustomTest: true
-                      };
+                    : selectedTemplate && !matchedToTemplate
+                      ? {
+                          // When template is selected but tracking is disabled, show no modifications
+                          testName: false, testType: false, tolerance: false, units: false, notes: false, 
+                          calculatedFromDicom: false, dicomSeriesSource: false, isCustomTest: false
+                        }
+                      : {
+                          // Only for completely custom worksheets with no template base
+                          testName: true, testType: true, tolerance: true, units: true, notes: true, 
+                          calculatedFromDicom: true, dicomSeriesSource: true, isCustomTest: true
+                        };
               return (
                 <div key={test.id} className="bg-gray-700 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
