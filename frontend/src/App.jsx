@@ -328,10 +328,6 @@ function MachineList() {
           aValue = a.status.toLowerCase()
           bValue = b.status.toLowerCase()
           break
-        case 'nextQC':
-          aValue = new Date(a.nextQCDue)
-          bValue = new Date(b.nextQCDue)
-          break
         default:
           return 0
       }
@@ -455,7 +451,6 @@ function MachineList() {
                 <SortableHeader column="name">Machine</SortableHeader>
                 <SortableHeader column="location">Location</SortableHeader>
                 <SortableHeader column="type">Type</SortableHeader>
-                <SortableHeader column="nextQC">Next QC</SortableHeader>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Perform QC</th>
               </tr>
             </thead>
@@ -489,13 +484,9 @@ function MachineList() {
                     </div>
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">
-                    <div className="text-sm">{machine.location.building}</div>
-                    <div className="text-xs text-gray-400">{machine.location.room}</div>
+                    {machine.location.building}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">{machine.type}</td>
-                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-300">
-                    {new Date(machine.nextQCDue).toLocaleDateString()}
-                  </td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
                     <div className="flex flex-col space-y-1">
                       {/* Assigned QC Performance Buttons */}
