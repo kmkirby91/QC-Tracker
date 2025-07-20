@@ -1018,7 +1018,7 @@ const Worksheets = () => {
     }
   };
 
-  const createWorksheet = () => {
+  const createWorksheet = async () => {
     if (!customWorksheetInfo.title) {
       toast.error('Please provide a worksheet title');
       return;
@@ -1065,17 +1065,80 @@ const Worksheets = () => {
 
       if (conflictingWorksheet) {
         const machine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
-        const confirmed = window.confirm(
-          `⚠️ Template Conflict Warning\n\n` +
-          `The machine "${machine?.name || customWorksheetInfo.machineId}" already has a ${customWorksheetInfo.frequency} QC worksheet based on the "${selectedTemplate.title}" template.\n\n` +
-          `Existing worksheet: "${conflictingWorksheet.title}"\n` +
-          `New worksheet: "${customWorksheetInfo.title}"\n\n` +
-          `Having multiple worksheets from the same template on one machine can cause confusion and duplicate QC requirements.\n\n` +
-          `Do you want to proceed anyway?`
-        );
         
-        if (!confirmed) {
+        // Show custom dialog with three options
+        const choice = await new Promise((resolve) => {
+          const dialog = document.createElement('div');
+          dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+          dialog.innerHTML = `
+            <div class="bg-gray-800 rounded-lg p-6 max-w-md mx-4 border border-yellow-500">
+              <div class="flex items-center space-x-3 mb-4">
+                <span class="text-yellow-500 text-2xl">⚠️</span>
+                <h3 class="text-lg font-semibold text-yellow-200">Template Conflict Warning</h3>
+              </div>
+              
+              <div class="text-gray-300 text-sm mb-4">
+                <p class="mb-2">The machine <strong>"${machine?.name || customWorksheetInfo.machineId}"</strong> already has a <strong>${customWorksheetInfo.frequency}</strong> QC worksheet based on the <strong>"${selectedTemplate.title}"</strong> template.</p>
+                
+                <div class="bg-gray-700 rounded p-3 mb-3">
+                  <p class="text-yellow-300"><strong>Existing:</strong> "${conflictingWorksheet.title}"</p>
+                  <p class="text-blue-300"><strong>New:</strong> "${customWorksheetInfo.title}"</p>
+                </div>
+                
+                <p class="text-gray-400 text-xs">Having multiple worksheets from the same template on one machine can cause confusion and duplicate QC requirements.</p>
+              </div>
+              
+              <div class="flex flex-col space-y-2">
+                <button id="overwrite-btn" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium">
+                  🔄 Overwrite Existing Worksheet
+                </button>
+                <button id="save-new-btn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors font-medium">
+                  ➕ Save as New Worksheet
+                </button>
+                <button id="cancel-btn" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors font-medium">
+                  ❌ Cancel
+                </button>
+              </div>
+            </div>
+          `;
+          
+          document.body.appendChild(dialog);
+          
+          dialog.querySelector('#overwrite-btn').onclick = () => {
+            document.body.removeChild(dialog);
+            resolve('overwrite');
+          };
+          
+          dialog.querySelector('#save-new-btn').onclick = () => {
+            document.body.removeChild(dialog);
+            resolve('new');
+          };
+          
+          dialog.querySelector('#cancel-btn').onclick = () => {
+            document.body.removeChild(dialog);
+            resolve('cancel');
+          };
+          
+          // Close on background click
+          dialog.onclick = (e) => {
+            if (e.target === dialog) {
+              document.body.removeChild(dialog);
+              resolve('cancel');
+            }
+          };
+        });
+        
+        if (choice === 'cancel') {
           return;
+        } else if (choice === 'overwrite') {
+          // Remove the existing conflicting worksheet
+          const worksheets = getWorksheets();
+          const updatedWorksheets = worksheets.filter(ws => ws.id !== conflictingWorksheet.id);
+          localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+          toast.success(`Existing worksheet "${conflictingWorksheet.title}" has been overwritten`);
+        } else if (choice === 'new') {
+          // Continue with creating new worksheet (no special action needed)
+          toast.info('Creating new worksheet alongside existing one');
         }
       }
     }
