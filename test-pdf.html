@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+    <button onclick="generateTestPDF()">Test PDF Generation</button>
+    
+    <script>
+        function generateTestPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFontSize(18);
+            doc.text('QC Quick Report Test', 20, 20);
+            
+            doc.autoTable({
+                head: [['Test', 'Result', 'Notes']],
+                body: [
+                    ['Sample Test 1', 'PASS', 'All good'],
+                    ['Sample Test 2', 'FAIL', 'Out of tolerance']
+                ],
+                startY: 40
+            });
+            
+            doc.save('test-qc-report.pdf');
+        }
+    </script>
+</body>
+</html>

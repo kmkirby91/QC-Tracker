@@ -85,7 +85,7 @@ const AddMachine = () => {
       };
 
       await axios.post('/api/machines', machineData);
-      toast.success('Machine added successfully!');
+      // Success notification removed
       navigate('/machines');
     } catch (error) {
       console.error('Error adding machine:', error);

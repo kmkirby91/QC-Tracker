@@ -261,7 +261,7 @@ const DICOMSeriesSelector = ({
       // Focus the new window
       viewerWindow.focus();
       
-      toast.success(`Opening DICOM viewer for ${series.seriesDescription}`);
+      // Success notification removed
     } else {
       toast.error('Failed to open DICOM viewer. Please allow popups for this site.');
     }

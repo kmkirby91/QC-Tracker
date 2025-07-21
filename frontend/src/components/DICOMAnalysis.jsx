@@ -95,7 +95,7 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, selectedSeries = [
         onAnalysisComplete(mockResults);
       }
       
-      toast.success('DICOM analysis completed');
+      // Success notification removed
       console.log('DICOM analysis completed - placeholder results');
       
     } catch (error) {
