@@ -285,7 +285,14 @@ const MachineDetail = () => {
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Daily QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
+                    {(() => {
+                      const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'daily');
+                      return worksheets.length > 0 ? (
+                        <dd className="font-medium text-green-400">Assigned</dd>
+                      ) : (
+                        <dd className="font-medium text-red-400">Required ❗</dd>
+                      );
+                    })()}
                   </div>
                   {(() => {
                     const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'daily');
@@ -307,8 +314,8 @@ const MachineDetail = () => {
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Daily Template
+                      <div className="text-xs text-red-300 ml-2 mt-1">
+                        ⚠️ No worksheet assigned - QC cannot be performed
                       </div>
                     );
                   })()}
@@ -318,7 +325,14 @@ const MachineDetail = () => {
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Weekly QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
+                    {(() => {
+                      const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'weekly');
+                      return worksheets.length > 0 ? (
+                        <dd className="font-medium text-green-400">Assigned</dd>
+                      ) : (
+                        <dd className="font-medium text-red-400">Required ❗</dd>
+                      );
+                    })()}
                   </div>
                   {(() => {
                     const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'weekly');
@@ -340,8 +354,8 @@ const MachineDetail = () => {
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Weekly Template
+                      <div className="text-xs text-red-300 ml-2 mt-1">
+                        ⚠️ No worksheet assigned - QC cannot be performed
                       </div>
                     );
                   })()}
@@ -351,7 +365,14 @@ const MachineDetail = () => {
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Monthly QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
+                    {(() => {
+                      const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'monthly');
+                      return worksheets.length > 0 ? (
+                        <dd className="font-medium text-green-400">Assigned</dd>
+                      ) : (
+                        <dd className="font-medium text-red-400">Required ❗</dd>
+                      );
+                    })()}
                   </div>
                   {(() => {
                     const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'monthly');
@@ -373,8 +394,8 @@ const MachineDetail = () => {
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Monthly Template
+                      <div className="text-xs text-red-300 ml-2 mt-1">
+                        ⚠️ No worksheet assigned - QC cannot be performed
                       </div>
                     );
                   })()}
@@ -384,7 +405,14 @@ const MachineDetail = () => {
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Quarterly QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
+                    {(() => {
+                      const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'quarterly');
+                      return worksheets.length > 0 ? (
+                        <dd className="font-medium text-green-400">Assigned</dd>
+                      ) : (
+                        <dd className="font-medium text-red-400">Required ❗</dd>
+                      );
+                    })()}
                   </div>
                   {(() => {
                     const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'quarterly');
@@ -406,8 +434,8 @@ const MachineDetail = () => {
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Quarterly Template
+                      <div className="text-xs text-red-300 ml-2 mt-1">
+                        ⚠️ No worksheet assigned - QC cannot be performed
                       </div>
                     );
                   })()}
@@ -417,7 +445,14 @@ const MachineDetail = () => {
                 <div className="flex flex-col">
                   <div className="flex justify-between">
                     <dt className="text-gray-400">Annual QC:</dt>
-                    <dd className="font-medium text-green-400">Required</dd>
+                    {(() => {
+                      const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'annual');
+                      return worksheets.length > 0 ? (
+                        <dd className="font-medium text-green-400">Assigned</dd>
+                      ) : (
+                        <dd className="font-medium text-red-400">Required ❗</dd>
+                      );
+                    })()}
                   </div>
                   {(() => {
                     const worksheets = getWorksheetsForMachineAndFrequency(machine.machineId, 'annual');
@@ -439,8 +474,8 @@ const MachineDetail = () => {
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-500 ml-2 mt-1">
-                        📋 Default {machine.type} Annual Template
+                      <div className="text-xs text-red-300 ml-2 mt-1">
+                        ⚠️ No worksheet assigned - QC cannot be performed
                       </div>
                     );
                   })()}
@@ -453,29 +488,6 @@ const MachineDetail = () => {
             </dl>
           </div>
 
-          <div>
-            <h3 className="font-semibold text-gray-300 mb-2">Last QC</h3>
-            <dl className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Date:</dt>
-                <dd className="font-medium">{machine.lastQC?.date ? new Date(machine.lastQC.date).toLocaleDateString() : 'N/A'}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Result:</dt>
-                <dd className={`font-medium ${machine.lastQC?.result === 'pass' ? 'text-green-400' : machine.lastQC?.result === 'fail' ? 'text-red-400' : 'text-gray-400'}`}>
-                  {machine.lastQC?.result ? machine.lastQC.result.toUpperCase() : 'N/A'}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Performed By:</dt>
-                <dd className="font-medium">{machine.lastQC?.performedBy || 'N/A'}</dd>
-              </div>
-              <div className="flex flex-col">
-                <dt className="text-gray-400">Notes:</dt>
-                <dd className="font-medium text-xs mt-1">{machine.lastQC?.notes || 'N/A'}</dd>
-              </div>
-            </dl>
-          </div>
 
           <div>
             <h3 className="font-semibold text-gray-300 mb-2">Perform QC</h3>
@@ -537,6 +549,109 @@ const MachineDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* ACR Accreditation Status */}
+      {(machine.type === 'MRI' || machine.type === 'CT' || machine.type === 'Mammography') && (
+        <div className="bg-gray-800 rounded-lg shadow-lg p-4 mb-4">
+          <h2 className="text-lg font-semibold text-gray-100 mb-3 flex items-center">
+            <span className="text-lg mr-2">🏆</span>
+            ACR Accreditation Status
+          </h2>
+          
+          {(() => {
+            // Calculate ACR dates - using mock data for now
+            // In real implementation, this would come from machine.acrAccreditation
+            const mockGrantedDate = new Date('2022-03-15'); // Mock ACR granted date
+            const dueDate = new Date(mockGrantedDate);
+            dueDate.setFullYear(dueDate.getFullYear() + 3); // 3 years from granted date
+            
+            const bugDate = new Date(dueDate);
+            bugDate.setMonth(bugDate.getMonth() - 8); // 8 months before due date
+            
+            const today = new Date();
+            const daysToDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            const daysToBug = Math.ceil((bugDate - today) / (1000 * 60 * 60 * 24));
+            
+            // Determine status and color
+            let statusColor = 'text-green-400';
+            let statusText = 'Current';
+            let statusIcon = '✅';
+            
+            if (daysToDue < 0) {
+              statusColor = 'text-red-400';
+              statusText = 'EXPIRED';
+              statusIcon = '❌';
+            } else if (daysToBug < 0) {
+              statusColor = 'text-yellow-400';
+              statusText = 'Renewal Required';
+              statusIcon = '⚠️';
+            } else if (daysToBug <= 30) {
+              statusColor = 'text-orange-400';
+              statusText = 'Renewal Approaching';
+              statusIcon = '🔔';
+            }
+            
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <h3 className="font-medium text-gray-300 mb-1 text-xs">DATES</h3>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Granted:</span>
+                      <span className="font-medium">{mockGrantedDate.toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Due:</span>
+                      <span className="font-medium">{dueDate.toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">ACR Bugs:</span>
+                      <span className="font-medium text-orange-300">{bugDate.toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-300 mb-1 text-xs">STATUS</h3>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg">{statusIcon}</span>
+                    <span className={`font-medium ${statusColor}`}>{statusText}</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-300 mb-1 text-xs">TIMELINE</h3>
+                  <div className="space-y-1">
+                    {daysToDue >= 0 && (
+                      <div className="text-gray-400">
+                        <span className="font-medium text-gray-300">{daysToDue}</span> days until due
+                      </div>
+                    )}
+                    
+                    {daysToDue < 0 && (
+                      <div className="text-red-400">
+                        <span className="font-medium">Expired {Math.abs(daysToDue)}</span> days ago
+                      </div>
+                    )}
+                    
+                    {daysToBug > 0 && daysToBug <= 60 && (
+                      <div className="text-orange-400 text-xs">
+                        ACR bugs in <span className="font-medium">{daysToBug}</span> days
+                      </div>
+                    )}
+                    
+                    {daysToBug <= 0 && daysToDue > 0 && (
+                      <div className="text-yellow-400 text-xs">
+                        ⚠️ Renewal period active
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Assigned QC Worksheets */}
       <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
@@ -611,31 +726,40 @@ const MachineDetail = () => {
                     </div>
                     
                     <div className="flex space-x-2 ml-4">
-                      <Link
-                        to={`/qc/view-worksheet/${machine.machineId}/${frequency}`}
-                        onClick={() => {
-                          const worksheetData = customWorksheets.find(ws => 
-                            ws.modality === machine.type && 
-                            ws.frequency === frequency && 
-                            ws.assignedMachines && 
-                            ws.assignedMachines.includes(machine.machineId) &&
-                            ws.isWorksheet === true
-                          );
-                          if (worksheetData) {
-                            localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
-                          }
-                        }}
-                        className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
-                      >
-                        👁️ View
-                      </Link>
-                      
-                      <Link
-                        to={`/qc/perform/${machine.machineId}/${frequency}`}
-                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                      >
-                        ▶️ Perform
-                      </Link>
+                      {(() => {
+                        const worksheetData = customWorksheets.find(ws => 
+                          ws.modality === machine.type && 
+                          ws.frequency === frequency && 
+                          ws.assignedMachines && 
+                          ws.assignedMachines.includes(machine.machineId) &&
+                          ws.isWorksheet === true
+                        );
+                        
+                        return (
+                          <>
+                            <Link
+                              to={`/worksheets?editWorksheet=${worksheetData?.id}&viewOnly=true`}
+                              className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
+                            >
+                              👁️ View
+                            </Link>
+                            
+                            <Link
+                              to={`/worksheets?editWorksheet=${worksheetData?.id}`}
+                              className="px-3 py-1 bg-yellow-600 text-white text-xs rounded-md hover:bg-yellow-700 transition-colors"
+                            >
+                              ✏️ Edit
+                            </Link>
+                            
+                            <Link
+                              to={`/qc/perform/${machine.machineId}/${frequency}`}
+                              className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                            >
+                              ▶️ Perform
+                            </Link>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

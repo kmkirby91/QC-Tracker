@@ -72,6 +72,7 @@ const Worksheets = () => {
   const [otherModalitySpecification, setOtherModalitySpecification] = useState('');
   const [isCreatingFromCopy, setIsCreatingFromCopy] = useState(false);
   const [templateJustLoadedFlag, setTemplateJustLoadedFlag] = useState(false);
+  const [isViewingWorksheet, setIsViewingWorksheet] = useState(false);
 
   // Machine-specific DICOM configuration storage
   const getMachineSpecificDicomConfig = (machineId, modality, frequency) => {
@@ -257,7 +258,7 @@ const Worksheets = () => {
     
     // Debug logging for template finding
     if (!originalTemplate) {
-      console.log('Template not found for modification check:', {
+      console.log('❌ Template not found for modification check:', {
         worksheetTemplateSource: worksheet.templateSource,
         worksheetSourceTemplateName: worksheet.sourceTemplateName,
         worksheetTemplateId: worksheet.templateId,
@@ -286,7 +287,7 @@ const Worksheets = () => {
     
     if (!templateTest) {
       // Test doesn't exist in original template, it's a new custom test
-      console.log(`Template test not found for "${test.testName}". Available template tests:`, 
+      console.log(`❌ Template test not found for "${test.testName}". Available template tests:`, 
         originalTemplate.tests.map(t => t.testName)
       );
       return {
@@ -357,7 +358,7 @@ const Worksheets = () => {
         setRefreshKey(prev => prev + 1);
         window.dispatchEvent(new Event('storage'));
         
-        toast.success(`Successfully deleted ${worksheets.length} worksheets. Templates preserved.`);
+        // Success notification removed
         console.log('All worksheets deleted. Templates preserved.');
       }
     } catch (error) {
@@ -401,7 +402,7 @@ const Worksheets = () => {
       localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
       console.log('DEBUG: Updated localStorage with', updatedWorksheets.length, 'worksheets');
       
-      toast.success('Worksheet deleted successfully');
+      // Success notification removed
       
       // Force refresh
       setRefreshKey(prev => prev + 1);
@@ -428,7 +429,7 @@ const Worksheets = () => {
       }
       
       if (worksheet.assignedMachines.includes(machineId)) {
-        toast.info('This machine is already assigned to this worksheet');
+        // Info notification removed
         return false;
       }
       
@@ -438,7 +439,7 @@ const Worksheets = () => {
       localStorage.setItem('qcWorksheets', JSON.stringify(worksheets));
       setRefreshKey(prev => prev + 1);
       
-      toast.success('Worksheet assigned successfully');
+      // Success notification removed
       return true;
       
     } catch (error) {
@@ -457,18 +458,19 @@ const Worksheets = () => {
       worksheet.assignedMachines = worksheet.assignedMachines.filter(id => id !== machineId);
       worksheet.updatedAt = new Date().toISOString();
       localStorage.setItem('qcWorksheets', JSON.stringify(worksheets));
-      toast.success('Worksheet unassigned from machine');
+      // Success notification removed
       setRefreshKey(prev => prev + 1);
       return true;
     }
     return false;
   };
 
-  const editCustomWorksheet = (worksheet) => {
-    console.log('editCustomWorksheet called with worksheet:', worksheet);
-    console.log('Worksheet templateSource:', worksheet.templateSource);
+  const loadWorksheetData = (worksheet, isViewingMode = false) => {
+    console.log('Loading worksheet data:', worksheet);
+    console.log('DICOM config in worksheet:', worksheet.dicomSeriesConfig);
+    console.log('Tests in worksheet:', worksheet.tests);
     
-    // Load worksheet data into the custom worksheet form for editing
+    // Load worksheet data into the custom worksheet form
     setCustomWorksheetInfo({
       title: worksheet.title,
       frequency: worksheet.frequency,
@@ -487,24 +489,16 @@ const Worksheets = () => {
     setCustomTests(worksheet.tests || []);
     
     // Load DICOM series configuration if it exists
+    console.log('Setting DICOM config:', worksheet.dicomSeriesConfig);
     if (worksheet.dicomSeriesConfig && worksheet.dicomSeriesConfig.length > 0) {
       setDicomSeriesConfig(worksheet.dicomSeriesConfig);
       setDicomConfigEnabled(true);
+      console.log('DICOM config enabled with', worksheet.dicomSeriesConfig.length, 'series');
     } else {
       setDicomSeriesConfig([]);
       setDicomConfigEnabled(false);
+      console.log('No DICOM config found');
     }
-    
-    // Set the worksheet data for editing (NOT template)
-    // Ensure templateSource is included for proper edit mode detection
-    const worksheetForEditing = {
-      ...worksheet,
-      templateSource: worksheet.templateSource,
-      isEditing: true // Additional flag to ensure edit mode is detected
-    };
-    
-    console.log('Setting worksheetData for editing:', worksheetForEditing);
-    setWorksheetDataSafe(worksheetForEditing);
     
     // If worksheet came from a template, restore template information for proper tracking
     if (worksheet.templateSource || worksheet.sourceTemplateName) {
@@ -520,7 +514,7 @@ const Worksheets = () => {
         setSelectedTemplate(originalTemplate);
         setMatchedToTemplate(true); // Enable tracking for worksheets that came from templates
         setTemplateJustLoadedFlag(false); // Allow modification detection since this is editing
-        console.log('Restored template for editing:', originalTemplate);
+        console.log('Restored template for', isViewingMode ? 'viewing' : 'editing', ':', originalTemplate);
       } else {
         setSelectedTemplate(null);
         setMatchedToTemplate(false);
@@ -531,26 +525,35 @@ const Worksheets = () => {
       setMatchedToTemplate(false);
     }
     
+    // Set the worksheet data for editing/viewing
+    const worksheetForEditing = {
+      ...worksheet,
+      templateSource: worksheet.templateSource,
+      isEditing: !isViewingMode
+    };
+    
+    setWorksheetDataSafe(worksheetForEditing);
+    
+    // Set viewing mode
+    setIsViewingWorksheet(isViewingMode);
+  };
+
+  const editCustomWorksheet = (worksheet) => {
+    loadWorksheetData(worksheet, false);
+    
     // Set to custom mode for editing
     setViewMode('custom');
     
-    toast.success(`Editing worksheet: ${worksheet.title}`);
+    // Success notification removed
   };
 
   const viewCustomWorksheetReadOnly = (worksheet, machineId = null) => {
     console.log('viewCustomWorksheetReadOnly called with worksheet:', worksheet, 'machineId:', machineId);
     
-    // Store worksheet data temporarily for QCForm to use
-    localStorage.setItem('tempWorksheetView', JSON.stringify(worksheet));
-    
-    // Navigate to QCForm in view-only mode for custom worksheets
-    if (machineId) {
-      navigate(`/qc/view-worksheet/${machineId}/${worksheet.frequency}`);
-    } else {
-      // For unassigned worksheets, use the modality route
-      navigate(`/qc/view/${worksheet.modality}/${worksheet.frequency}`);
-    }
-    toast.success(`Viewing worksheet: ${worksheet.title}`);
+    // Navigate to the same worksheets page but in view-only mode
+    // This ensures consistent layout and behavior with the machine details view button
+    navigate(`/worksheets?editWorksheet=${worksheet.id}&viewOnly=true`);
+    // Success notification removed
   };
 
   const frequencies = [
@@ -662,8 +665,24 @@ const Worksheets = () => {
     const templateId = searchParams.get('templateId');
     const templateSource = searchParams.get('templateSource');
     const viewOnly = searchParams.get('viewOnly');
+    const editWorksheetId = searchParams.get('editWorksheet');
 
-    if (mode === 'template' && templateId) {
+    if (editWorksheetId) {
+      // Find and load the specific worksheet for editing or viewing
+      const worksheets = JSON.parse(localStorage.getItem('qcWorksheets') || '[]');
+      const worksheetToEdit = worksheets.find(ws => ws.id === editWorksheetId);
+      if (worksheetToEdit) {
+        if (viewOnly === 'true') {
+          // Load worksheet in view-only mode
+          loadWorksheetData(worksheetToEdit, true);
+          setViewMode('custom');
+          // Success notification removed
+        } else {
+          // Load worksheet for editing
+          editCustomWorksheet(worksheetToEdit);
+        }
+      }
+    } else if (mode === 'template' && templateId) {
       setViewMode('templates');
       loadTemplateForView(templateId);
     } else if (mode === 'view-only' && machineId && frequency) {
@@ -761,7 +780,7 @@ const Worksheets = () => {
       // Set to custom mode for editing
       setViewMode('custom');
       
-      toast.success(`Loaded worksheet "${worksheet.title}" for editing`);
+      // Success notification removed
       
     } catch (error) {
       console.error('Error loading worksheet for editing:', error);
@@ -880,9 +899,7 @@ const Worksheets = () => {
 
     localStorage.setItem('qcModalityTemplates', JSON.stringify(savedTemplates));
     
-    toast.success(selectedTemplate && !isCreatingFromCopy ? 
-      `Template updated successfully with ${dicomSeriesConfig.length} DICOM series configuration(s)!` : 
-      `Template saved successfully with ${dicomSeriesConfig.length} DICOM series configuration(s)!`);
+    // Success notification removed
     setIsCreatingTemplate(false);
     setSelectedTemplate(null);
     setTemplateMode('manage');
@@ -909,11 +926,11 @@ const Worksheets = () => {
     if (template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0) {
       setDicomSeriesConfig(template.dicomSeriesConfig);
       setDicomConfigEnabled(true);
-      toast.success(`Template loaded with ${template.dicomSeriesConfig.length} DICOM series configuration(s)!`);
+      // Success notification removed
     } else {
       setDicomSeriesConfig([]);
       setDicomConfigEnabled(false);
-      toast.success('Template loaded for editing!');
+      // Success notification removed
     }
   };
 
@@ -928,7 +945,7 @@ const Worksheets = () => {
     setRefreshKey(prev => prev + 1);
     window.dispatchEvent(new Event('storage'));
     
-    toast.success(`Template "${templateToDelete?.title || 'Unknown'}" deleted successfully!`);
+    // Success notification removed
   };
 
   const createWorksheetFromTemplate = (template) => {
@@ -963,7 +980,7 @@ const Worksheets = () => {
     
     // Switch to custom worksheet tab with template loaded
     setViewMode('custom');
-    toast.success(`Template loaded! ${template.dicomSeriesConfig?.length || 0} DICOM series configuration(s) included.`);
+    // Success notification removed
   };
 
   const resetTemplateForm = () => {
@@ -1110,7 +1127,7 @@ const Worksheets = () => {
     // Create unique worksheet for this specific machine
     const uniqueWorksheetData = {
       ...customWorksheetInfo,
-      title: `${customWorksheetInfo.title} - ${machine?.name || customWorksheetInfo.machineId}`,
+      title: customWorksheetInfo.title,
       tests: [...customTests],
       id: `${Date.now()}-${customWorksheetInfo.machineId}`,
       createdAt: new Date().toISOString(),
@@ -1138,13 +1155,12 @@ const Worksheets = () => {
       setRefreshKey(prev => prev + 1);
       window.dispatchEvent(new Event('storage'));
       
-      toast.success(`New worksheet created and assigned to ${machine?.name || 'machine'} successfully!`);
+      // Success notification removed
       
-      // Switch to worksheets view to see the result (removed automatic switch)
-      // User can manually navigate to see the result
-      // setTimeout(() => {
-      //   setViewMode('worksheets');
-      // }, 500);
+      // Switch to worksheets view to see the result
+      setTimeout(() => {
+        setViewMode('worksheets');
+      }, 1000);
     } else {
       toast.error('Failed to create worksheet');
     }
@@ -1193,7 +1209,7 @@ const Worksheets = () => {
         // If assigned to multiple machines, just unassign from this machine
         const success = unassignWorksheetFromMachine(worksheetId, machineId);
         if (success) {
-          toast.success(`Worksheet "${worksheetTitle}" removed from this machine`);
+          // Success notification removed
         } else {
           toast.error('Failed to remove worksheet from machine');
           return;
@@ -1202,7 +1218,7 @@ const Worksheets = () => {
         // If only assigned to one machine (or no specific machine), delete the entire worksheet
         const updatedWorksheets = worksheets.filter(w => w.id !== worksheetId);
         localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
-        toast.success(`Worksheet "${worksheetTitle}" deleted successfully`);
+        // Success notification removed
       }
       
       // Clear the current editing state
@@ -1282,6 +1298,22 @@ const Worksheets = () => {
     setOtherModalitySpecification('');
     setIsCreatingFromCopy(false);
     setTemplateJustLoadedFlag(false);
+    setIsViewingWorksheet(false);
+    
+    // Clear custom worksheet form data when switching to any mode
+    setCustomWorksheetInfo({
+      title: '',
+      frequency: 'daily',
+      machineId: '',
+      modality: '',
+      description: '',
+      startDate: '',
+      hasEndDate: false,
+      endDate: ''
+    });
+    setCustomTests([]);
+    setDicomSeriesConfig([]);
+    setDicomConfigEnabled(true);
     
     // Clear URL params when switching modes
     const newSearchParams = new URLSearchParams(searchParams);
@@ -1290,6 +1322,7 @@ const Worksheets = () => {
     newSearchParams.delete('frequency');
     newSearchParams.delete('templateId');
     newSearchParams.delete('viewOnly');
+    newSearchParams.delete('editWorksheet');
     navigate({ search: newSearchParams.toString() }, { replace: true });
   };
 
@@ -1467,8 +1500,40 @@ const Worksheets = () => {
                             </span>
                           </h4>
                           
-                          <div className="space-y-2">
-                            {frequencyWorksheets.map((worksheet) => (
+                          <div className="space-y-4">
+                            {(() => {
+                              // Group worksheets by template source
+                              const groupedWorksheets = frequencyWorksheets.reduce((groups, worksheet) => {
+                                const templateSource = worksheet.templateSource || worksheet.sourceTemplateName || 'Custom (No Template)';
+                                if (!groups[templateSource]) {
+                                  groups[templateSource] = [];
+                                }
+                                groups[templateSource].push(worksheet);
+                                return groups;
+                              }, {});
+
+                              return Object.entries(groupedWorksheets).map(([templateSource, worksheets]) => (
+                                <div key={templateSource} className="mb-6">
+                                  {/* Template group header (only show if there are multiple groups) */}
+                                  {Object.keys(groupedWorksheets).length > 1 && (
+                                    <div className="bg-gray-700/40 border-l-4 border-yellow-500 rounded-r-md px-3 py-2 mb-2 ml-2">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-2">
+                                          <span className="text-yellow-400 text-sm">📋</span>
+                                          <span className="font-medium text-yellow-200 text-sm">
+                                            {templateSource === 'Custom (No Template)' ? 'Custom Worksheets' : templateSource}
+                                          </span>
+                                        </div>
+                                        <span className="text-xs text-yellow-300/70 bg-yellow-900/30 px-2 py-1 rounded">
+                                          {worksheets.length} worksheet{worksheets.length !== 1 ? 's' : ''}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Worksheets in this group */}
+                                  <div className={`space-y-2 ${Object.keys(groupedWorksheets).length > 1 ? 'ml-6' : ''}`}>
+                                    {worksheets.map((worksheet) => (
                               <div key={worksheet.id} className={`bg-gray-900 rounded-md p-3 border-l-2 ${worksheet.hasEndDate && worksheet.endDate ? 'border-red-500' : 'border-blue-500'} hover:bg-gray-800 transition-colors`}>
                                 <div className="flex items-center justify-between">
                                   {/* Left side - Main info */}
@@ -1544,52 +1609,26 @@ const Worksheets = () => {
                                   {/* Right side - Actions */}
                                   <div className="flex items-center space-x-2 ml-4">
                                     <button
+                                      onClick={() => viewCustomWorksheetReadOnly(worksheet)}
+                                      className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-500 transition-colors"
+                                    >
+                                      👁️ View
+                                    </button>
+                                    
+                                    <button
                                       onClick={() => editCustomWorksheet(worksheet)}
                                       className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
                                     >
                                       ✏️ Edit
                                     </button>
-                                    
-                                    {/* View button */}
-                                    {!worksheet.assignedMachines || worksheet.assignedMachines.length === 0 ? (
-                                      <button
-                                        onClick={() => viewCustomWorksheetReadOnly(worksheet)}
-                                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                                      >
-                                        👁️ View
-                                      </button>
-                                    ) : worksheet.assignedMachines.length === 1 ? (
-                                      <button
-                                        onClick={() => viewCustomWorksheetReadOnly(worksheet, worksheet.assignedMachines[0])}
-                                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                                      >
-                                        👁️ View
-                                      </button>
-                                    ) : (
-                                      <div className="relative group">
-                                        <button className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
-                                          👁️ View ▼
-                                        </button>
-                                        <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded shadow-lg z-10 min-w-32 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                                          {worksheet.assignedMachines.map(machineId => {
-                                            const machine = machines.find(m => m.machineId === machineId);
-                                            return machine ? (
-                                              <button
-                                                key={machineId}
-                                                onClick={() => viewCustomWorksheetReadOnly(worksheet, machineId)}
-                                                className="block w-full text-left px-3 py-1 text-xs text-gray-200 hover:bg-gray-700"
-                                              >
-                                                {machine.name}
-                                              </button>
-                                            ) : null;
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               </div>
-                            ))}
+                                    ))}
+                                  </div>
+                                </div>
+                              ));
+                            })()}
                           </div>
                         </div>
                       );
@@ -1625,8 +1664,6 @@ const Worksheets = () => {
             return null;
           })()}
         </div>
-
-        {worksheetData && renderWorksheetContent()}
       </div>
     );
   };
@@ -1936,23 +1973,38 @@ const Worksheets = () => {
   };
 
   const renderCustomWorksheet = () => {
-    // Check if we're editing an existing worksheet
-    const isEditingExistingWorksheet = worksheetData && (worksheetData.templateSource || worksheetData.isEditing);
+    // Check if we're editing or viewing an existing worksheet
+    const isEditingExistingWorksheet = worksheetData && (worksheetData.templateSource || worksheetData.isEditing || isViewingWorksheet);
     
     console.log('renderCustomWorksheet - worksheetData:', worksheetData);
+    console.log('renderCustomWorksheet - isViewingWorksheet:', isViewingWorksheet);
     console.log('renderCustomWorksheet - isEditingExistingWorksheet:', isEditingExistingWorksheet);
     
     return (
       <div key={`custom-${refreshKey}`} className="space-y-6">
-        {/* Edit Mode Header */}
+        {/* Edit/View Mode Header */}
         {isEditingExistingWorksheet && (
-          <div className="bg-orange-900/20 border border-orange-600 rounded-lg p-4">
+          <div className={`border rounded-lg p-4 ${
+            isViewingWorksheet 
+              ? 'bg-gray-900/20 border-gray-600' 
+              : 'bg-orange-900/20 border-orange-600'
+          }`}>
             <div className="flex items-center space-x-2">
-              <span className="text-orange-400 text-xl">✏️</span>
+              <span className={`text-xl ${
+                isViewingWorksheet ? 'text-gray-400' : 'text-orange-400'
+              }`}>
+                {isViewingWorksheet ? '👁️' : '✏️'}
+              </span>
               <div>
-                <h2 className="text-xl font-semibold text-orange-200">Editing Worksheet</h2>
-                <p className="text-sm text-orange-300">
-                  Modifying "{worksheetData.title}"
+                <h2 className={`text-xl font-semibold ${
+                  isViewingWorksheet ? 'text-gray-200' : 'text-orange-200'
+                }`}>
+                  {isViewingWorksheet ? 'Viewing Worksheet (Read-Only)' : 'Editing Worksheet'}
+                </h2>
+                <p className={`text-sm ${
+                  isViewingWorksheet ? 'text-gray-300' : 'text-orange-300'
+                }`}>
+                  {isViewingWorksheet ? 'Read-only view of' : 'Modifying'} "{worksheetData.title}"
                   {worksheetData.templateSource && ` - based on ${worksheetData.templateSource}`}
                 </p>
               </div>
@@ -2017,7 +2069,7 @@ const Worksheets = () => {
                       console.log('DEBUG: DICOM configuration loaded:', template.dicomSeriesConfig);
                       
                       const dicomCount = template.dicomSeriesConfig?.length || 0;
-                      toast.success(`Template loaded with ${dicomCount} DICOM series configuration(s)!`);
+                      // Success notification removed
                     }
                     
                     // Reset dropdown
@@ -2114,7 +2166,12 @@ const Worksheets = () => {
                 value={customWorksheetInfo.title}
                 onChange={(e) => updateCustomWorksheetInfo('title', e.target.value)}
                 placeholder="e.g., MRI Weekly QC Protocol"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                readOnly={isViewingWorksheet}
+                className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                  isViewingWorksheet 
+                    ? 'bg-gray-600 border-gray-500 cursor-not-allowed' 
+                    : 'bg-gray-700 border-gray-600'
+                }`}
               />
             </div>
             
@@ -2144,7 +2201,12 @@ const Worksheets = () => {
                     setRealTimeModifications([]);
                   }
                 }}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                disabled={isViewingWorksheet}
+                className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                  isViewingWorksheet 
+                    ? 'bg-gray-600 border-gray-500 cursor-not-allowed' 
+                    : 'bg-gray-700 border-gray-600'
+                }`}
               >
                 <option value="">Choose a machine...</option>
                 {machines.map(machine => (
@@ -2165,7 +2227,12 @@ const Worksheets = () => {
                   type="date"
                   value={customWorksheetInfo.startDate}
                   onChange={(e) => updateCustomWorksheetInfo('startDate', e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  disabled={isViewingWorksheet}
+                  className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                    isViewingWorksheet 
+                      ? 'bg-gray-600 border-gray-500 cursor-not-allowed' 
+                      : 'bg-gray-700 border-gray-600'
+                  }`}
                   required
                 />
                 <p className="text-xs text-gray-400 mt-1">
@@ -2182,13 +2249,18 @@ const Worksheets = () => {
                     type="checkbox"
                     id="hasEndDate"
                     checked={customWorksheetInfo.hasEndDate}
+                    disabled={isViewingWorksheet}
                     onChange={(e) => {
                       updateCustomWorksheetInfo('hasEndDate', e.target.checked);
                       if (!e.target.checked) {
                         updateCustomWorksheetInfo('endDate', '');
                       }
                     }}
-                    className="w-4 h-4 text-red-600 bg-gray-700 border-gray-600 rounded focus:ring-red-500 focus:ring-2"
+                    className={`w-4 h-4 text-red-600 border-gray-600 rounded focus:ring-red-500 focus:ring-2 ${
+                      isViewingWorksheet 
+                        ? 'bg-gray-600 cursor-not-allowed' 
+                        : 'bg-gray-700'
+                    }`}
                   />
                   <label htmlFor="hasEndDate" className="text-sm font-medium text-gray-300">
                     Set QC End Date (for machine decommissioning)
@@ -2201,7 +2273,12 @@ const Worksheets = () => {
                       type="date"
                       value={customWorksheetInfo.endDate}
                       onChange={(e) => updateCustomWorksheetInfo('endDate', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-red-500"
+                      disabled={isViewingWorksheet}
+                      className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-red-500 ${
+                        isViewingWorksheet 
+                          ? 'bg-gray-600 border-gray-500 cursor-not-allowed' 
+                          : 'bg-gray-700 border-gray-600'
+                      }`}
                       min={customWorksheetInfo.startDate}
                     />
                     <p className="text-xs text-gray-400 mt-1">
@@ -2221,7 +2298,12 @@ const Worksheets = () => {
               <select
                 value={customWorksheetInfo.frequency}
                 onChange={(e) => updateCustomWorksheetInfo('frequency', e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                disabled={isViewingWorksheet}
+                className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                  isViewingWorksheet 
+                    ? 'bg-gray-600 border-gray-500 cursor-not-allowed' 
+                    : 'bg-gray-700 border-gray-600'
+                }`}
               >
                 {frequencies.map(freq => (
                   <option key={freq.value} value={freq.value}>
@@ -2240,7 +2322,12 @@ const Worksheets = () => {
                 value={customWorksheetInfo.description}
                 onChange={(e) => updateCustomWorksheetInfo('description', e.target.value)}
                 placeholder="Optional description"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                readOnly={isViewingWorksheet}
+                className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                  isViewingWorksheet 
+                    ? 'bg-gray-600 border-gray-500 cursor-not-allowed' 
+                    : 'bg-gray-700 border-gray-600'
+                }`}
               />
             </div>
           </div>
@@ -2255,7 +2342,7 @@ const Worksheets = () => {
                 <button
                   onClick={() => {
                     setDicomSeriesConfig(selectedTemplate.dicomSeriesConfig);
-                    toast.success('DICOM configuration reset to template defaults');
+                    // Success notification removed
                   }}
                   className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
                 >
@@ -2355,13 +2442,15 @@ const Worksheets = () => {
         <div className="bg-gray-800 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-100">QC Tests</h2>
-            <button
-              onClick={addCustomTest}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
-            >
-              <span>➕</span>
-              <span>Add Test</span>
-            </button>
+            {!isViewingWorksheet && (
+              <button
+                onClick={addCustomTest}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+              >
+                <span>➕</span>
+                <span>Add Test</span>
+              </button>
+            )}
           </div>
           
           <div className="space-y-4">
@@ -2389,7 +2478,7 @@ const Worksheets = () => {
                 <div key={test.id} className="bg-gray-700 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-gray-300 font-medium">Test {testIndex + 1}</span>
-                  {customTests.length > 1 && (
+                  {customTests.length > 1 && !isViewingWorksheet && (
                     <button
                       onClick={() => removeCustomTest(test.id)}
                       className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition-colors"
@@ -2419,7 +2508,12 @@ const Worksheets = () => {
                       value={test.testName}
                       onChange={(e) => updateCustomTest(test.id, 'testName', e.target.value)}
                       placeholder="e.g., Signal-to-Noise Ratio"
-                      className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      readOnly={isViewingWorksheet}
+                      className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                        isViewingWorksheet 
+                          ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                          : 'bg-gray-600 border-gray-500'
+                      }`}
                     />
                   </div>
                   
@@ -2440,7 +2534,12 @@ const Worksheets = () => {
                     <select
                       value={test.testType}
                       onChange={(e) => updateCustomTest(test.id, 'testType', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      disabled={isViewingWorksheet}
+                      className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                        isViewingWorksheet 
+                          ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                          : 'bg-gray-600 border-gray-500'
+                      }`}
                     >
                       <option value="value">Numerical Value</option>
                       <option value="text">Text Entry</option>
@@ -2468,7 +2567,12 @@ const Worksheets = () => {
                       value={test.tolerance}
                       onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
                       placeholder="e.g., ±5%, >100, 0-10"
-                      className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      readOnly={isViewingWorksheet}
+                      className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                        isViewingWorksheet 
+                          ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                          : 'bg-gray-600 border-gray-500'
+                      }`}
                     />
                   </div>
                   
@@ -2491,7 +2595,12 @@ const Worksheets = () => {
                       value={test.units}
                       onChange={(e) => updateCustomTest(test.id, 'units', e.target.value)}
                       placeholder="e.g., mm, %, dB, HU"
-                      className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      readOnly={isViewingWorksheet}
+                      className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                        isViewingWorksheet 
+                          ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                          : 'bg-gray-600 border-gray-500'
+                      }`}
                     />
                   </div>
                   
@@ -2514,7 +2623,12 @@ const Worksheets = () => {
                       value={test.notes}
                       onChange={(e) => updateCustomTest(test.id, 'notes', e.target.value)}
                       placeholder="Optional test instructions or notes"
-                      className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                      readOnly={isViewingWorksheet}
+                      className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                        isViewingWorksheet 
+                          ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                          : 'bg-gray-600 border-gray-500'
+                      }`}
                     />
                   </div>
                   
@@ -2538,8 +2652,13 @@ const Worksheets = () => {
                           type="checkbox"
                           id={`calculated-${test.id}`}
                           checked={test.calculatedFromDicom || false}
+                          disabled={isViewingWorksheet}
                           onChange={(e) => updateCustomTest(test.id, 'calculatedFromDicom', e.target.checked)}
-                          className="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2"
+                          className={`w-4 h-4 text-blue-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2 ${
+                            isViewingWorksheet 
+                              ? 'bg-gray-700 cursor-not-allowed' 
+                              : 'bg-gray-600'
+                          }`}
                         />
                         <label htmlFor={`calculated-${test.id}`} className="text-sm text-blue-300">
                           📊 Calculate from DICOM data
@@ -2563,11 +2682,14 @@ const Worksheets = () => {
                           </label>
                           <select
                             value={test.dicomSeriesSource || ''}
+                            disabled={isViewingWorksheet}
                             onChange={(e) => updateCustomTest(test.id, 'dicomSeriesSource', e.target.value)}
-                            className={`w-full px-3 py-2 bg-gray-600 border rounded-md text-gray-100 focus:ring-2 text-sm ${
-                              test.calculatedFromDicom && !test.dicomSeriesSource 
-                                ? 'border-red-500 focus:ring-red-500' 
-                                : 'border-gray-500 focus:ring-blue-500'
+                            className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 text-sm ${
+                              isViewingWorksheet 
+                                ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                : test.calculatedFromDicom && !test.dicomSeriesSource 
+                                  ? 'bg-gray-600 border-red-500 focus:ring-red-500' 
+                                  : 'bg-gray-600 border-gray-500 focus:ring-blue-500'
                             }`}
                           >
                             <option value="">
@@ -2665,14 +2787,16 @@ const Worksheets = () => {
               </button>
             </div>
             
-            <button
-              onClick={createWorksheet}
-              disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || !customWorksheetInfo.startDate || (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
-              className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              <span>📝</span>
-              <span>{isEditingExistingWorksheet ? 'Update Worksheet' : 'Assign Worksheet to Machine'}</span>
-            </button>
+            {!isViewingWorksheet && (
+              <button
+                onClick={createWorksheet}
+                disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || !customWorksheetInfo.startDate || (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
+                className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                <span>📝</span>
+                <span>{isEditingExistingWorksheet ? 'Update Worksheet' : 'Assign Worksheet to Machine'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -2688,7 +2812,7 @@ const Worksheets = () => {
       if (machineId && modality && frequency) {
         const success = saveMachineSpecificDicomConfig(machineId, modality, frequency, dicomSeriesConfig);
         if (success) {
-          toast.success('DICOM configuration saved successfully');
+          // Success notification removed
           setViewMode('custom'); // Return to worksheet editing
           // Update the original config since we saved successfully
           setOriginalDicomConfigForCancel([...dicomSeriesConfig]);
@@ -2704,7 +2828,7 @@ const Worksheets = () => {
       // Restore original config
       setDicomSeriesConfig([...originalDicomConfigForCancel]);
       setViewMode('custom'); // Return to worksheet editing
-      toast.info('DICOM configuration changes cancelled');
+      // Info notification removed
     };
     
     return (
@@ -2888,7 +3012,7 @@ const Worksheets = () => {
                           setDicomConfigEnabled(template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0);
                           setIsCreatingTemplate(true);
                           setIsCreatingFromCopy(true);
-                          toast.success(`Template "${template.title}" loaded for editing as new template`);
+                          // Success notification removed
                         }
                       } else {
                         toast.error('Please select a template first');
@@ -3091,13 +3215,18 @@ const Worksheets = () => {
                       type="checkbox"
                       id="enable-dicom-config"
                       checked={dicomConfigEnabled}
+                      disabled={isViewingWorksheet}
                       onChange={(e) => {
                         setDicomConfigEnabled(e.target.checked);
                         if (!e.target.checked) {
                           setDicomSeriesConfig([]);
                         }
                       }}
-                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                      className={`w-4 h-4 text-blue-600 border-gray-600 rounded focus:ring-blue-500 focus:ring-2 ${
+                        isViewingWorksheet 
+                          ? 'bg-gray-600 cursor-not-allowed' 
+                          : 'bg-gray-700'
+                      }`}
                     />
                     <label htmlFor="enable-dicom-config" className="text-lg font-semibold text-gray-100">
                       DICOM Configuration
@@ -3128,12 +3257,14 @@ const Worksheets = () => {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-100">QC Tests</h3>
-                    <button
-                      onClick={addCustomTest}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      ➕ Add Test
-                    </button>
+                    {!isViewingWorksheet && (
+                      <button
+                        onClick={addCustomTest}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        ➕ Add Test
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-4">
@@ -3141,7 +3272,7 @@ const Worksheets = () => {
                       <div key={test.id} className="bg-gray-700 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-sm font-medium text-gray-200">Test {index + 1}</h4>
-                          {customTests.length > 1 && (
+                          {customTests.length > 1 && !isViewingWorksheet && (
                             <button
                               onClick={() => removeCustomTest(test.id)}
                               className="text-red-400 hover:text-red-300"
@@ -3158,7 +3289,12 @@ const Worksheets = () => {
                               type="text"
                               value={test.testName}
                               onChange={(e) => updateCustomTest(test.id, 'testName', e.target.value)}
-                              className="w-full p-2 bg-gray-600 border border-gray-500 rounded text-white text-sm"
+                              readOnly={isViewingWorksheet}
+                              className={`w-full p-2 border rounded text-white text-sm ${
+                                isViewingWorksheet 
+                                  ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                  : 'bg-gray-600 border-gray-500'
+                              }`}
                               placeholder="Enter test name"
                             />
                           </div>
@@ -3167,7 +3303,12 @@ const Worksheets = () => {
                             <select
                               value={test.testType}
                               onChange={(e) => updateCustomTest(test.id, 'testType', e.target.value)}
-                              className="w-full p-2 bg-gray-600 border border-gray-500 rounded text-white text-sm"
+                              disabled={isViewingWorksheet}
+                              className={`w-full p-2 border rounded text-white text-sm ${
+                                isViewingWorksheet 
+                                  ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                  : 'bg-gray-600 border-gray-500'
+                              }`}
                             >
                               <option value="value">Value</option>
                               <option value="passfail">Pass/Fail</option>
@@ -3180,7 +3321,12 @@ const Worksheets = () => {
                               type="text"
                               value={test.tolerance}
                               onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
-                              className="w-full p-2 bg-gray-600 border border-gray-500 rounded text-white text-sm"
+                              readOnly={isViewingWorksheet}
+                              className={`w-full p-2 border rounded text-white text-sm ${
+                                isViewingWorksheet 
+                                  ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                  : 'bg-gray-600 border-gray-500'
+                              }`}
                               placeholder="e.g. ±5"
                             />
                           </div>
@@ -3190,7 +3336,12 @@ const Worksheets = () => {
                               type="text"
                               value={test.units}
                               onChange={(e) => updateCustomTest(test.id, 'units', e.target.value)}
-                              className="w-full p-2 bg-gray-600 border border-gray-500 rounded text-white text-sm"
+                              readOnly={isViewingWorksheet}
+                              className={`w-full p-2 border rounded text-white text-sm ${
+                                isViewingWorksheet 
+                                  ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                  : 'bg-gray-600 border-gray-500'
+                              }`}
                               placeholder="e.g. HU, mm"
                             />
                           </div>
@@ -3200,7 +3351,12 @@ const Worksheets = () => {
                               type="text"
                               value={test.notes}
                               onChange={(e) => updateCustomTest(test.id, 'notes', e.target.value)}
-                              className="w-full p-2 bg-gray-600 border border-gray-500 rounded text-white text-sm"
+                              readOnly={isViewingWorksheet}
+                              className={`w-full p-2 border rounded text-white text-sm ${
+                                isViewingWorksheet 
+                                  ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                  : 'bg-gray-600 border-gray-500'
+                              }`}
                               placeholder="Additional notes or instructions"
                             />
                           </div>
@@ -3212,8 +3368,13 @@ const Worksheets = () => {
                                   type="checkbox"
                                   id={`template-calculated-${test.id}`}
                                   checked={test.calculatedFromDicom || false}
+                                  disabled={isViewingWorksheet}
                                   onChange={(e) => updateCustomTest(test.id, 'calculatedFromDicom', e.target.checked)}
-                                  className="w-3 h-3 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2"
+                                  className={`w-3 h-3 text-blue-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2 ${
+                                    isViewingWorksheet 
+                                      ? 'bg-gray-700 cursor-not-allowed' 
+                                      : 'bg-gray-600'
+                                  }`}
                                 />
                                 <label htmlFor={`template-calculated-${test.id}`} className="text-xs text-blue-300">
                                   📊 Calculate from DICOM
@@ -3224,11 +3385,14 @@ const Worksheets = () => {
                                 <div className="ml-5">
                                   <select
                                     value={test.dicomSeriesSource || ''}
+                                    disabled={isViewingWorksheet}
                                     onChange={(e) => updateCustomTest(test.id, 'dicomSeriesSource', e.target.value)}
-                                    className={`w-full p-1 bg-gray-600 border rounded text-white text-xs ${
-                                      test.calculatedFromDicom && !test.dicomSeriesSource 
-                                        ? 'border-red-500' 
-                                        : 'border-gray-500'
+                                    className={`w-full p-1 border rounded text-white text-xs ${
+                                      isViewingWorksheet 
+                                        ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                        : test.calculatedFromDicom && !test.dicomSeriesSource 
+                                          ? 'bg-gray-600 border-red-500' 
+                                          : 'bg-gray-600 border-gray-500'
                                     }`}
                                   >
                                     <option value="">

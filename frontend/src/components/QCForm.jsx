@@ -176,7 +176,7 @@ const QCForm = ({ viewOnly = false }) => {
             initialData.performedBy = draftData.performedBy || '';
             initialData.comments = draftData.comments || '';
             
-            toast.success(`Loaded saved draft from ${new Date(draftData.savedAt).toLocaleString()}`);
+            // Success notification removed
           } catch (error) {
             console.error('Error loading draft:', error);
             // Continue with blank form if draft is corrupted
@@ -367,7 +367,7 @@ const QCForm = ({ viewOnly = false }) => {
       const draftKey = `qc_draft_${machineId}_${frequency}_${selectedDate}`;
       localStorage.setItem(draftKey, JSON.stringify(draftData));
       
-      toast.success('QC draft saved successfully!');
+      // Success notification removed
       console.log('QC draft saved:', draftData);
     } catch (error) {
       console.error('Error saving QC draft:', error);
@@ -429,7 +429,7 @@ const QCForm = ({ viewOnly = false }) => {
             !(w.modality === machineType && w.frequency === frequency && w.templateSource === tests[0].templateSource)
           );
           localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
-          toast.success('Worksheet deleted successfully');
+          // Success notification removed
           navigate('/worksheets');
         } catch (error) {
           console.error('Error deleting worksheet:', error);
@@ -655,7 +655,7 @@ const QCForm = ({ viewOnly = false }) => {
                     }
                   });
                   setFormData(newFormData);
-                  toast.success('QC values populated from DICOM analysis');
+                  // Success notification removed
                 }
               }}
             />
