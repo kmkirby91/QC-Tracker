@@ -420,7 +420,7 @@ const MachineDetail = () => {
                       <span className="font-medium">{dueDate.toLocaleDateString()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-400">ACR Bugs:</span>
+                      <span className="text-gray-400">ACR notifies:</span>
                       <span className="font-medium text-orange-300">{bugDate.toLocaleDateString()}</span>
                     </div>
                   </div>
@@ -451,7 +451,7 @@ const MachineDetail = () => {
                     
                     {daysToBug > 0 && daysToBug <= 60 && (
                       <div className="text-orange-400 text-xs">
-                        ACR bugs in <span className="font-medium">{daysToBug}</span> days
+                        ACR notifies in <span className="font-medium">{daysToBug}</span> days
                       </div>
                     )}
                     
