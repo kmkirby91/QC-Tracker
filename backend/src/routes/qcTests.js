@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { calculateNextDueDate, getMissedQCDates, getQCPriority, generateSampleWorksheetAssignments } = require('../utils/qcScheduling');
 
 // QC test templates by machine type
 const qcTestTemplates = {
@@ -155,16 +156,13 @@ const generateQCHistory = (machineType, machineId) => {
   };
 
   // IMPORTANT: Only generate history for machines that actually have worksheets assigned
-  // In real implementation, this would check the database for assigned worksheets
-  // For demo purposes: Only CT-GON-001 (SOMATOM Force) has a daily QC worksheet assigned
+  // Check against our consistent sample worksheet assignments
   const hasWorksheetAssigned = (machine, frequency) => {
-    // In a real app, this would check the database for worksheet assignments
-    // For demo: only SOMATOM Force CT has daily QC worksheet
-    if (machine === 'CT-GON-001' && frequency === 'daily') {
-      return true;
-    }
-    // All other machines have no worksheets = no QC history
-    return false;
+    const assignments = generateSampleWorksheetAssignments();
+    return assignments.some(assignment => 
+      assignment.machineId === machine && 
+      assignment.frequency === frequency
+    );
   };
 
   // Generate daily QC for last 30 days (only if machine has daily tests AND worksheet assigned)
@@ -574,30 +572,17 @@ router.get('/machines/:machineId/qc-history/:date', (req, res) => {
 // Get QC tasks due today or this month
 router.get('/due-tasks', async (req, res) => {
   try {
-    // Simple mock response for due tasks
     const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const twoDaysAgo = new Date(today);
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-
-    // CONSISTENT DATA: Only show due tasks for machines that actually have worksheets assigned
-    // In real implementation, this would check database for worksheet assignments
-    // For demo: Only SOMATOM Force CT has a daily QC worksheet assigned
+    
+    // Get all active worksheet assignments
+    const assignments = generateSampleWorksheetAssignments();
+    
+    // Initialize due tasks structure
     const dueTasks = {
       dailyOverdue: [],
-      dailyDueToday: [
-        {
-          machineId: 'CT-GON-001',
-          machineName: 'Siemens SOMATOM Force',
-          type: 'CT',
-          location: 'Gonzales - Emergency CT',
-          daysOverdue: 0,
-          nextDue: today.toISOString().split('T')[0],
-          lastQC: null, // No previous QC - this is the first QC after worksheet assignment
-          priority: 'medium'
-        }
-      ],
+      dailyDueToday: [],
+      weeklyOverdue: [],
+      weeklyDueToday: [],
       monthlyOverdue: [],
       monthlyDueThisMonth: [],
       quarterlyOverdue: [],
@@ -605,6 +590,70 @@ router.get('/due-tasks', async (req, res) => {
       annualOverdue: [],
       annualDueThisYear: []
     };
+    
+    // Import machine data
+    const machinesModule = require('./machines');
+    const allMachines = machinesModule.getAllMachines ? machinesModule.getAllMachines() : [];
+    
+    // Process each worksheet assignment
+    for (const assignment of assignments) {
+      const machine = allMachines.find(m => m.machineId === assignment.machineId);
+      if (!machine) continue;
+      
+      // For demo purposes, simulate some QC history
+      const completedDates = getSimulatedQCHistory(assignment.machineId, assignment.frequency, assignment.startDate);
+      
+      // Calculate next due date
+      const lastCompletedDate = completedDates.length > 0 ? completedDates[completedDates.length - 1] : null;
+      const dueInfo = calculateNextDueDate(assignment.frequency, assignment.startDate, lastCompletedDate);
+      
+      // Get missed QC dates
+      const missedDates = getMissedQCDates(assignment.frequency, assignment.startDate, completedDates);
+      
+      // Create task object
+      const task = {
+        machineId: assignment.machineId,
+        machineName: machine.name,
+        type: machine.type,
+        location: `${machine.location.building} - ${machine.location.room}`,
+        frequency: assignment.frequency,
+        worksheetTitle: assignment.title,
+        startDate: assignment.startDate,
+        nextDue: dueInfo.nextDue,
+        lastQC: lastCompletedDate,
+        daysOverdue: dueInfo.daysOverdue,
+        priority: getQCPriority(dueInfo.daysOverdue, assignment.frequency),
+        missedCount: missedDates.length
+      };
+      
+      // Categorize the task
+      if (dueInfo.isDueToday) {
+        dueTasks[`${assignment.frequency}DueToday`].push(task);
+      } else if (dueInfo.isOverdue) {
+        dueTasks[`${assignment.frequency}Overdue`].push(task);
+      } else if (assignment.frequency === 'monthly' && isThisMonth(dueInfo.nextDue)) {
+        dueTasks.monthlyDueThisMonth.push(task);
+      } else if (assignment.frequency === 'quarterly' && isThisQuarter(dueInfo.nextDue)) {
+        dueTasks.quarterlyDueThisQuarter.push(task);
+      } else if (assignment.frequency === 'annual' && isThisYear(dueInfo.nextDue)) {
+        dueTasks.annualDueThisYear.push(task);
+      }
+    }
+    
+    // Sort tasks by priority and days overdue
+    const sortTasks = (tasks) => {
+      const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+      return tasks.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return priorityOrder[b.priority] - priorityOrder[a.priority];
+        }
+        return b.daysOverdue - a.daysOverdue;
+      });
+    };
+    
+    Object.keys(dueTasks).forEach(key => {
+      dueTasks[key] = sortTasks(dueTasks[key]);
+    });
 
     res.json(dueTasks);
   } catch (error) {
@@ -612,6 +661,94 @@ router.get('/due-tasks', async (req, res) => {
     res.status(500).json({ error: 'Failed to get due tasks' });
   }
 });
+
+// Helper functions for date checking
+function isThisMonth(dateStr) {
+  const date = new Date(dateStr);
+  const today = new Date();
+  return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+}
+
+function isThisQuarter(dateStr) {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const dateQuarter = Math.floor(date.getMonth() / 3);
+  const todayQuarter = Math.floor(today.getMonth() / 3);
+  return dateQuarter === todayQuarter && date.getFullYear() === today.getFullYear();
+}
+
+function isThisYear(dateStr) {
+  const date = new Date(dateStr);
+  const today = new Date();
+  return date.getFullYear() === today.getFullYear();
+}
+
+// Simulate QC history based on worksheet assignment
+function getSimulatedQCHistory(machineId, frequency, startDate) {
+  const completedDates = [];
+  const today = new Date();
+  const start = new Date(startDate);
+  
+  // Only generate history for machines that have been running QC for a while
+  if (machineId === 'CT-GON-001' && frequency === 'daily') {
+    // SOMATOM Force CT - simulate mostly complete daily QC with some recent gaps
+    let currentDate = new Date(start);
+    while (currentDate < today) {
+      // Skip weekends
+      if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
+        // 85% completion rate, with more gaps in recent days to show overdue items
+        const daysSinceStart = Math.floor((currentDate - start) / (1000 * 60 * 60 * 24));
+        const recentGapProbability = daysSinceStart > 300 ? 0.3 : 0.15; // More gaps recently
+        
+        if (Math.random() > recentGapProbability) {
+          completedDates.push(currentDate.toISOString().split('T')[0]);
+        }
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+  } else if (machineId === 'MRI-GON-001' && frequency === 'daily') {
+    // MRI - newer assignment, fewer completed QCs
+    let currentDate = new Date(start);
+    while (currentDate < today) {
+      if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
+        if (Math.random() > 0.4) { // 60% completion rate
+          completedDates.push(currentDate.toISOString().split('T')[0]);
+        }
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+  } else if (machineId === 'MAMMO-GON-001' && frequency === 'daily') {
+    // Mammography - recently assigned, very few completed QCs
+    const recentStart = Math.max(0, Math.floor((today - start) / (1000 * 60 * 60 * 24)) - 7);
+    for (let i = recentStart; i < 3; i++) {
+      const qcDate = new Date(start);
+      qcDate.setDate(qcDate.getDate() + i);
+      if (qcDate.getDay() !== 0 && qcDate.getDay() !== 6) {
+        completedDates.push(qcDate.toISOString().split('T')[0]);
+      }
+    }
+  } else if (frequency === 'monthly') {
+    // Monthly QC - simulate some completed months
+    let currentDate = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (currentDate < today) {
+      if (Math.random() > 0.2) { // 80% completion rate
+        completedDates.push(currentDate.toISOString().split('T')[0]);
+      }
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+  } else if (frequency === 'weekly') {
+    // Weekly QC
+    let currentDate = new Date(start);
+    while (currentDate < today) {
+      if (Math.random() > 0.25) { // 75% completion rate
+        completedDates.push(currentDate.toISOString().split('T')[0]);
+      }
+      currentDate.setDate(currentDate.getDate() + 7);
+    }
+  }
+  
+  return completedDates.sort();
+}
 
 // Get test templates for QC forms
 router.get('/test-templates/:machineType/:frequency', (req, res) => {

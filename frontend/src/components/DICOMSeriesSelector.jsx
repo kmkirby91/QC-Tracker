@@ -245,25 +245,88 @@ const DICOMSeriesSelector = ({
   const handlePreviewSeries = (series) => {
     console.log('Opening DICOM viewer for series:', series.seriesDescription);
     
-    // Open DICOM viewer in a new window
-    const viewerWindow = window.open(
-      '', 
-      'dicomViewer', 
-      'width=1200,height=800,scrollbars=no,resizable=yes,status=no,toolbar=no,menubar=no,location=no'
-    );
+    try {
+      // Open DICOM viewer in a new popup window with improved settings
+      const windowFeatures = [
+        'width=1400',
+        'height=900', 
+        'left=100',
+        'top=100',
+        'scrollbars=yes',
+        'resizable=yes',
+        'status=no',
+        'toolbar=no',
+        'menubar=no',
+        'location=no',
+        'directories=no',
+        'copyhistory=no'
+      ].join(',');
+      
+      const viewerWindow = window.open(
+        'about:blank', 
+        `dicomViewer_${Date.now()}`, // Unique window name to allow multiple viewers
+        windowFeatures
+      );
+      
+      if (viewerWindow && !viewerWindow.closed) {
+        // Create the HTML content for the viewer window
+        const viewerHTML = createViewerHTML(series);
+        viewerWindow.document.write(viewerHTML);
+        viewerWindow.document.close();
+        
+        // Focus the new window
+        viewerWindow.focus();
+        
+        console.log('DICOM viewer opened successfully in popup window');
+        toast.success(`DICOM viewer opened for ${series.seriesDescription}`);
+      } else {
+        // Popup was blocked
+        console.warn('Popup blocked or failed to open');
+        toast.error('Popup blocked! Please allow popups for this site and try again.', {
+          duration: 5000,
+          icon: '🚫'
+        });
+        
+        // Provide instructions
+        setTimeout(() => {
+          toast('💡 Tip: Look for popup blocker icon in address bar and click "Always allow"', {
+            duration: 8000,
+            icon: '💡'
+          });
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error opening DICOM viewer:', error);
+      toast.error('Failed to open DICOM viewer. Please try again.');
+    }
+  };
+
+  const handlePreviewSeriesNewTab = (series) => {
+    console.log('Opening DICOM viewer in new tab for series:', series.seriesDescription);
     
-    if (viewerWindow) {
-      // Create the HTML content for the viewer window
+    try {
+      // Create a blob URL with the HTML content
       const viewerHTML = createViewerHTML(series);
-      viewerWindow.document.write(viewerHTML);
-      viewerWindow.document.close();
+      const blob = new Blob([viewerHTML], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
       
-      // Focus the new window
-      viewerWindow.focus();
+      // Open in new tab
+      const newTab = window.open(url, '_blank');
       
-      // Success notification removed
-    } else {
-      toast.error('Failed to open DICOM viewer. Please allow popups for this site.');
+      if (newTab) {
+        console.log('DICOM viewer opened successfully in new tab');
+        toast.success(`DICOM viewer opened in new tab for ${series.seriesDescription}`);
+        
+        // Clean up the blob URL after a delay
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 1000);
+      } else {
+        toast.error('Failed to open new tab. Please check your browser settings.');
+      }
+    } catch (error) {
+      console.error('Error opening DICOM viewer in new tab:', error);
+      toast.error('Failed to open DICOM viewer. Please try again.');
     }
   };
 
@@ -279,6 +342,26 @@ const DICOMSeriesSelector = ({
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DICOM Viewer - ${series.seriesDescription}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Prevent unintentional navigation */
+        html, body {
+            overflow-x: hidden;
+        }
+        /* Custom scrollbar for better UX */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #374151;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #6b7280;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
     <style>
         body { 
             margin: 0; 
@@ -389,6 +472,13 @@ const DICOMSeriesSelector = ({
             <button onclick="window.close()" class="control-btn">✕ Close</button>
         </div>
         
+        <!-- Usage Info Banner -->
+        <div style="background: #1e40af; padding: 0.75rem; border-bottom: 1px solid #3b82f6; text-align: center;">
+            <p style="margin: 0; font-size: 0.875rem; color: #dbeafe;">
+                💡 Use this viewer to examine DICOM images while performing QC. Draw ROIs to measure values. This window stays open while you continue QC.
+            </p>
+        </div>
+        
         <!-- Main content -->
         <div class="main-content">
             <!-- Image viewer -->
@@ -446,6 +536,40 @@ const DICOMSeriesSelector = ({
                     </div>
                 </div>
                 
+                <!-- ROI Tools -->
+                <div class="control-group">
+                    <label class="control-label">ROI Tools</label>
+                    <button id="roiBtn" class="preset-btn" onclick="toggleROITool()">🎯 Draw Circular ROI</button>
+                    <button class="preset-btn" onclick="clearAllROIs()">🗑️ Clear All ROIs</button>
+                </div>
+                
+                <!-- ROI Statistics -->
+                <div id="roiStats" class="control-group" style="display: none;">
+                    <label class="control-label">ROI Statistics</label>
+                    <div style="background: #374151; border-radius: 0.375rem; padding: 0.75rem; font-size: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <span>Mean:</span>
+                            <span id="roiMean">-</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <span>Min:</span>
+                            <span id="roiMin">-</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <span>Max:</span>
+                            <span id="roiMax">-</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <span>Std Dev:</span>
+                            <span id="roiStdDev">-</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Area:</span>
+                            <span id="roiArea">- px²</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Reset button -->
                 <button class="reset-btn" onclick="resetView()">Reset View</button>
                 
@@ -488,6 +612,10 @@ const DICOMSeriesSelector = ({
         let isDragging = false;
         let dragStart = { x: 0, y: 0 };
         let dragMode = 'pan';
+        let roiMode = false;
+        let rois = [];
+        let isDrawingROI = false;
+        let currentROI = null;
         
         const canvas = document.getElementById('dicomCanvas');
         const ctx = canvas.getContext('2d');
@@ -588,6 +716,9 @@ const DICOMSeriesSelector = ({
             ctx.clearRect(0, 0, width, height);
             ctx.putImageData(imageData, 0, 0);
             
+            // Draw ROIs on the image
+            drawROIs();
+            
             // Apply zoom and pan
             canvas.style.transform = \`scale(\${zoom}) translate(\${pan.x}px, \${pan.y}px)\`;
             
@@ -654,6 +785,22 @@ Zoom: \${(zoom * 100).toFixed(0)}%
         }
         
         function handleMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = (e.clientX - rect.left) / zoom - pan.x;
+            const canvasY = (e.clientY - rect.top) / zoom - pan.y;
+            
+            if (roiMode) {
+                isDrawingROI = true;
+                currentROI = {
+                    centerX: canvasX,
+                    centerY: canvasY,
+                    radius: 0,
+                    imageIndex: currentImage
+                };
+                canvas.style.cursor = 'crosshair';
+                return;
+            }
+            
             isDragging = true;
             dragMode = e.shiftKey ? 'windowing' : 'pan';
             dragStart = { x: e.clientX, y: e.clientY };
@@ -661,6 +808,19 @@ Zoom: \${(zoom * 100).toFixed(0)}%
         }
         
         function handleMouseMove(e) {
+            if (isDrawingROI && currentROI) {
+                const rect = canvas.getBoundingClientRect();
+                const canvasX = (e.clientX - rect.left) / zoom - pan.x;
+                const canvasY = (e.clientY - rect.top) / zoom - pan.y;
+                
+                const dx = canvasX - currentROI.centerX;
+                const dy = canvasY - currentROI.centerY;
+                currentROI.radius = Math.sqrt(dx * dx + dy * dy);
+                
+                renderImage();
+                return;
+            }
+            
             if (!isDragging) return;
             
             const deltaX = e.clientX - dragStart.x;
@@ -681,8 +841,25 @@ Zoom: \${(zoom * 100).toFixed(0)}%
         }
         
         function handleMouseUp() {
+            if (isDrawingROI && currentROI && currentROI.radius > 5) {
+                rois.push({...currentROI});
+                calculateROIStatistics(currentROI);
+                isDrawingROI = false;
+                currentROI = null;
+                roiMode = false;
+                updateROIModeButton();
+                renderImage();
+                return;
+            }
+            
+            if (isDrawingROI) {
+                isDrawingROI = false;
+                currentROI = null;
+                renderImage();
+            }
+            
             isDragging = false;
-            canvas.style.cursor = 'crosshair';
+            canvas.style.cursor = roiMode ? 'crosshair' : 'default';
         }
         
         function handleWheel(e) {
@@ -721,6 +898,109 @@ Zoom: \${(zoom * 100).toFixed(0)}%
             windowCenter = 40;
             renderImage();
             updateUI();
+        }
+        
+        // ROI Functions
+        function toggleROITool() {
+            roiMode = !roiMode;
+            updateROIModeButton();
+            canvas.style.cursor = roiMode ? 'crosshair' : 'default';
+        }
+        
+        function updateROIModeButton() {
+            const btn = document.getElementById('roiBtn');
+            if (roiMode) {
+                btn.textContent = '❌ Cancel ROI';
+                btn.style.background = '#dc2626';
+            } else {
+                btn.textContent = '🎯 Draw Circular ROI';
+                btn.style.background = '#4f46e5';
+            }
+        }
+        
+        function clearAllROIs() {
+            rois = [];
+            document.getElementById('roiStats').style.display = 'none';
+            renderImage();
+        }
+        
+        function calculateROIStatistics(roi) {
+            if (!images[roi.imageIndex]) return;
+            
+            const imageData = images[roi.imageIndex].imageData;
+            const { data, width, height } = imageData;
+            
+            let values = [];
+            const centerX = Math.round(roi.centerX);
+            const centerY = Math.round(roi.centerY);
+            const radius = Math.round(roi.radius);
+            
+            // Get all pixels within the circular ROI
+            for (let y = Math.max(0, centerY - radius); y <= Math.min(height - 1, centerY + radius); y++) {
+                for (let x = Math.max(0, centerX - radius); x <= Math.min(width - 1, centerX + radius); x++) {
+                    const dx = x - centerX;
+                    const dy = y - centerY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance <= radius) {
+                        const index = y * width + x;
+                        if (index >= 0 && index < data.length) {
+                            values.push(data[index]);
+                        }
+                    }
+                }
+            }
+            
+            if (values.length === 0) return;
+            
+            // Calculate statistics
+            const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+            const stdDev = Math.sqrt(variance);
+            const area = values.length;
+            
+            // Update UI
+            document.getElementById('roiMean').textContent = mean.toFixed(1) + ' HU';
+            document.getElementById('roiMin').textContent = min.toFixed(0) + ' HU';
+            document.getElementById('roiMax').textContent = max.toFixed(0) + ' HU';
+            document.getElementById('roiStdDev').textContent = stdDev.toFixed(1) + ' HU';
+            document.getElementById('roiArea').textContent = area + ' px²';
+            document.getElementById('roiStats').style.display = 'block';
+        }
+        
+        function drawROIs() {
+            // Draw existing ROIs
+            rois.forEach((roi, index) => {
+                if (roi.imageIndex === currentImage) {
+                    drawROICircle(roi, '#00ff00', 2);
+                }
+            });
+            
+            // Draw current ROI being drawn
+            if (isDrawingROI && currentROI && currentROI.radius > 0) {
+                drawROICircle(currentROI, '#ffff00', 2);
+            }
+        }
+        
+        function drawROICircle(roi, color, lineWidth) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.setLineDash([]);
+            
+            ctx.beginPath();
+            ctx.arc(roi.centerX, roi.centerY, roi.radius, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Draw center point
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(roi.centerX, roi.centerY, 2, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.restore();
         }
         
         // Initialize when page loads
@@ -1029,13 +1309,20 @@ Zoom: \${(zoom * 100).toFixed(0)}%
                         </div>
                       </div>
                       
-                      <div className="ml-4">
+                      <div className="ml-4 flex space-x-2">
                         <button
                           onClick={() => handlePreviewSeries(series)}
                           className="px-3 py-1 bg-gray-600 text-gray-200 text-xs rounded hover:bg-gray-500 transition-colors"
-                          title="Preview Series"
+                          title="Preview Series in Popup Window"
                         >
                           👁️ Preview
+                        </button>
+                        <button
+                          onClick={() => handlePreviewSeriesNewTab(series)}
+                          className="px-2 py-1 bg-blue-600 text-blue-200 text-xs rounded hover:bg-blue-500 transition-colors"
+                          title="Open in New Tab (if popups blocked)"
+                        >
+                          🗗
                         </button>
                       </div>
                     </div>
@@ -1081,8 +1368,24 @@ Zoom: \${(zoom * 100).toFixed(0)}%
         </>
       )}
 
+      {/* DICOM Viewer Instructions */}
+      <div className="mt-6 p-4 bg-blue-900/20 border border-blue-600 rounded-lg">
+        <h4 className="text-blue-200 font-medium mb-2">🖼️ DICOM Viewer Instructions</h4>
+        <div className="text-sm text-blue-100 space-y-2">
+          <p>
+            <strong>👁️ Preview:</strong> Opens DICOM viewer in popup window (stays open while you continue QC)
+          </p>
+          <p>
+            <strong>🗗 New Tab:</strong> Opens in new tab if popups are blocked
+          </p>
+          <p className="text-blue-300 text-xs">
+            💡 If popups are blocked, look for the popup blocker icon in your address bar and click "Always allow"
+          </p>
+        </div>
+      </div>
+
       {/* Future Enhancement Notice */}
-      <div className="mt-6 p-4 bg-gray-700 rounded-lg">
+      <div className="mt-4 p-4 bg-gray-700 rounded-lg">
         <h4 className="text-gray-100 font-medium mb-2">
           {templateMode ? "🚧 Template Integration Features" : "🚧 Planned Enhancements"}
         </h4>

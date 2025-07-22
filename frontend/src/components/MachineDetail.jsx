@@ -5,6 +5,7 @@ import QCHistory from './QCHistory';
 import QCCalendar from './QCCalendar';
 import QCStatusDashboard from './QCStatusDashboard';
 import QCReportWidget from './QCReportWidget';
+import { ensureSampleWorksheets } from '../utils/initializeSampleWorksheets';
 
 const MachineDetail = () => {
   const { machineId } = useParams();
@@ -18,6 +19,8 @@ const MachineDetail = () => {
   useEffect(() => {
     fetchMachineData();
     loadCustomWorksheets();
+    // Initialize sample worksheets if they don't exist
+    ensureSampleWorksheets();
   }, [machineId]);
 
   // Listen for localStorage changes to update custom worksheets
@@ -549,20 +552,24 @@ const MachineDetail = () => {
                                 )}
                               </div>
                               
-                              <div className="flex space-x-2 ml-4">
+                              <div className="flex space-x-2">
                                 <Link
-                                  to={`/qc/view-worksheet/${machine.machineId}/${frequency}/${worksheetData.id}`}
-                                  onClick={() => {
-                                    localStorage.setItem('tempWorksheetView', JSON.stringify(worksheetData));
-                                  }}
-                                  className="px-2 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-500 transition-colors"
+                                  to={`/worksheets?editWorksheet=${worksheetData.id}&viewOnly=true`}
+                                  className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
                                 >
                                   👁️ View
                                 </Link>
                                 
                                 <Link
+                                  to={`/worksheets?editWorksheet=${worksheetData.id}`}
+                                  className="px-3 py-1 bg-yellow-600 text-white text-xs rounded-md hover:bg-yellow-700 transition-colors"
+                                >
+                                  ✏️ Edit
+                                </Link>
+                                
+                                <Link
                                   to={`/qc/perform/${machine.machineId}/${frequency}/${worksheetData.id}`}
-                                  className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                                  className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
                                 >
                                   ▶️ Perform
                                 </Link>
@@ -571,43 +578,6 @@ const MachineDetail = () => {
                           </div>
                         );
                       })}
-                    </div>
-                    
-                    <div className="flex space-x-2 ml-4">
-                      {(() => {
-                        const worksheetData = customWorksheets.find(ws => 
-                          ws.modality === machine.type && 
-                          ws.frequency === frequency && 
-                          ws.assignedMachines && 
-                          ws.assignedMachines.includes(machine.machineId) &&
-                          ws.isWorksheet === true
-                        );
-                        
-                        return (
-                          <>
-                            <Link
-                              to={`/worksheets?editWorksheet=${worksheetData?.id}&viewOnly=true`}
-                              className="px-3 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
-                            >
-                              👁️ View
-                            </Link>
-                            
-                            <Link
-                              to={`/worksheets?editWorksheet=${worksheetData?.id}`}
-                              className="px-3 py-1 bg-yellow-600 text-white text-xs rounded-md hover:bg-yellow-700 transition-colors"
-                            >
-                              ✏️ Edit
-                            </Link>
-                            
-                            <Link
-                              to={`/qc/perform/${machine.machineId}/${frequency}`}
-                              className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                            >
-                              ▶️ Perform
-                            </Link>
-                          </>
-                        );
-                      })()}
                     </div>
                   </div>
                 </div>

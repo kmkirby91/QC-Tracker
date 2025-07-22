@@ -894,4 +894,8 @@ router.patch('/:id/status', (req, res) => {
   }
 });
 
+// Export function to get all machines (for internal use)
+const getAllMachines = () => mockMachines;
+
 module.exports = router;
+module.exports.getAllMachines = getAllMachines;

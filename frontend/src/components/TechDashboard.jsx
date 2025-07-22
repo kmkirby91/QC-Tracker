@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import QCNotifications from './QCNotifications';
 
 const TechDashboard = () => {
   const navigate = useNavigate();
@@ -198,6 +199,9 @@ const TechDashboard = () => {
           {dailyQCTasks.length} daily QC task(s) • {locationMachines.length} machine(s)
         </div>
       </div>
+
+      {/* QC Notifications */}
+      <QCNotifications showAll={false} />
 
       {/* Location Selection */}
       <div className="bg-gray-800 rounded-lg p-6 mb-6">
