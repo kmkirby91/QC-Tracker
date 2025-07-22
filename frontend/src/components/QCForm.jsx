@@ -21,6 +21,7 @@ const QCForm = ({ viewOnly = false }) => {
   const [showDICOMAnalysis, setShowDICOMAnalysis] = useState(false);
   const [dicomAnalysisResults, setDicomAnalysisResults] = useState(null);
   const [selectedDICOMSeries, setSelectedDICOMSeries] = useState([]);
+  const [currentWorksheet, setCurrentWorksheet] = useState(null);
 
   useEffect(() => {
     fetchMachineAndTests();
@@ -84,6 +85,7 @@ const QCForm = ({ viewOnly = false }) => {
               customFieldType: test.customFieldType || 'template-default'
             }));
             hasCustomWorksheet = true;
+            setCurrentWorksheet(customWorksheet); // Store worksheet info for submission
             console.log('Found custom worksheet for machine:', foundMachine.machineId, customWorksheet);
           }
         }
@@ -407,17 +409,26 @@ const QCForm = ({ viewOnly = false }) => {
         comments: formData.comments,
         overallResult: tests.some(test => 
           (formData[test.testName]?.result || determineResult(test.testName, formData[test.testName]?.value)) === 'fail'
-        ) ? 'fail' : 'pass'
+        ) ? 'fail' : 'pass',
+        // Include worksheet information for status tracking
+        worksheetId: currentWorksheet?.id || worksheetId,
+        worksheetTitle: currentWorksheet?.title || `${frequency} QC`
       };
 
-      await axios.post(`/api/qc/submit`, qcData);
+      const response = await axios.post(`/api/qc/submit`, qcData);
       
       // Clear any saved draft after successful submission
       const draftKey = `qc_draft_${machineId}_${frequency}_${selectedDate}`;
       localStorage.removeItem(draftKey);
       
+      // Store a flag to trigger QC status refresh on the machine detail page
+      localStorage.setItem('qcStatusRefresh', Date.now().toString());
+      
       navigate(`/machines/${machineId}`, { 
-        state: { message: `${frequency} QC completed successfully!` }
+        state: { 
+          message: `${frequency} QC completed successfully!`,
+          completedQC: response.data.completedQC 
+        }
       });
       
     } catch (error) {

@@ -33,6 +33,32 @@ const MachineDetail = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Listen for QC completion to refresh status
+  useEffect(() => {
+    const checkQCRefresh = () => {
+      const refreshFlag = localStorage.getItem('qcStatusRefresh');
+      if (refreshFlag) {
+        // Remove the flag and refresh QC data
+        localStorage.removeItem('qcStatusRefresh');
+        console.log('QC completion detected, refreshing QC history...');
+        
+        // Refetch QC history to include the newly completed QC
+        if (machine) {
+          fetchMachineData();
+        }
+      }
+    };
+
+    // Check immediately when component mounts/updates
+    checkQCRefresh();
+
+    // Also listen for storage events (in case of multiple tabs)
+    const handleQCRefresh = () => checkQCRefresh();
+    window.addEventListener('storage', handleQCRefresh);
+    
+    return () => window.removeEventListener('storage', handleQCRefresh);
+  }, [machine]);
+
   const fetchMachineData = async () => {
     try {
       setLoading(true);

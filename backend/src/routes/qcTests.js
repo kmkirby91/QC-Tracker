@@ -155,6 +155,29 @@ const generateQCHistory = (machineType, machineId) => {
     annual: []
   };
 
+  // Add completed QCs from global storage (real submissions)
+  if (global.completedQCs) {
+    const machineCompletedQCs = global.completedQCs.filter(qc => qc.machineId === machineId);
+    
+    machineCompletedQCs.forEach(qc => {
+      if (history[qc.frequency]) {
+        // Add the real completed QC to history
+        history[qc.frequency].push({
+          id: qc.id,
+          date: qc.date,
+          overallResult: qc.overallResult,
+          completedAt: qc.completedAt,
+          performedBy: qc.performedBy,
+          comments: qc.comments,
+          tests: qc.tests,
+          worksheetId: qc.worksheetId,
+          worksheetTitle: qc.worksheetTitle,
+          isRealSubmission: true // Mark as real submission vs mock
+        });
+      }
+    });
+  }
+
   // IMPORTANT: Only generate history for machines that actually have worksheets assigned
   // Check against our consistent sample worksheet assignments
   const hasWorksheetAssigned = (machine, frequency) => {
@@ -170,9 +193,13 @@ const generateQCHistory = (machineType, machineId) => {
     for (let i = 0; i < 30; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
       
       // Skip weekends for daily QC
       if (date.getDay() === 0 || date.getDay() === 6) continue;
+      
+      // Skip if real QC already exists for this date
+      if (history.daily.some(qc => qc.date === dateStr && qc.isRealSubmission)) continue;
       
       // Skip today's QC for MRI-ESS-001 to simulate missing daily QC
       if (i === 0 && machineId === 'MRI-ESS-001') continue;
@@ -300,7 +327,7 @@ const generateQCHistory = (machineType, machineId) => {
     }
     
     history.daily.push({
-      date: date.toISOString().split('T')[0],
+      date: dateStr,
       overallResult: dailyTests.some(t => t.result === 'fail') ? 'fail' : 'pass',
       tests: dailyTests,
       performedBy: todaysTechnician,
@@ -315,6 +342,10 @@ const generateQCHistory = (machineType, machineId) => {
     for (let i = 0; i < 12; i++) {
       const date = new Date();
       date.setDate(date.getDate() - (i * 7)); // Go back by weeks
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Skip if real QC already exists for this date
+      if (history.weekly.some(qc => qc.date === dateStr && qc.isRealSubmission)) continue;
       
       // Select a single technician for weekly QC
       const weeklyTechnician = ['John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Williams'][Math.floor(Math.random() * 4)];
@@ -331,7 +362,7 @@ const generateQCHistory = (machineType, machineId) => {
       const weeklyComments = 'Weekly QC completed successfully. All parameters within tolerance.';
       
       history.weekly.push({
-        date: date.toISOString().split('T')[0],
+        date: dateStr,
         overallResult: weeklyTests.some(t => t.result === 'fail') ? 'fail' : 
                        weeklyTests.some(t => t.result === 'conditional') ? 'conditional' : 'pass',
         tests: weeklyTests,
@@ -347,6 +378,10 @@ const generateQCHistory = (machineType, machineId) => {
     for (let i = 0; i < 12; i++) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Skip if real QC already exists for this date
+      if (history.monthly.some(qc => qc.date === dateStr && qc.isRealSubmission)) continue;
       
       // Skip last month's QC for PET-WOM-001 to simulate overdue monthly QC
       if (i === 1 && machineId === 'PET-WOM-001') continue;
@@ -387,7 +422,7 @@ const generateQCHistory = (machineType, machineId) => {
     }
     
     history.monthly.push({
-      date: date.toISOString().split('T')[0],
+      date: dateStr,
       overallResult: monthlyTests.some(t => t.result === 'fail') ? 'fail' : 
                      monthlyTests.some(t => t.result === 'conditional') ? 'conditional' : 'pass',
       tests: monthlyTests,
@@ -405,6 +440,10 @@ const generateQCHistory = (machineType, machineId) => {
       const date = new Date();
       const currentQuarter = Math.floor(date.getMonth() / 3);
       const quarterStart = new Date(date.getFullYear(), currentQuarter * 3 - (i * 3), 1);
+      const dateStr = quarterStart.toISOString().split('T')[0];
+      
+      // Skip if real QC already exists for this date
+      if (history.quarterly.some(qc => qc.date === dateStr && qc.isRealSubmission)) continue;
       
       // Select a single physicist/specialist for quarterly QC
       const quarterlySpecialist = ['Dr. Patricia Lee', 'Dr. Michael Chen', 'Dr. Robert Zhang'][Math.floor(Math.random() * 3)];
@@ -429,7 +468,7 @@ const generateQCHistory = (machineType, machineId) => {
       }
       
       history.quarterly.push({
-        date: quarterStart.toISOString().split('T')[0],
+        date: dateStr,
         quarter: `Q${Math.floor(quarterStart.getMonth() / 3) + 1} ${quarterStart.getFullYear()}`,
         overallResult: quarterlyTests.some(t => t.result === 'fail') ? 'fail' : 
                        quarterlyTests.some(t => t.result === 'conditional') ? 'conditional' : 'pass',
@@ -448,6 +487,10 @@ const generateQCHistory = (machineType, machineId) => {
       const date = new Date();
       const year = date.getFullYear() - i;
       const yearStart = new Date(year, 0, 1);
+      const dateStr = yearStart.toISOString().split('T')[0];
+      
+      // Skip if real QC already exists for this date
+      if (history.annual.some(qc => qc.date === dateStr && qc.isRealSubmission)) continue;
       
       // Select a senior physicist/engineer for annual QC
       const annualSpecialist = ['Dr. Richard Thompson', 'Dr. Sarah Martinez', 'Dr. Elizabeth Kumar'][Math.floor(Math.random() * 3)];
@@ -477,7 +520,7 @@ const generateQCHistory = (machineType, machineId) => {
       }
       
       history.annual.push({
-        date: yearStart.toISOString().split('T')[0],
+        date: dateStr,
         year: year,
         overallResult: annualTests.some(t => t.result === 'fail') ? 'fail' : 
                        annualTests.some(t => t.result === 'conditional') ? 'conditional' : 'pass',
@@ -832,11 +875,35 @@ router.post('/submit', (req, res) => {
     // In a real implementation, this would save to database
     console.log('QC Data submitted:', qcData);
     
-    // For now, just return success
+    // For prototype: Store completed QC in a way that can be retrieved by QC history
+    // This creates a bridge between submissions and status checking
+    const completedQC = {
+      id: Date.now().toString(),
+      machineId: qcData.machineId,
+      machineType: qcData.machineType,
+      frequency: qcData.frequency,
+      date: qcData.date,
+      tests: qcData.tests,
+      performedBy: qcData.performedBy,
+      comments: qcData.comments,
+      overallResult: qcData.overallResult,
+      completedAt: new Date().toISOString(),
+      worksheetId: qcData.worksheetId, // Include worksheet ID for status matching
+      worksheetTitle: qcData.worksheetTitle
+    };
+    
+    // Add to in-memory storage (in production, this would go to database)
+    if (!global.completedQCs) {
+      global.completedQCs = [];
+    }
+    global.completedQCs.push(completedQC);
+    
+    // Also return the completion data for frontend to handle
     res.json({ 
       success: true, 
       message: 'QC data submitted successfully',
-      id: Date.now().toString()
+      id: completedQC.id,
+      completedQC: completedQC
     });
     
   } catch (error) {
