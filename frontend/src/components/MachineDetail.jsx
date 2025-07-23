@@ -440,6 +440,19 @@ const MachineDetail = () => {
         <QCStatusDashboard machine={machine} qcHistory={qcHistory} />
       )}
 
+      {/* QC Schedule Status */}
+      {machine && (
+        <QCScheduleStatus 
+          machine={machine} 
+          worksheets={customWorksheets.filter(ws => 
+            ws.modality === machine.type && 
+            ws.assignedMachines && 
+            ws.assignedMachines.includes(machine.machineId) &&
+            ws.isWorksheet === true
+          )} 
+        />
+      )}
+
       {/* Assigned QC Worksheets */}
       <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
         <h2 className="text-xl font-semibold text-gray-100 mb-4">Assigned QC Worksheets</h2>
@@ -558,19 +571,6 @@ const MachineDetail = () => {
           </div>
         )}
       </div>
-
-      {/* QC Schedule Status */}
-      {machine && (
-        <QCScheduleStatus 
-          machine={machine} 
-          worksheets={customWorksheets.filter(ws => 
-            ws.modality === machine.type && 
-            ws.assignedMachines && 
-            ws.assignedMachines.includes(machine.machineId) &&
-            ws.isWorksheet === true
-          )} 
-        />
-      )}
 
       {/* ACR Accreditation Status */}
       {(machine.type === 'MRI' || machine.type === 'CT' || machine.type === 'Mammography') && (
