@@ -440,109 +440,6 @@ const MachineDetail = () => {
         <QCStatusDashboard machine={machine} qcHistory={qcHistory} />
       )}
 
-      {/* ACR Accreditation Status */}
-      {(machine.type === 'MRI' || machine.type === 'CT' || machine.type === 'Mammography') && (
-        <div className="bg-gray-800 rounded-lg shadow-lg p-4 mb-4">
-          <h2 className="text-lg font-semibold text-gray-100 mb-3 flex items-center">
-            <span className="text-lg mr-2">🏆</span>
-            ACR Accreditation Status
-          </h2>
-          
-          {(() => {
-            // Calculate ACR dates - using mock data for now
-            // In real implementation, this would come from machine.acrAccreditation
-            const mockGrantedDate = new Date('2022-03-15'); // Mock ACR granted date
-            const dueDate = new Date(mockGrantedDate);
-            dueDate.setFullYear(dueDate.getFullYear() + 3); // 3 years from granted date
-            
-            const bugDate = new Date(dueDate);
-            bugDate.setMonth(bugDate.getMonth() - 8); // 8 months before due date
-            
-            const today = new Date();
-            const daysToDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-            const daysToBug = Math.ceil((bugDate - today) / (1000 * 60 * 60 * 24));
-            
-            // Determine status and color
-            let statusColor = 'text-green-400';
-            let statusText = 'Current';
-            let statusIcon = '✅';
-            
-            if (daysToDue < 0) {
-              statusColor = 'text-red-400';
-              statusText = 'EXPIRED';
-              statusIcon = '❌';
-            } else if (daysToBug < 0) {
-              statusColor = 'text-yellow-400';
-              statusText = 'Renewal Required';
-              statusIcon = '⚠️';
-            } else if (daysToBug <= 30) {
-              statusColor = 'text-orange-400';
-              statusText = 'Renewal Approaching';
-              statusIcon = '🔔';
-            }
-            
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <h3 className="font-medium text-gray-300 mb-1 text-xs">DATES</h3>
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Granted:</span>
-                      <span className="font-medium">{mockGrantedDate.toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Due:</span>
-                      <span className="font-medium">{dueDate.toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">ACR notifies:</span>
-                      <span className="font-medium text-orange-300">{bugDate.toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="font-medium text-gray-300 mb-1 text-xs">STATUS</h3>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">{statusIcon}</span>
-                    <span className={`font-medium ${statusColor}`}>{statusText}</span>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="font-medium text-gray-300 mb-1 text-xs">TIMELINE</h3>
-                  <div className="space-y-1">
-                    {daysToDue >= 0 && (
-                      <div className="text-gray-400">
-                        <span className="font-medium text-gray-300">{daysToDue}</span> days until due
-                      </div>
-                    )}
-                    
-                    {daysToDue < 0 && (
-                      <div className="text-red-400">
-                        <span className="font-medium">Expired {Math.abs(daysToDue)}</span> days ago
-                      </div>
-                    )}
-                    
-                    {daysToBug > 0 && daysToBug <= 60 && (
-                      <div className="text-orange-400 text-xs">
-                        ACR notifies in <span className="font-medium">{daysToBug}</span> days
-                      </div>
-                    )}
-                    
-                    {daysToBug <= 0 && daysToDue > 0 && (
-                      <div className="text-yellow-400 text-xs">
-                        ⚠️ Renewal period active
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
       {/* Assigned QC Worksheets */}
       <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
         <h2 className="text-xl font-semibold text-gray-100 mb-4">Assigned QC Worksheets</h2>
@@ -673,6 +570,109 @@ const MachineDetail = () => {
             ws.isWorksheet === true
           )} 
         />
+      )}
+
+      {/* ACR Accreditation Status */}
+      {(machine.type === 'MRI' || machine.type === 'CT' || machine.type === 'Mammography') && (
+        <div className="bg-gray-800 rounded-lg shadow-lg p-4 mb-4">
+          <h2 className="text-lg font-semibold text-gray-100 mb-3 flex items-center">
+            <span className="text-lg mr-2">🏆</span>
+            ACR Accreditation Status
+          </h2>
+          
+          {(() => {
+            // Calculate ACR dates - using mock data for now
+            // In real implementation, this would come from machine.acrAccreditation
+            const mockGrantedDate = new Date('2022-03-15'); // Mock ACR granted date
+            const dueDate = new Date(mockGrantedDate);
+            dueDate.setFullYear(dueDate.getFullYear() + 3); // 3 years from granted date
+            
+            const bugDate = new Date(dueDate);
+            bugDate.setMonth(bugDate.getMonth() - 8); // 8 months before due date
+            
+            const today = new Date();
+            const daysToDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            const daysToBug = Math.ceil((bugDate - today) / (1000 * 60 * 60 * 24));
+            
+            // Determine status and color
+            let statusColor = 'text-green-400';
+            let statusText = 'Current';
+            let statusIcon = '✅';
+            
+            if (daysToDue < 0) {
+              statusColor = 'text-red-400';
+              statusText = 'EXPIRED';
+              statusIcon = '❌';
+            } else if (daysToBug < 0) {
+              statusColor = 'text-yellow-400';
+              statusText = 'Renewal Required';
+              statusIcon = '⚠️';
+            } else if (daysToBug <= 30) {
+              statusColor = 'text-orange-400';
+              statusText = 'Renewal Approaching';
+              statusIcon = '🔔';
+            }
+            
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <h3 className="font-medium text-gray-300 mb-1 text-xs">DATES</h3>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Granted:</span>
+                      <span className="font-medium">{mockGrantedDate.toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Due:</span>
+                      <span className="font-medium">{dueDate.toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">ACR notifies:</span>
+                      <span className="font-medium text-orange-300">{bugDate.toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-300 mb-1 text-xs">STATUS</h3>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg">{statusIcon}</span>
+                    <span className={`font-medium ${statusColor}`}>{statusText}</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium text-gray-300 mb-1 text-xs">TIMELINE</h3>
+                  <div className="space-y-1">
+                    {daysToDue >= 0 && (
+                      <div className="text-gray-400">
+                        <span className="font-medium text-gray-300">{daysToDue}</span> days until due
+                      </div>
+                    )}
+                    
+                    {daysToDue < 0 && (
+                      <div className="text-red-400">
+                        <span className="font-medium">Expired {Math.abs(daysToDue)}</span> days ago
+                      </div>
+                    )}
+                    
+                    {daysToBug > 0 && daysToBug <= 60 && (
+                      <div className="text-orange-400 text-xs">
+                        ACR notifies in <span className="font-medium">{daysToBug}</span> days
+                      </div>
+                    )}
+                    
+                    {daysToBug <= 0 && daysToDue > 0 && (
+                      <div className="text-yellow-400 text-xs">
+                        ⚠️ Renewal period active
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
       )}
 
       {/* QC Report Widget */}
