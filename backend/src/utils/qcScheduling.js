@@ -2,6 +2,65 @@
 // Provides consistent due date logic for QC tracker system
 
 /**
+ * Generate all QC due dates from start date to today based on frequency
+ * @param {string} frequency - 'daily', 'weekly', 'monthly', 'quarterly', 'annual'
+ * @param {string} startDate - ISO date string when QC started (YYYY-MM-DD)
+ * @param {string} [endDate] - ISO date string to generate dates until (defaults to today)
+ * @returns {array} - Array of due date strings ['YYYY-MM-DD', ...]
+ */
+const generateQCDueDates = (frequency, startDate, endDate = null) => {
+  const dueDates = [];
+  const start = new Date(startDate);
+  const end = endDate ? new Date(endDate) : new Date();
+  
+  let currentDue = new Date(start);
+  
+  while (currentDue <= end) {
+    switch (frequency) {
+      case 'daily':
+        // Daily QC is due on weekdays only (skip weekends)
+        if (currentDue.getDay() !== 0 && currentDue.getDay() !== 6) {
+          dueDates.push(currentDue.toISOString().split('T')[0]);
+        }
+        currentDue.setDate(currentDue.getDate() + 1);
+        break;
+        
+      case 'weekly':
+        dueDates.push(currentDue.toISOString().split('T')[0]);
+        currentDue.setDate(currentDue.getDate() + 7);
+        break;
+        
+      case 'monthly':
+        dueDates.push(currentDue.toISOString().split('T')[0]);
+        currentDue.setMonth(currentDue.getMonth() + 1);
+        break;
+        
+      case 'quarterly':
+        dueDates.push(currentDue.toISOString().split('T')[0]);
+        currentDue.setMonth(currentDue.getMonth() + 3);
+        break;
+        
+      case 'annual':
+        dueDates.push(currentDue.toISOString().split('T')[0]);
+        currentDue.setFullYear(currentDue.getFullYear() + 1);
+        break;
+        
+      default:
+        // Safety break for unknown frequencies
+        break;
+    }
+    
+    // Safety break to prevent infinite loops
+    if (dueDates.length > 1000) {
+      console.warn(`QC due date generation stopped at 1000 dates for frequency ${frequency}`);
+      break;
+    }
+  }
+  
+  return dueDates;
+};
+
+/**
  * Calculate the next due date for a QC worksheet based on frequency and start date
  * @param {string} frequency - 'daily', 'weekly', 'monthly', 'quarterly', 'annual'
  * @param {string} startDate - ISO date string when QC started (YYYY-MM-DD)
@@ -296,10 +355,50 @@ const generateSampleWorksheetAssignments = () => {
   return assignments;
 };
 
+/**
+ * Get QC status for a worksheet including all due dates and completion status
+ * @param {string} machineId - Machine ID
+ * @param {string} frequency - QC frequency
+ * @param {string} startDate - Worksheet start date (YYYY-MM-DD)
+ * @param {array} completedDates - Array of completed QC dates ['YYYY-MM-DD', ...]
+ * @returns {object} - { dueDates: [], missedDates: [], completedDates: [], nextDue: string, overdueCount: number }
+ */
+const getWorksheetQCStatus = (machineId, frequency, startDate, completedDates = []) => {
+  const allDueDates = generateQCDueDates(frequency, startDate);
+  const missedDates = [];
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Find missed QC dates (due dates that are before today and not completed)
+  allDueDates.forEach(dueDate => {
+    if (dueDate <= today && !completedDates.includes(dueDate)) {
+      missedDates.push(dueDate);
+    }
+  });
+  
+  // Calculate next due date
+  const nextDue = calculateNextDueDate(frequency, startDate, 
+    completedDates.length > 0 ? completedDates[completedDates.length - 1] : null);
+  
+  return {
+    dueDates: allDueDates,
+    missedDates: missedDates,
+    completedDates: completedDates,
+    nextDue: nextDue.nextDue,
+    isOverdue: nextDue.isOverdue,
+    daysOverdue: nextDue.daysOverdue,
+    overdueCount: missedDates.length,
+    totalDueToDate: allDueDates.filter(date => date <= today).length,
+    completionRate: allDueDates.filter(date => date <= today).length > 0 ? 
+      (completedDates.length / allDueDates.filter(date => date <= today).length * 100).toFixed(1) : 0
+  };
+};
+
 module.exports = {
   calculateNextDueDate,
   getMissedQCDates,
   checkWorksheetAssignment,
   getQCPriority,
-  generateSampleWorksheetAssignments
+  generateSampleWorksheetAssignments,
+  generateQCDueDates,
+  getWorksheetQCStatus
 };

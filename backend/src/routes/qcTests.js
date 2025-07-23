@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { calculateNextDueDate, getMissedQCDates, getQCPriority, generateSampleWorksheetAssignments } = require('../utils/qcScheduling');
+const { calculateNextDueDate, getMissedQCDates, getQCPriority, generateSampleWorksheetAssignments, generateQCDueDates, getWorksheetQCStatus } = require('../utils/qcScheduling');
 
 // QC test templates by machine type
 const qcTestTemplates = {
@@ -909,6 +909,74 @@ router.post('/submit', (req, res) => {
   } catch (error) {
     console.error('Error submitting QC data:', error);
     res.status(500).json({ error: 'Failed to submit QC data' });
+  }
+});
+
+// Get QC schedule and status for a specific worksheet
+router.get('/worksheet/:worksheetId/schedule', (req, res) => {
+  try {
+    const { worksheetId } = req.params;
+    
+    // In a real implementation, this would fetch worksheet data from database
+    // For demo, we'll simulate getting worksheet information
+    console.log('Getting QC schedule for worksheet:', worksheetId);
+    
+    // Mock worksheet data - in production this would come from database
+    const mockWorksheet = {
+      id: worksheetId,
+      machineId: 'CT-GON-001',
+      frequency: 'daily',
+      startDate: '2024-01-15',
+      title: 'ACR CT Daily QC Protocol'
+    };
+    
+    // Get completed QCs for this worksheet (from localStorage would be passed via request)
+    const completedDates = req.query.completedDates ? 
+      JSON.parse(req.query.completedDates) : [];
+    
+    // Generate complete QC schedule and status
+    const qcStatus = getWorksheetQCStatus(
+      mockWorksheet.machineId,
+      mockWorksheet.frequency,
+      mockWorksheet.startDate,
+      completedDates
+    );
+    
+    res.json({
+      worksheet: mockWorksheet,
+      schedule: qcStatus,
+      message: `Generated ${qcStatus.dueDates.length} QC due dates from ${mockWorksheet.startDate} to today`
+    });
+    
+  } catch (error) {
+    console.error('Error generating QC schedule:', error);
+    res.status(500).json({ error: 'Failed to generate QC schedule' });
+  }
+});
+
+// Generate QC due dates for a specific frequency and date range
+router.get('/schedule/generate', (req, res) => {
+  try {
+    const { frequency, startDate, endDate } = req.query;
+    
+    if (!frequency || !startDate) {
+      return res.status(400).json({ error: 'frequency and startDate are required' });
+    }
+    
+    const dueDates = generateQCDueDates(frequency, startDate, endDate);
+    
+    res.json({
+      frequency,
+      startDate,
+      endDate: endDate || 'today',
+      dueDates,
+      count: dueDates.length,
+      message: `Generated ${dueDates.length} ${frequency} QC due dates`
+    });
+    
+  } catch (error) {
+    console.error('Error generating QC due dates:', error);
+    res.status(500).json({ error: 'Failed to generate QC due dates' });
   }
 });
 

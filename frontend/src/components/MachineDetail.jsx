@@ -5,6 +5,7 @@ import QCHistory from './QCHistory';
 import QCCalendar from './QCCalendar';
 import QCStatusDashboard from './QCStatusDashboard';
 import QCReportWidget from './QCReportWidget';
+import QCScheduleStatus from './QCScheduleStatus';
 import { ensureSampleWorksheets, reinitializeSampleWorksheets } from '../utils/initializeSampleWorksheets';
 
 const MachineDetail = () => {
@@ -640,6 +641,19 @@ const MachineDetail = () => {
       {/* QC Status Dashboard */}
       {qcHistory && (
         <QCStatusDashboard machine={machine} qcHistory={qcHistory} />
+      )}
+
+      {/* QC Schedule Status */}
+      {machine && (
+        <QCScheduleStatus 
+          machine={machine} 
+          worksheets={customWorksheets.filter(ws => 
+            ws.modality === machine.type && 
+            ws.assignedMachines && 
+            ws.assignedMachines.includes(machine.machineId) &&
+            ws.isWorksheet === true
+          )} 
+        />
       )}
 
       {/* QC Report Widget */}
