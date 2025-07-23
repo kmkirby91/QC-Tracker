@@ -307,6 +307,25 @@ const MachineDetail = () => {
                 <dt className="text-gray-400">Serial Number:</dt>
                 <dd className="font-medium">{machine.serialNumber}</dd>
               </div>
+              {(machine.type === 'MRI' || machine.type === 'CT' || machine.type === 'Mammography') && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-400">ACR Status:</dt>
+                  <dd className="font-medium">
+                    {(() => {
+                      // Calculate ACR status - using mock data for now
+                      const mockGrantedDate = new Date('2022-03-15');
+                      const dueDate = new Date(mockGrantedDate);
+                      dueDate.setFullYear(dueDate.getFullYear() + 3);
+                      const today = new Date();
+                      const daysToDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                      
+                      if (daysToDue < 0) return <span className="text-red-400">EXPIRED</span>;
+                      else if (daysToDue <= 30) return <span className="text-orange-400">RENEWAL</span>;
+                      else return <span className="text-green-400">CURRENT</span>;
+                    })()}
+                  </dd>
+                </div>
+              )}
             </dl>
           </div>
 
@@ -416,6 +435,11 @@ const MachineDetail = () => {
         </div>
       </div>
 
+      {/* Today's QC Dashboard */}
+      {qcHistory && (
+        <QCStatusDashboard machine={machine} qcHistory={qcHistory} />
+      )}
+
       {/* ACR Accreditation Status */}
       {(machine.type === 'MRI' || machine.type === 'CT' || machine.type === 'Mammography') && (
         <div className="bg-gray-800 rounded-lg shadow-lg p-4 mb-4">
@@ -517,11 +541,6 @@ const MachineDetail = () => {
             );
           })()}
         </div>
-      )}
-
-      {/* Today's QC Dashboard */}
-      {qcHistory && (
-        <QCStatusDashboard machine={machine} qcHistory={qcHistory} />
       )}
 
       {/* Assigned QC Worksheets */}
