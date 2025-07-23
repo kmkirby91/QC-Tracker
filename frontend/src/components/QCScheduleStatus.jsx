@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const QCScheduleStatus = ({ machine, worksheets }) => {
+const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
   const [scheduleData, setScheduleData] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -200,7 +200,7 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
       <h2 className="text-lg font-semibold text-gray-100 mb-4">QC Schedule Status</h2>
       
       {/* Overall Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div className={`grid gap-4 mb-6 ${compact ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-2 md:grid-cols-5'}`}>
         <div className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-4">
           <div className="text-sm text-yellow-400">Due Today</div>
           <div className="text-2xl font-bold text-yellow-400">{stats.totalDueToday}</div>
@@ -213,14 +213,18 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
           <div className="text-sm text-red-300">Failures</div>
           <div className="text-2xl font-bold text-red-300">{stats.totalFailures}</div>
         </div>
-        <div className="bg-green-900/20 border border-green-600 rounded-lg p-4">
-          <div className="text-sm text-green-400">Completed</div>
-          <div className="text-2xl font-bold text-green-400">{stats.totalCompleted}</div>
-        </div>
-        <div className="bg-gray-700 rounded-lg p-4">
-          <div className="text-sm text-gray-400">Total Due</div>
-          <div className="text-2xl font-bold text-gray-100">{stats.totalDue}</div>
-        </div>
+        {!compact && (
+          <>
+            <div className="bg-green-900/20 border border-green-600 rounded-lg p-4">
+              <div className="text-sm text-green-400">Completed</div>
+              <div className="text-2xl font-bold text-green-400">{stats.totalCompleted}</div>
+            </div>
+            <div className="bg-gray-700 rounded-lg p-4">
+              <div className="text-sm text-gray-400">Total Due</div>
+              <div className="text-2xl font-bold text-gray-100">{stats.totalDue}</div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* QCs Due Today */}
@@ -297,36 +301,38 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
         </div>
       )}
 
-      {/* Individual Worksheet Status */}
-      <div className="space-y-3">
-        <h3 className="text-md font-medium text-gray-100">Worksheet Schedules</h3>
-        {Object.values(scheduleData).map((schedule, index) => (
-          <div key={index} className="bg-gray-700 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-2">
-              <div>
-                <div className="font-medium text-gray-100">{schedule.worksheet.title}</div>
-                <div className="text-sm text-gray-400">
-                  {schedule.worksheet.frequency} QC | Started: {schedule.worksheet.startDate || 'Unknown'}
+      {/* Individual Worksheet Status - only show in full mode */}
+      {!compact && (
+        <div className="space-y-3">
+          <h3 className="text-md font-medium text-gray-100">Worksheet Schedules</h3>
+          {Object.values(scheduleData).map((schedule, index) => (
+            <div key={index} className="bg-gray-700 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-2">
+                <div>
+                  <div className="font-medium text-gray-100">{schedule.worksheet.title}</div>
+                  <div className="text-sm text-gray-400">
+                    {schedule.worksheet.frequency} QC | Started: {schedule.worksheet.startDate || 'Unknown'}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-300">
+                    {schedule.completionRate}% complete
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {schedule.completedDates.length} / {schedule.dueDates.filter(date => date <= new Date().toISOString().split('T')[0]).length} done
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-sm text-gray-300">
-                  {schedule.completionRate}% complete
+              
+              {schedule.overdueCount > 0 && (
+                <div className="text-sm text-red-400">
+                  🚨 {schedule.overdueCount} QCs overdue
                 </div>
-                <div className="text-xs text-gray-400">
-                  {schedule.completedDates.length} / {schedule.dueDates.filter(date => date <= new Date().toISOString().split('T')[0]).length} done
-                </div>
-              </div>
+              )}
             </div>
-            
-            {schedule.overdueCount > 0 && (
-              <div className="text-sm text-red-400">
-                🚨 {schedule.overdueCount} QCs overdue
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {qcsDue.length === 0 && overdueQCs.length === 0 && qcFailures.length === 0 && (
         <div className="text-green-400 text-sm mt-4">

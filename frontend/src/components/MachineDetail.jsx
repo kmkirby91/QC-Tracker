@@ -450,6 +450,7 @@ const MachineDetail = () => {
             ws.assignedMachines.includes(machine.machineId) &&
             ws.isWorksheet === true
           )} 
+          compact={true}
         />
       )}
 
