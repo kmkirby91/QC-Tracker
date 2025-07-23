@@ -5,7 +5,7 @@ import QCHistory from './QCHistory';
 import QCCalendar from './QCCalendar';
 import QCStatusDashboard from './QCStatusDashboard';
 import QCReportWidget from './QCReportWidget';
-import { ensureSampleWorksheets } from '../utils/initializeSampleWorksheets';
+import { ensureSampleWorksheets, reinitializeSampleWorksheets } from '../utils/initializeSampleWorksheets';
 
 const MachineDetail = () => {
   const { machineId } = useParams();
@@ -244,10 +244,24 @@ const MachineDetail = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <Link to="/" className="text-blue-400 hover:underline text-sm">
           ← Back to Dashboard
         </Link>
+        
+        {/* Temporary testing button */}
+        {machine?.machineId === 'CT-GON-001' && (
+          <button
+            onClick={() => {
+              reinitializeSampleWorksheets();
+              window.location.reload();
+            }}
+            className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 transition-colors"
+            title="Reinitialize with multiple daily QCs for testing"
+          >
+            🔄 Test Multiple QCs
+          </button>
+        )}
       </div>
 
       {/* Machine Header */}

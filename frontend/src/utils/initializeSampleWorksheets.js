@@ -67,6 +67,49 @@ export const initializeSampleWorksheets = () => {
         updatedAt: new Date().toISOString()
       },
 
+      // CT Daily QC #2 - Second daily worksheet for CT-GON-001 to test multiple worksheet completion
+      {
+        id: 'sample-ct-daily-002',
+        title: 'CT Safety & Calibration Daily QC',
+        modality: 'CT',
+        frequency: 'daily',
+        description: 'Additional daily safety and calibration checks for CT scanners',
+        assignedMachines: ['CT-GON-001'], // Siemens SOMATOM Force
+        isWorksheet: true,
+        startDate: '2024-01-15',
+        tests: [
+          {
+            id: 1,
+            testName: 'Radiation Safety Check',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: '',
+            notes: 'Verify all radiation safety systems are functional',
+            description: 'Check radiation safety interlocks and warning systems'
+          },
+          {
+            id: 2,
+            testName: 'Laser Alignment Check',
+            testType: 'value',
+            tolerance: '±2 mm',
+            units: 'mm',
+            notes: 'Check patient positioning laser alignment accuracy',
+            description: 'Verify laser positioning system accuracy'
+          },
+          {
+            id: 3,
+            testName: 'Table Movement Check',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: '',
+            notes: 'Test patient table movement in all directions',
+            description: 'Verify patient table mechanical operation'
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+
       // MRI Daily QC - Matches backend assignment for MRI-GON-001
       {
         id: 'sample-mri-daily-001',
@@ -324,4 +367,20 @@ export const initializeSampleWorksheets = () => {
 export const ensureSampleWorksheets = () => {
   const worksheets = initializeSampleWorksheets();
   return worksheets;
+};
+
+// Force reinitialize worksheets (useful for testing multiple worksheet scenarios)
+export const reinitializeSampleWorksheets = () => {
+  try {
+    localStorage.removeItem('qcWorksheets');
+    localStorage.removeItem('qcCompletions'); // Also clear any existing completions
+    console.log('🔄 Clearing existing worksheets and completions...');
+    
+    const worksheets = initializeSampleWorksheets();
+    console.log('✅ Sample worksheets reinitialized with multiple daily QCs for CT-GON-001');
+    return worksheets;
+  } catch (error) {
+    console.error('Error reinitializing sample worksheets:', error);
+    return [];
+  }
 };
