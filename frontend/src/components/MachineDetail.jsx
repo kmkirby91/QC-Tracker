@@ -251,16 +251,28 @@ const MachineDetail = () => {
         
         {/* Temporary testing button */}
         {machine?.machineId === 'CT-GON-001' && (
-          <button
-            onClick={() => {
-              reinitializeSampleWorksheets();
-              window.location.reload();
-            }}
-            className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 transition-colors"
-            title="Reinitialize with multiple daily QCs for testing"
-          >
-            🔄 Test Multiple QCs
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => {
+                reinitializeSampleWorksheets();
+                window.location.reload();
+              }}
+              className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 transition-colors"
+              title="Reinitialize with multiple daily QCs for testing"
+            >
+              🔄 Test Multiple QCs
+            </button>
+            <button
+              onClick={() => {
+                localStorage.removeItem('qcCompletions');
+                window.location.reload();
+              }}
+              className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
+              title="Clear all QC completions to reset status"
+            >
+              🗑️ Clear Completions
+            </button>
+          </div>
         )}
       </div>
 

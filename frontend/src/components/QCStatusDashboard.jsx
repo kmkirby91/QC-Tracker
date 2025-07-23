@@ -94,7 +94,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
       const localCompletion = localCompletions.find(qc => 
         qc.machineId === machine.machineId &&
         qc.frequency === frequency &&
-        (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title)
+        qc.worksheetId === worksheet.id  // Match by unique worksheet ID only
       );
       
       if (localCompletion) {
@@ -134,7 +134,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
           case 'daily':
             wasCompleted = qcHistory?.daily?.some(qc => 
               qc.date === todayStr && 
-              (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title)
+              qc.worksheetId === worksheet.id  // Match by unique worksheet ID only
             );
             break;
           case 'weekly':
@@ -144,7 +144,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
             const weekStart = startOfWeek.toISOString().split('T')[0];
             wasCompleted = qcHistory?.weekly?.some(qc => 
               qc.date >= weekStart && qc.date <= todayStr &&
-              (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title)
+              qc.worksheetId === worksheet.id  // Match by unique worksheet ID only
             );
             break;
           case 'monthly':
@@ -152,7 +152,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
               const qcDate = new Date(qc.date);
               return qcDate.getMonth() === currentMonth && 
                      qcDate.getFullYear() === currentYear &&
-                     (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
+                     qc.worksheetId === worksheet.id;  // Match by unique worksheet ID only
             });
             break;
           case 'quarterly':
@@ -162,14 +162,14 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
               const qcQuarter = Math.floor(qcDate.getMonth() / 3);
               return qcQuarter === currentQuarter && 
                      qcDate.getFullYear() === currentYear &&
-                     (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
+                     qc.worksheetId === worksheet.id;  // Match by unique worksheet ID only
             });
             break;
           case 'annual':
             wasCompleted = qcHistory?.annual?.some(qc => {
               const qcDate = new Date(qc.date);
               return qcDate.getFullYear() === currentYear &&
-                     (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
+                     qc.worksheetId === worksheet.id;  // Match by unique worksheet ID only
             });
             break;
         }
