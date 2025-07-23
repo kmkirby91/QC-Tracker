@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 
 const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
   const [scheduleData, setScheduleData] = useState({});
@@ -235,15 +236,25 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
             {qcsDue.map((item, index) => (
               <div key={index} className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-3">
                 <div className="flex justify-between items-center mb-2">
-                  <div className="font-medium text-yellow-200">{item.worksheet.title}</div>
-                  <div className="text-sm text-yellow-300">{item.count} due today</div>
-                </div>
-                <div className="text-xs text-yellow-300">
-                  Frequency: {item.worksheet.frequency} | 
-                  Started: {item.worksheet.startDate || 'Unknown'}
-                </div>
-                <div className="text-xs text-yellow-400 mt-1">
-                  Due date: {item.dueDates[0]}
+                  <div>
+                    <div className="font-medium text-yellow-200">{item.worksheet.title}</div>
+                    <div className="text-xs text-yellow-300 mt-1">
+                      Frequency: {item.worksheet.frequency} | 
+                      Started: {item.worksheet.startDate || 'Unknown'}
+                    </div>
+                    <div className="text-xs text-yellow-400 mt-1">
+                      Due date: {item.dueDates[0]}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end space-y-2">
+                    <div className="text-sm text-yellow-300">{item.count} due today</div>
+                    <Link
+                      to={`/qc/perform/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}`}
+                      className="px-3 py-1 bg-yellow-600 text-white text-xs rounded-md hover:bg-yellow-700 transition-colors"
+                    >
+                      ▶️ Perform QC
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}
@@ -259,15 +270,25 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
             {overdueQCs.map((item, index) => (
               <div key={index} className="bg-red-900/20 border border-red-600 rounded-lg p-3">
                 <div className="flex justify-between items-center mb-2">
-                  <div className="font-medium text-red-200">{item.worksheet.title}</div>
-                  <div className="text-sm text-red-300">{item.count} overdue</div>
-                </div>
-                <div className="text-xs text-red-300">
-                  Frequency: {item.worksheet.frequency} | 
-                  Started: {item.worksheet.startDate || 'Unknown'}
-                </div>
-                <div className="text-xs text-red-400 mt-1">
-                  Oldest overdue: {item.overdueDates[0]}
+                  <div>
+                    <div className="font-medium text-red-200">{item.worksheet.title}</div>
+                    <div className="text-xs text-red-300 mt-1">
+                      Frequency: {item.worksheet.frequency} | 
+                      Started: {item.worksheet.startDate || 'Unknown'}
+                    </div>
+                    <div className="text-xs text-red-400 mt-1">
+                      Oldest overdue: {item.overdueDates[0]}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end space-y-2">
+                    <div className="text-sm text-red-300">{item.count} overdue</div>
+                    <Link
+                      to={`/qc/perform/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}`}
+                      className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
+                    >
+                      ▶️ Perform QC
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}
@@ -280,23 +301,38 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
         <div className="mb-6">
           <h3 className="text-md font-medium text-red-300 mb-3">❌ Recent QC Failures</h3>
           <div className="space-y-3">
-            {qcFailures.map((item, index) => (
-              <div key={index} className="bg-red-900/30 border border-red-500 rounded-lg p-3">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="font-medium text-red-200">{item.worksheet.title}</div>
-                  <div className="text-sm text-red-300">{item.count} failure{item.count > 1 ? 's' : ''}</div>
+            {qcFailures.map((item, index) => {
+              const mostRecentFailure = item.failures[item.failures.length - 1];
+              return (
+                <div key={index} className="bg-red-900/30 border border-red-500 rounded-lg p-3">
+                  <div className="flex justify-between items-center mb-2">
+                    <div>
+                      <div className="font-medium text-red-200">{item.worksheet.title}</div>
+                      <div className="text-xs text-red-300 mt-1">
+                        Frequency: {item.worksheet.frequency}
+                      </div>
+                      <div className="text-xs text-red-400 mt-1">
+                        Most recent failure: {mostRecentFailure?.date || 'Unknown'}
+                      </div>
+                      <div className="text-xs text-red-400">
+                        Performed by: {mostRecentFailure?.performedBy || 'Unknown'}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end space-y-2">
+                      <div className="text-sm text-red-300">{item.count} failure{item.count > 1 ? 's' : ''}</div>
+                      {mostRecentFailure && (
+                        <Link
+                          to={`/qc/view/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}?date=${mostRecentFailure.date}&viewOnly=true`}
+                          className="px-3 py-1 bg-red-500 text-white text-xs rounded-md hover:bg-red-600 transition-colors"
+                        >
+                          👁️ View Failure
+                        </Link>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-red-300">
-                  Frequency: {item.worksheet.frequency}
-                </div>
-                <div className="text-xs text-red-400 mt-1">
-                  Most recent failure: {item.failures[item.failures.length - 1]?.date || 'Unknown'}
-                </div>
-                <div className="text-xs text-red-400">
-                  Performed by: {item.failures[item.failures.length - 1]?.performedBy || 'Unknown'}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
