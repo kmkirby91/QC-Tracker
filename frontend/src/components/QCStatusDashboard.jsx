@@ -332,7 +332,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg p-4 mb-6">
-      <h2 className="text-lg font-semibold text-gray-100 mb-4">QC Status Dashboard</h2>
+      <h2 className="text-lg font-semibold text-gray-100 mb-4">Today's QC Dashboard</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {/* Daily QC */}

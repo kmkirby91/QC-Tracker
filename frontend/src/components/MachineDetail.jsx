@@ -519,6 +519,11 @@ const MachineDetail = () => {
         </div>
       )}
 
+      {/* Today's QC Dashboard */}
+      {qcHistory && (
+        <QCStatusDashboard machine={machine} qcHistory={qcHistory} />
+      )}
+
       {/* Assigned QC Worksheets */}
       <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
         <h2 className="text-xl font-semibold text-gray-100 mb-4">Assigned QC Worksheets</h2>
@@ -637,11 +642,6 @@ const MachineDetail = () => {
           </div>
         )}
       </div>
-
-      {/* QC Status Dashboard */}
-      {qcHistory && (
-        <QCStatusDashboard machine={machine} qcHistory={qcHistory} />
-      )}
 
       {/* QC Schedule Status */}
       {machine && (
