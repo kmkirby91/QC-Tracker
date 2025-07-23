@@ -59,20 +59,44 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
     }
   };
 
+  const getQCsDue = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const dueList = [];
+
+    Object.values(scheduleData).forEach(schedule => {
+      // QCs due today that haven't been completed
+      const dueTodayDates = schedule.dueDates.filter(date => 
+        date === today && !schedule.completedDates.includes(date)
+      );
+      
+      if (dueTodayDates.length > 0) {
+        dueList.push({
+          worksheet: schedule.worksheet,
+          dueDates: dueTodayDates,
+          count: dueTodayDates.length,
+          status: 'due_today'
+        });
+      }
+    });
+
+    return dueList;
+  };
+
   const getOverdueQCs = () => {
     const today = new Date().toISOString().split('T')[0];
     const overdueList = [];
 
     Object.values(scheduleData).forEach(schedule => {
       const overdueDates = schedule.dueDates.filter(date => 
-        date <= today && !schedule.completedDates.includes(date)
+        date < today && !schedule.completedDates.includes(date)
       );
       
       if (overdueDates.length > 0) {
         overdueList.push({
           worksheet: schedule.worksheet,
           overdueDates: overdueDates,
-          count: overdueDates.length
+          count: overdueDates.length,
+          status: 'overdue'
         });
       }
     });
@@ -80,20 +104,77 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
     return overdueList;
   };
 
+  const getQCFailures = () => {
+    const failures = [];
+    
+    try {
+      // Get QC completions from localStorage to check for failures
+      const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+      
+      // Filter for failures from this machine's worksheets
+      const machineFailures = localCompletions.filter(qc => 
+        qc.machineId === machine.machineId &&
+        qc.overallResult === 'fail' &&
+        // Only include failures from assigned worksheets
+        worksheets.some(ws => ws.id === qc.worksheetId)
+      );
+
+      // Group failures by worksheet
+      const failuresByWorksheet = {};
+      machineFailures.forEach(failure => {
+        const worksheet = worksheets.find(ws => ws.id === failure.worksheetId);
+        if (worksheet) {
+          const key = worksheet.id;
+          if (!failuresByWorksheet[key]) {
+            failuresByWorksheet[key] = {
+              worksheet: worksheet,
+              failures: [],
+              count: 0
+            };
+          }
+          failuresByWorksheet[key].failures.push(failure);
+          failuresByWorksheet[key].count++;
+        }
+      });
+
+      return Object.values(failuresByWorksheet);
+    } catch (error) {
+      console.error('Error getting QC failures:', error);
+      return [];
+    }
+  };
+
   const getTotalStats = () => {
     let totalDue = 0;
     let totalCompleted = 0;
     let totalOverdue = 0;
+    let totalDueToday = 0;
+    let totalFailures = 0;
+
+    const today = new Date().toISOString().split('T')[0];
 
     Object.values(scheduleData).forEach(schedule => {
-      const today = new Date().toISOString().split('T')[0];
       const dueToDate = schedule.dueDates.filter(date => date <= today);
+      const dueToday = schedule.dueDates.filter(date => date === today && !schedule.completedDates.includes(date));
+      const overdue = schedule.dueDates.filter(date => date < today && !schedule.completedDates.includes(date));
+      
       totalDue += dueToDate.length;
       totalCompleted += schedule.completedDates.length;
-      totalOverdue += dueToDate.length - schedule.completedDates.length;
+      totalOverdue += overdue.length;
+      totalDueToday += dueToday.length;
     });
 
-    return { totalDue, totalCompleted, totalOverdue };
+    // Count failures
+    const failures = getQCFailures();
+    totalFailures = failures.reduce((sum, failure) => sum + failure.count, 0);
+
+    return { 
+      totalDue, 
+      totalCompleted, 
+      totalOverdue, 
+      totalDueToday,
+      totalFailures
+    };
   };
 
   if (loading) {
@@ -109,7 +190,9 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
     return null;
   }
 
+  const qcsDue = getQCsDue();
   const overdueQCs = getOverdueQCs();
+  const qcFailures = getQCFailures();
   const stats = getTotalStats();
 
   return (
@@ -117,20 +200,52 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
       <h2 className="text-lg font-semibold text-gray-100 mb-4">QC Schedule Status</h2>
       
       {/* Overall Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-gray-700 rounded-lg p-4">
-          <div className="text-sm text-gray-400">Total QCs Due</div>
-          <div className="text-2xl font-bold text-gray-100">{stats.totalDue}</div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-4">
+          <div className="text-sm text-yellow-400">Due Today</div>
+          <div className="text-2xl font-bold text-yellow-400">{stats.totalDueToday}</div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-4">
-          <div className="text-sm text-gray-400">Completed</div>
+        <div className="bg-red-900/20 border border-red-600 rounded-lg p-4">
+          <div className="text-sm text-red-400">Overdue</div>
+          <div className="text-2xl font-bold text-red-400">{stats.totalOverdue}</div>
+        </div>
+        <div className="bg-red-900/30 border border-red-500 rounded-lg p-4">
+          <div className="text-sm text-red-300">Failures</div>
+          <div className="text-2xl font-bold text-red-300">{stats.totalFailures}</div>
+        </div>
+        <div className="bg-green-900/20 border border-green-600 rounded-lg p-4">
+          <div className="text-sm text-green-400">Completed</div>
           <div className="text-2xl font-bold text-green-400">{stats.totalCompleted}</div>
         </div>
         <div className="bg-gray-700 rounded-lg p-4">
-          <div className="text-sm text-gray-400">Overdue</div>
-          <div className="text-2xl font-bold text-red-400">{stats.totalOverdue}</div>
+          <div className="text-sm text-gray-400">Total Due</div>
+          <div className="text-2xl font-bold text-gray-100">{stats.totalDue}</div>
         </div>
       </div>
+
+      {/* QCs Due Today */}
+      {qcsDue.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-md font-medium text-yellow-400 mb-3">📅 QCs Due Today</h3>
+          <div className="space-y-3">
+            {qcsDue.map((item, index) => (
+              <div key={index} className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="font-medium text-yellow-200">{item.worksheet.title}</div>
+                  <div className="text-sm text-yellow-300">{item.count} due today</div>
+                </div>
+                <div className="text-xs text-yellow-300">
+                  Frequency: {item.worksheet.frequency} | 
+                  Started: {item.worksheet.startDate || 'Unknown'}
+                </div>
+                <div className="text-xs text-yellow-400 mt-1">
+                  Due date: {item.dueDates[0]}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Overdue QCs */}
       {overdueQCs.length > 0 && (
@@ -149,6 +264,32 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
                 </div>
                 <div className="text-xs text-red-400 mt-1">
                   Oldest overdue: {item.overdueDates[0]}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* QC Failures */}
+      {qcFailures.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-md font-medium text-red-300 mb-3">❌ Recent QC Failures</h3>
+          <div className="space-y-3">
+            {qcFailures.map((item, index) => (
+              <div key={index} className="bg-red-900/30 border border-red-500 rounded-lg p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="font-medium text-red-200">{item.worksheet.title}</div>
+                  <div className="text-sm text-red-300">{item.count} failure{item.count > 1 ? 's' : ''}</div>
+                </div>
+                <div className="text-xs text-red-300">
+                  Frequency: {item.worksheet.frequency}
+                </div>
+                <div className="text-xs text-red-400 mt-1">
+                  Most recent failure: {item.failures[item.failures.length - 1]?.date || 'Unknown'}
+                </div>
+                <div className="text-xs text-red-400">
+                  Performed by: {item.failures[item.failures.length - 1]?.performedBy || 'Unknown'}
                 </div>
               </div>
             ))}
@@ -187,9 +328,9 @@ const QCScheduleStatus = ({ machine, worksheets }) => {
         ))}
       </div>
 
-      {overdueQCs.length === 0 && (
+      {qcsDue.length === 0 && overdueQCs.length === 0 && qcFailures.length === 0 && (
         <div className="text-green-400 text-sm mt-4">
-          ✅ All QCs are up to date!
+          ✅ All QCs are up to date with no failures!
         </div>
       )}
     </div>
