@@ -1128,7 +1128,15 @@ const Worksheets = () => {
     const uniqueWorksheetData = {
       ...customWorksheetInfo,
       title: customWorksheetInfo.title,
-      tests: [...customTests],
+      tests: customTests.map(test => ({
+        ...test,
+        // Only mark fields as custom if this worksheet is based on a template
+        // For from-scratch worksheets, no fields should be marked as custom
+        isCustomField: (selectedTemplate && matchedToTemplate) ? 
+          (test.isCustomField || false) : false,
+        customFieldType: (selectedTemplate && matchedToTemplate) ? 
+          (test.customFieldType || 'template-default') : 'original'
+      })),
       id: `${Date.now()}-${customWorksheetInfo.machineId}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
