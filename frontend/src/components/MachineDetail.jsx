@@ -33,19 +33,17 @@ const MachineDetail = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Listen for QC completion to refresh status
+  // Listen for QC completion to refresh status (but don't refetch API data)
   useEffect(() => {
     const checkQCRefresh = () => {
       const refreshFlag = localStorage.getItem('qcStatusRefresh');
       if (refreshFlag) {
-        // Remove the flag and refresh QC data
+        // Remove the flag
         localStorage.removeItem('qcStatusRefresh');
-        console.log('QC completion detected, refreshing QC history...');
+        console.log('QC completion detected, status dashboard will auto-refresh from localStorage');
         
-        // Refetch QC history to include the newly completed QC
-        if (machine) {
-          fetchMachineData();
-        }
+        // Don't refetch API data since localStorage completions take precedence
+        // The QCStatusDashboard component will automatically refresh via its own useEffect
       }
     };
 

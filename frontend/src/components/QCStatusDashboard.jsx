@@ -85,12 +85,17 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
 
     // Get locally stored QC completions
     const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+    console.log(`🔍 QCStatusDashboard checking ${frequency} for machine ${machine.machineId}:`, {
+      totalWorksheets: worksheets.length,
+      localCompletions: localCompletions.filter(qc => qc.machineId === machine.machineId && qc.frequency === frequency),
+      todayStr
+    });
 
     worksheets.forEach(worksheet => {
       // Check if this specific worksheet was completed in the relevant time period
       let wasCompleted = false;
       
-      // First check localStorage for real completions
+      // First check localStorage for real completions - these take absolute precedence
       const localCompletion = localCompletions.find(qc => 
         qc.machineId === machine.machineId &&
         qc.frequency === frequency &&
@@ -126,10 +131,12 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
             wasCompleted = completionDate_a.getFullYear() === currentYear;
             break;
         }
+        
+        console.log(`✅ Found localStorage completion for ${worksheet.title} on ${localCompletion.date}: ${wasCompleted}`);
       }
       
-      // If not found locally, check API QC history
-      if (!wasCompleted) {
+      // If not found locally, check API QC history (but localStorage takes precedence)
+      if (!wasCompleted && !localCompletion) {
         switch (frequency) {
           case 'daily':
             wasCompleted = qcHistory?.daily?.some(qc => 
