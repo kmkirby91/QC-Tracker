@@ -421,13 +421,45 @@ const QCForm = ({ viewOnly = false }) => {
       const draftKey = `qc_draft_${machineId}_${frequency}_${selectedDate}`;
       localStorage.removeItem(draftKey);
       
+      // Store the completed QC in localStorage for immediate status updates
+      const completedQC = {
+        id: Date.now().toString(),
+        machineId: qcData.machineId,
+        machineType: qcData.machineType,
+        frequency: qcData.frequency,
+        date: qcData.date,
+        tests: qcData.tests,
+        performedBy: qcData.performedBy,
+        comments: qcData.comments,
+        overallResult: qcData.overallResult,
+        completedAt: new Date().toISOString(),
+        worksheetId: qcData.worksheetId,
+        worksheetTitle: qcData.worksheetTitle,
+        isRealSubmission: true
+      };
+      
+      // Add to localStorage QC completions
+      const existingCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+      
+      // Remove any existing completion for the same machine/frequency/date to avoid duplicates
+      const filteredCompletions = existingCompletions.filter(qc => 
+        !(qc.machineId === completedQC.machineId && 
+          qc.frequency === completedQC.frequency && 
+          qc.date === completedQC.date)
+      );
+      
+      filteredCompletions.push(completedQC);
+      localStorage.setItem('qcCompletions', JSON.stringify(filteredCompletions));
+      
       // Store a flag to trigger QC status refresh on the machine detail page
       localStorage.setItem('qcStatusRefresh', Date.now().toString());
+      
+      console.log('✅ QC completion stored:', completedQC);
       
       navigate(`/machines/${machineId}`, { 
         state: { 
           message: `${frequency} QC completed successfully!`,
-          completedQC: response.data.completedQC 
+          completedQC: completedQC 
         }
       });
       

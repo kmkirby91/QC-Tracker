@@ -41,6 +41,32 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
     }
   }, [machine.machineId, machine.type]);
 
+  // Listen for QC completion changes
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'qcCompletions' || e.key === 'qcStatusRefresh') {
+        // Force re-render when QC completions change
+        setAssignedWorksheets(prev => ({ ...prev }));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check for changes periodically (for same-tab updates)
+    const interval = setInterval(() => {
+      const refreshFlag = localStorage.getItem('qcStatusRefresh');
+      if (refreshFlag) {
+        localStorage.removeItem('qcStatusRefresh');
+        setAssignedWorksheets(prev => ({ ...prev }));
+      }
+    }, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
   // Check worksheet completion status for any frequency
   const getWorksheetCompletionStatus = (frequency) => {
     const worksheets = assignedWorksheets[frequency] || [];
@@ -57,52 +83,96 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
     const completed = [];
     const missing = [];
 
+    // Get locally stored QC completions
+    const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+
     worksheets.forEach(worksheet => {
       // Check if this specific worksheet was completed in the relevant time period
       let wasCompleted = false;
       
-      switch (frequency) {
-        case 'daily':
-          wasCompleted = qcHistory?.daily?.some(qc => 
-            qc.date === todayStr && 
-            (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title)
-          );
-          break;
-        case 'weekly':
-          // Check if completed this week
-          const startOfWeek = new Date(today);
-          startOfWeek.setDate(today.getDate() - today.getDay());
-          const weekStart = startOfWeek.toISOString().split('T')[0];
-          wasCompleted = qcHistory?.weekly?.some(qc => 
-            qc.date >= weekStart && qc.date <= todayStr &&
-            (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title)
-          );
-          break;
-        case 'monthly':
-          wasCompleted = qcHistory?.monthly?.some(qc => {
-            const qcDate = new Date(qc.date);
-            return qcDate.getMonth() === currentMonth && 
-                   qcDate.getFullYear() === currentYear &&
-                   (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
-          });
-          break;
-        case 'quarterly':
-          const currentQuarter = Math.floor(currentMonth / 3);
-          wasCompleted = qcHistory?.quarterly?.some(qc => {
-            const qcDate = new Date(qc.date);
-            const qcQuarter = Math.floor(qcDate.getMonth() / 3);
-            return qcQuarter === currentQuarter && 
-                   qcDate.getFullYear() === currentYear &&
-                   (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
-          });
-          break;
-        case 'annual':
-          wasCompleted = qcHistory?.annual?.some(qc => {
-            const qcDate = new Date(qc.date);
-            return qcDate.getFullYear() === currentYear &&
-                   (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
-          });
-          break;
+      // First check localStorage for real completions
+      const localCompletion = localCompletions.find(qc => 
+        qc.machineId === machine.machineId &&
+        qc.frequency === frequency &&
+        (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title)
+      );
+      
+      if (localCompletion) {
+        // Check if the completion is within the relevant time period
+        switch (frequency) {
+          case 'daily':
+            wasCompleted = localCompletion.date === todayStr;
+            break;
+          case 'weekly':
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay());
+            const weekStart = startOfWeek.toISOString().split('T')[0];
+            wasCompleted = localCompletion.date >= weekStart && localCompletion.date <= todayStr;
+            break;
+          case 'monthly':
+            const completionDate = new Date(localCompletion.date);
+            wasCompleted = completionDate.getMonth() === currentMonth && 
+                           completionDate.getFullYear() === currentYear;
+            break;
+          case 'quarterly':
+            const completionDate_q = new Date(localCompletion.date);
+            const currentQuarter = Math.floor(currentMonth / 3);
+            const completionQuarter = Math.floor(completionDate_q.getMonth() / 3);
+            wasCompleted = completionQuarter === currentQuarter && 
+                           completionDate_q.getFullYear() === currentYear;
+            break;
+          case 'annual':
+            const completionDate_a = new Date(localCompletion.date);
+            wasCompleted = completionDate_a.getFullYear() === currentYear;
+            break;
+        }
+      }
+      
+      // If not found locally, check API QC history
+      if (!wasCompleted) {
+        switch (frequency) {
+          case 'daily':
+            wasCompleted = qcHistory?.daily?.some(qc => 
+              qc.date === todayStr && 
+              (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title)
+            );
+            break;
+          case 'weekly':
+            // Check if completed this week
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay());
+            const weekStart = startOfWeek.toISOString().split('T')[0];
+            wasCompleted = qcHistory?.weekly?.some(qc => 
+              qc.date >= weekStart && qc.date <= todayStr &&
+              (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title)
+            );
+            break;
+          case 'monthly':
+            wasCompleted = qcHistory?.monthly?.some(qc => {
+              const qcDate = new Date(qc.date);
+              return qcDate.getMonth() === currentMonth && 
+                     qcDate.getFullYear() === currentYear &&
+                     (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
+            });
+            break;
+          case 'quarterly':
+            const currentQuarter = Math.floor(currentMonth / 3);
+            wasCompleted = qcHistory?.quarterly?.some(qc => {
+              const qcDate = new Date(qc.date);
+              const qcQuarter = Math.floor(qcDate.getMonth() / 3);
+              return qcQuarter === currentQuarter && 
+                     qcDate.getFullYear() === currentYear &&
+                     (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
+            });
+            break;
+          case 'annual':
+            wasCompleted = qcHistory?.annual?.some(qc => {
+              const qcDate = new Date(qc.date);
+              return qcDate.getFullYear() === currentYear &&
+                     (qc.worksheetId === worksheet.id || qc.worksheetTitle === worksheet.title);
+            });
+            break;
+        }
       }
 
       if (wasCompleted) {
