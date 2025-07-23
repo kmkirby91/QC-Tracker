@@ -22,10 +22,36 @@ const QCForm = ({ viewOnly = false }) => {
   const [dicomAnalysisResults, setDicomAnalysisResults] = useState(null);
   const [selectedDICOMSeries, setSelectedDICOMSeries] = useState([]);
   const [currentWorksheet, setCurrentWorksheet] = useState(null);
+  const [qcDueDates, setQcDueDates] = useState([]);
 
   useEffect(() => {
     fetchMachineAndTests();
   }, [machineId, frequency, machineType, worksheetId, viewOnly]);
+
+  // Fetch QC due dates when worksheet changes
+  useEffect(() => {
+    if (currentWorksheet && currentWorksheet.startDate) {
+      fetchQCDueDates();
+    }
+  }, [currentWorksheet]);
+
+  const fetchQCDueDates = async () => {
+    try {
+      if (!currentWorksheet || !currentWorksheet.startDate) return;
+      
+      const response = await axios.get(
+        `/api/qc/schedule/generate?frequency=${currentWorksheet.frequency}&startDate=${currentWorksheet.startDate}`
+      );
+      
+      if (response.data && response.data.dueDates) {
+        setQcDueDates(response.data.dueDates);
+        console.log('Fetched QC due dates:', response.data.dueDates);
+      }
+    } catch (error) {
+      console.error('Error fetching QC due dates:', error);
+      setQcDueDates([]);
+    }
+  };
 
   const fetchMachineAndTests = async () => {
     try {
@@ -306,6 +332,7 @@ const QCForm = ({ viewOnly = false }) => {
       const dateStr = date.toISOString().split('T')[0];
       const hasData = existingQCDates.includes(dateStr);
       const isToday = dateStr === today.toISOString().split('T')[0];
+      const isDueDate = qcDueDates.includes(dateStr);
       
       let label = date.toLocaleDateString('en-US', { 
         weekday: 'short', 
@@ -316,12 +343,14 @@ const QCForm = ({ viewOnly = false }) => {
       
       if (isToday) label += ' (Today)';
       if (hasData) label += ' ✓';
+      if (isDueDate && !hasData) label += ' 📅';
       
       options.push({
         value: dateStr,
         label: label,
         hasData: hasData,
-        isToday: isToday
+        isToday: isToday,
+        isDueDate: isDueDate
       });
     }
     
@@ -569,8 +598,10 @@ const QCForm = ({ viewOnly = false }) => {
                         key={option.value} 
                         value={option.value}
                         style={{
-                          backgroundColor: option.hasData ? '#374151' : '#064e3b',
-                          color: option.hasData ? '#d1d5db' : '#86efac'
+                          backgroundColor: option.hasData ? '#374151' : 
+                                         option.isDueDate ? '#92400e' : '#064e3b',
+                          color: option.hasData ? '#d1d5db' : 
+                                option.isDueDate ? '#fbbf24' : '#86efac'
                         }}
                       >
                         {option.label}
@@ -580,8 +611,10 @@ const QCForm = ({ viewOnly = false }) => {
                   <div className="mt-1 text-xs text-gray-400">
                     <span className="inline-block w-3 h-3 bg-green-900 border border-green-600 rounded mr-1"></span>
                     Available dates
+                    <span className="inline-block w-3 h-3 bg-yellow-900 border border-yellow-600 rounded mr-1 ml-3"></span>
+                    Scheduled QC due 📅
                     <span className="inline-block w-3 h-3 bg-gray-900 border border-gray-600 rounded mr-1 ml-3"></span>
-                    Data exists
+                    Data exists ✓
                   </div>
                 </div>
                 {loadingExistingData && (
