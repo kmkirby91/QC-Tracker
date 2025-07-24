@@ -233,17 +233,17 @@ const Worksheets = () => {
       dicomSeriesSource: false
     };
 
-    // If no template source, all fields are custom
+    // If no template source, this is a custom worksheet with no modifications to show
     if (!worksheet.templateSource && !worksheet.sourceTemplateName) {
       return {
-        testName: true,
-        testType: true,
-        tolerance: true,
-        units: true,
-        notes: true,
-        calculatedFromDicom: true,
-        dicomSeriesSource: true,
-        isCustomTest: true
+        testName: false,
+        testType: false,
+        tolerance: false,
+        units: false,
+        notes: false,
+        calculatedFromDicom: false,
+        dicomSeriesSource: false,
+        isCustomTest: false
       };
     }
     
@@ -269,14 +269,14 @@ const Worksheets = () => {
     
     if (!originalTemplate || !originalTemplate.tests) {
       return {
-        testName: true,
-        testType: true,
-        tolerance: true,
-        units: true,
-        notes: true,
-        calculatedFromDicom: true,
-        dicomSeriesSource: true,
-        isCustomTest: true
+        testName: false,
+        testType: false,
+        tolerance: false,
+        units: false,
+        notes: false,
+        calculatedFromDicom: false,
+        dicomSeriesSource: false,
+        isCustomTest: false
       };
     }
     
@@ -676,6 +676,7 @@ const Worksheets = () => {
           // Load worksheet in view-only mode
           loadWorksheetData(worksheetToEdit, true);
           setViewMode('custom');
+          window.scrollTo(0, 0);
           // Success notification removed
         } else {
           // Load worksheet for editing
@@ -2473,7 +2474,7 @@ const Worksheets = () => {
                       templateId: selectedTemplate.id,
                       sourceTemplateId: selectedTemplate.id
                     }, test, testIndex)
-                  : templateJustLoadedFlag
+                  : templateJustLoadedFlag || (isCreatingTemplate && !selectedTemplate)
                     ? {
                         testName: false, testType: false, tolerance: false, units: false, notes: false, 
                         calculatedFromDicom: false, dicomSeriesSource: false, isCustomTest: false
@@ -2772,7 +2773,7 @@ const Worksheets = () => {
                                    customTests.some(test => test.testName) || 
                                    dicomSeriesConfig.length > 0;
                   
-                  if (hasChanges && !window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                  if (hasChanges && !isViewingWorksheet && !window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
                     return;
                   }
                   
@@ -3131,7 +3132,7 @@ const Worksheets = () => {
                                      customTests.some(test => test.testName) || 
                                      dicomSeriesConfig.length > 0;
                     
-                    if (hasChanges && !window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                    if (hasChanges && !isViewingWorksheet && !window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
                       return;
                     }
                     
