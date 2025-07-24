@@ -1,6 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { calculateNextDueDate, getMissedQCDates, getQCPriority, generateSampleWorksheetAssignments, generateQCDueDates, getWorksheetQCStatus } = require('../utils/qcScheduling');
+const { calculateNextDueDate, getMissedQCDates, getQCPriority, generateSampleWorksheetAssignments, generateQCDueDates, getWorksheetQCStatus, getSystemOverdueStatus } = require('../utils/qcScheduling');
+const { 
+  addQCCompletion, 
+  getAllQCCompletions, 
+  getQCCompletionsByMachine, 
+  getQCCompletionsByWorksheet,
+  getCompletionDates 
+} = require('../utils/qcStorage');
 
 // QC test templates by machine type
 const qcTestTemplates = {
@@ -155,25 +162,53 @@ const generateQCHistory = (machineType, machineId) => {
     annual: []
   };
 
-  // Add completed QCs from global storage (real submissions)
+  // Add completed QCs from persistent storage (real submissions)
+  const realCompletions = getQCCompletionsByMachine(machineId);
+  realCompletions.forEach(qc => {
+    if (history[qc.frequency]) {
+      // Add the real completed QC to history
+      history[qc.frequency].push({
+        id: qc.id,
+        date: qc.date,
+        overallResult: qc.overallResult,
+        completedAt: qc.completedAt,
+        performedBy: qc.performedBy,
+        comments: qc.comments,
+        tests: qc.tests,
+        worksheetId: qc.worksheetId,
+        worksheetTitle: qc.worksheetTitle,
+        isRealSubmission: true // Mark as real submission vs mock
+      });
+    }
+  });
+  
+  // Also add from in-memory storage for backward compatibility with existing mock data
   if (global.completedQCs) {
     const machineCompletedQCs = global.completedQCs.filter(qc => qc.machineId === machineId);
     
     machineCompletedQCs.forEach(qc => {
       if (history[qc.frequency]) {
-        // Add the real completed QC to history
-        history[qc.frequency].push({
-          id: qc.id,
-          date: qc.date,
-          overallResult: qc.overallResult,
-          completedAt: qc.completedAt,
-          performedBy: qc.performedBy,
-          comments: qc.comments,
-          tests: qc.tests,
-          worksheetId: qc.worksheetId,
-          worksheetTitle: qc.worksheetTitle,
-          isRealSubmission: true // Mark as real submission vs mock
-        });
+        // Check if this completion is already added from persistent storage
+        const existingCompletion = history[qc.frequency].find(existing => 
+          existing.id === qc.id || 
+          (existing.date === qc.date && existing.frequency === qc.frequency && existing.isRealSubmission)
+        );
+        
+        if (!existingCompletion) {
+          // Add the real completed QC to history
+          history[qc.frequency].push({
+            id: qc.id,
+            date: qc.date,
+            overallResult: qc.overallResult,
+            completedAt: qc.completedAt,
+            performedBy: qc.performedBy,
+            comments: qc.comments,
+            tests: qc.tests,
+            worksheetId: qc.worksheetId,
+            worksheetTitle: qc.worksheetTitle,
+            isRealSubmission: true // Mark as real submission vs mock
+          });
+        }
       }
     });
   }
@@ -867,41 +902,47 @@ router.get('/open-failures', async (req, res) => {
   }
 });
 
+
 // Submit QC data
 router.post('/submit', (req, res) => {
   try {
     const qcData = req.body;
     
-    // In a real implementation, this would save to database
     console.log('QC Data submitted:', qcData);
     
-    // For prototype: Store completed QC in a way that can be retrieved by QC history
-    // This creates a bridge between submissions and status checking
-    const completedQC = {
-      id: Date.now().toString(),
-      machineId: qcData.machineId,
-      machineType: qcData.machineType,
-      frequency: qcData.frequency,
-      date: qcData.date,
-      tests: qcData.tests,
-      performedBy: qcData.performedBy,
-      comments: qcData.comments,
-      overallResult: qcData.overallResult,
-      completedAt: new Date().toISOString(),
-      worksheetId: qcData.worksheetId, // Include worksheet ID for status matching
-      worksheetTitle: qcData.worksheetTitle
-    };
+    // Validate required fields
+    if (!qcData.machineId || !qcData.frequency || !qcData.date || !qcData.worksheetId) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: machineId, frequency, date, worksheetId' 
+      });
+    }
     
-    // Add to in-memory storage (in production, this would go to database)
+    // Add QC completion to persistent storage
+    const completedQC = addQCCompletion(qcData);
+    
+    if (!completedQC) {
+      return res.status(500).json({ 
+        error: 'Failed to save QC completion data' 
+      });
+    }
+    
+    // Also add to in-memory storage for backward compatibility with existing mock data generation
     if (!global.completedQCs) {
       global.completedQCs = [];
     }
+    
+    // Remove any existing in-memory entry for same machine/frequency/date
+    global.completedQCs = global.completedQCs.filter(qc => 
+      !(qc.machineId === completedQC.machineId && 
+        qc.frequency === completedQC.frequency && 
+        qc.date === completedQC.date)
+    );
+    
     global.completedQCs.push(completedQC);
     
-    // Also return the completion data for frontend to handle
     res.json({ 
       success: true, 
-      message: 'QC data submitted successfully',
+      message: 'QC data submitted and stored successfully',
       id: completedQC.id,
       completedQC: completedQC
     });
@@ -909,6 +950,47 @@ router.post('/submit', (req, res) => {
   } catch (error) {
     console.error('Error submitting QC data:', error);
     res.status(500).json({ error: 'Failed to submit QC data' });
+  }
+});
+
+// Get system overdue status
+router.get('/overdue', (req, res) => {
+  try {
+    // Get all QC completions from persistent storage
+    const allCompletions = getAllQCCompletions();
+    
+    // Calculate overdue status
+    const overdueStatus = getSystemOverdueStatus(allCompletions);
+    
+    res.json(overdueStatus);
+  } catch (error) {
+    console.error('Error getting overdue status:', error);
+    res.status(500).json({ error: 'Failed to get overdue status' });
+  }
+});
+
+// Get QC completions
+router.get('/completions', (req, res) => {
+  try {
+    const { machineId, worksheetId } = req.query;
+    
+    let completions;
+    if (machineId && worksheetId) {
+      // Get completion dates for specific machine/worksheet combination
+      const dates = getCompletionDates(machineId, worksheetId);
+      completions = { completionDates: dates };
+    } else if (machineId) {
+      completions = getQCCompletionsByMachine(machineId);
+    } else if (worksheetId) {
+      completions = getQCCompletionsByWorksheet(worksheetId);
+    } else {
+      completions = getAllQCCompletions();
+    }
+    
+    res.json(completions);
+  } catch (error) {
+    console.error('Error getting QC completions:', error);
+    res.status(500).json({ error: 'Failed to get QC completions' });
   }
 });
 

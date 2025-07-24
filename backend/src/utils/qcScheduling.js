@@ -393,6 +393,93 @@ const getWorksheetQCStatus = (machineId, frequency, startDate, completedDates = 
   };
 };
 
+/**
+ * Get all overdue QC items across the system
+ * @param {array} completions - Array of all QC completions from persistent storage
+ * @returns {object} - { total: number, byMachine: {}, byFrequency: {}, critical: [] }
+ */
+const getSystemOverdueStatus = (completions = []) => {
+  const assignments = generateSampleWorksheetAssignments();
+  const overdueItems = [];
+  const today = new Date().toISOString().split('T')[0];
+  
+  assignments.forEach(assignment => {
+    // Get completions for this specific machine/worksheet combination
+    const worksheetCompletions = completions
+      .filter(qc => 
+        qc.machineId === assignment.machineId && 
+        qc.frequency === assignment.frequency
+      )
+      .map(qc => qc.date)
+      .sort();
+    
+    // Get QC status for this worksheet
+    const status = getWorksheetQCStatus(
+      assignment.machineId,
+      assignment.frequency,
+      assignment.startDate,
+      worksheetCompletions
+    );
+    
+    // Add overdue items
+    if (status.overdueCount > 0) {
+      status.missedDates.forEach((missedDate, index) => {
+        const daysPastDue = Math.ceil((new Date(today) - new Date(missedDate)) / (1000 * 60 * 60 * 24));
+        const priority = getQCPriority(daysPastDue, assignment.frequency);
+        
+        overdueItems.push({
+          machineId: assignment.machineId,
+          frequency: assignment.frequency,
+          worksheetId: assignment.id,
+          worksheetTitle: assignment.title,
+          dueDate: missedDate,
+          daysPastDue: daysPastDue,
+          priority: priority,
+          isCritical: priority === 'critical'
+        });
+      });
+    }
+  });
+  
+  // Organize overdue items
+  const byMachine = {};
+  const byFrequency = {};
+  const critical = [];
+  
+  overdueItems.forEach(item => {
+    // By machine
+    if (!byMachine[item.machineId]) {
+      byMachine[item.machineId] = [];
+    }
+    byMachine[item.machineId].push(item);
+    
+    // By frequency
+    if (!byFrequency[item.frequency]) {
+      byFrequency[item.frequency] = [];
+    }
+    byFrequency[item.frequency].push(item);
+    
+    // Critical items
+    if (item.isCritical) {
+      critical.push(item);
+    }
+  });
+  
+  return {
+    total: overdueItems.length,
+    items: overdueItems.sort((a, b) => b.daysPastDue - a.daysPastDue), // Sort by most overdue first
+    byMachine,
+    byFrequency,
+    critical: critical.sort((a, b) => b.daysPastDue - a.daysPastDue),
+    summary: {
+      criticalCount: critical.length,
+      highCount: overdueItems.filter(item => item.priority === 'high').length,
+      mediumCount: overdueItems.filter(item => item.priority === 'medium').length,
+      lowCount: overdueItems.filter(item => item.priority === 'low').length
+    }
+  };
+};
+
 module.exports = {
   calculateNextDueDate,
   getMissedQCDates,
@@ -400,5 +487,6 @@ module.exports = {
   getQCPriority,
   generateSampleWorksheetAssignments,
   generateQCDueDates,
-  getWorksheetQCStatus
+  getWorksheetQCStatus,
+  getSystemOverdueStatus
 };

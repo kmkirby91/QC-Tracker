@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import axios from 'axios'
-import { checkAndInitializeSampleData, forceInitializeACRTemplates } from './utils/sampleWorksheets'
+import { checkAndInitializeSampleData } from './utils/sampleWorksheets'
 import { checkSomatumForceStatus, quickFixSomatumForce } from './utils/diagnostics'
 import MachineCard from './components/MachineCard'
 import StatusSummary from './components/StatusSummary'
@@ -19,6 +19,8 @@ import Worksheets from './components/Worksheets'
 import Locations from './components/Locations'
 import TechDashboard from './components/TechDashboard'
 import QCCalendar from './components/QCCalendar'
+import Admin from './components/Admin'
+import Research from './components/Research'
 import './App.css'
 
 const queryClient = new QueryClient()
@@ -31,21 +33,14 @@ function NavigationDropdown() {
   const navigationItems = [
     { label: 'Dashboard', path: '/', icon: '🏠' },
     { label: 'Tech Dashboard', path: '/tech-dashboard', icon: '⚙️' },
-    { label: 'Machine List', path: '/machines', icon: '🏥' },
-    { label: 'Locations', path: '/locations', icon: '🏢' },
+    { label: 'Machines', path: '/locations', icon: '🏥' },
     { label: 'Calendar', path: '/calendar', icon: '📅' },
     { label: 'Worksheets', path: '/worksheets', icon: '📋' },
+    { label: 'Admin', path: '/admin', icon: '🔧' },
+    { label: 'Research', path: '/research', icon: '🔬' },
     { label: 'Reporting', path: '/reporting', icon: '📊' }
   ]
 
-  const handleReloadSampleData = () => {
-    // Clear existing data and create ACR-standard templates
-    const result = forceInitializeACRTemplates()
-    if (result) {
-      alert(`ACR-Standard QC Templates Created!\n\n✅ All existing QC data cleared\n📋 Templates Created: ${result.templatesCreated}\n🏥 Worksheets Created: ${result.worksheetsCreated}\n\nTemplates ready for assignment:\n• ${result.templates.join('\n• ')}\n\nNo worksheets assigned - templates are ready for use!`)
-      window.location.reload() // Refresh to show updated data
-    }
-  }
 
   const handleNavigation = (path) => {
     navigate(path)
@@ -91,18 +86,6 @@ function NavigationDropdown() {
                 <span>{item.label}</span>
               </button>
             ))}
-            <div className="border-t border-gray-700 my-1"></div>
-            <button
-              onClick={() => {
-                handleReloadSampleData()
-                setIsOpen(false)
-              }}
-              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors flex items-center space-x-2 text-gray-400"
-              title="Clear all QC data and create ACR-standard templates"
-            >
-              <span>🔄</span>
-              <span>Load ACR Templates</span>
-            </button>
           </div>
         </div>
       )}
@@ -140,10 +123,11 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/tech-dashboard" element={<TechDashboard />} />
-              <Route path="/machines" element={<MachineList />} />
               <Route path="/machines/add" element={<AddMachine />} />
               <Route path="/locations" element={<Locations />} />
               <Route path="/worksheets" element={<Worksheets />} />
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/research" element={<Research />} />
               <Route path="/reporting" element={<Reporting />} />
               <Route path="/calendar" element={<QCCalendar showOverview={true} />} />
               <Route path="/due-today" element={<DueToday />} />

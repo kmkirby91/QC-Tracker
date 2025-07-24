@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import QCNotifications from './QCNotifications';
+import QCStatusDashboard from './QCStatusDashboard';
+import QCScheduleStatus from './QCScheduleStatus';
 
 const TechDashboard = () => {
   const navigate = useNavigate();
@@ -10,6 +12,8 @@ const TechDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState('Essen');
   const [dailyQCTasks, setDailyQCTasks] = useState([]);
+  const [qcHistory, setQCHistory] = useState({});
+  const [customWorksheets, setCustomWorksheets] = useState([]);
 
   useEffect(() => {
     fetchMachines();
@@ -18,6 +22,8 @@ const TechDashboard = () => {
   useEffect(() => {
     if (machines.length > 0) {
       loadDailyQCTasks();
+      loadQCHistoryForMachines();
+      loadCustomWorksheets();
     }
   }, [machines, selectedLocation]);
 
@@ -134,6 +140,40 @@ const TechDashboard = () => {
       return 'current';
     }
     return 'current';
+  };
+
+  // Load QC history for machines (for QCStatusDashboard)
+  const loadQCHistoryForMachines = async () => {
+    try {
+      const historyData = {};
+      const locationMachines = getMachinesForLocation();
+      
+      for (const machine of locationMachines) {
+        try {
+          const response = await axios.get(`/api/qc-history/${machine.machineId}`);
+          historyData[machine.machineId] = response.data;
+        } catch (error) {
+          console.error(`Error loading QC history for machine ${machine.machineId}:`, error);
+          historyData[machine.machineId] = null;
+        }
+      }
+      
+      setQCHistory(historyData);
+    } catch (error) {
+      console.error('Error loading QC histories:', error);
+    }
+  };
+
+  // Load custom worksheets (for QCScheduleStatus)
+  const loadCustomWorksheets = () => {
+    try {
+      const stored = localStorage.getItem('qcWorksheets');
+      const worksheets = stored ? JSON.parse(stored) : [];
+      setCustomWorksheets(worksheets);
+    } catch (error) {
+      console.error('Error loading custom worksheets:', error);
+      setCustomWorksheets([]);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -633,6 +673,129 @@ const TechDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Machine Status Widgets */}
+      {dailyQCTasks.length > 0 && (
+        <div className="mt-6 space-y-6">
+          <h2 className="text-xl font-semibold text-gray-100 mb-4">Machine Status Details - {selectedLocation}</h2>
+          {dailyQCTasks.map(task => (
+            <div key={task.machine.machineId} className="space-y-4">
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-100 mb-3 flex items-center">
+                  <span className="mr-2">🖥️</span>
+                  {task.machine.name} ({task.machine.type})
+                  <span className="ml-2 text-sm text-gray-400">- {task.machine.location.building} {task.machine.location.room}</span>
+                </h3>
+
+                {/* ACR Accreditation Status */}
+                {(task.machine.type === 'MRI' || task.machine.type === 'CT' || task.machine.type === 'Mammography') && (
+                  <div className="bg-gray-700 rounded-lg p-4 mb-4">
+                    <h4 className="text-md font-semibold text-gray-100 mb-3 flex items-center">
+                      <span className="text-lg mr-2">🏆</span>
+                      ACR Accreditation Status
+                    </h4>
+                    
+                    {(() => {
+                      // Calculate ACR dates - using mock data for now
+                      const mockGrantedDate = new Date('2022-03-15');
+                      const dueDate = new Date(mockGrantedDate);
+                      dueDate.setFullYear(dueDate.getFullYear() + 3);
+                      
+                      const bugDate = new Date(dueDate);
+                      bugDate.setMonth(bugDate.getMonth() - 8);
+                      
+                      const today = new Date();
+                      const daysToDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                      const daysToBug = Math.ceil((bugDate - today) / (1000 * 60 * 60 * 24));
+                      
+                      let statusColor = 'text-green-400';
+                      let statusText = 'Current';
+                      let statusIcon = '✅';
+                      
+                      if (daysToDue < 0) {
+                        statusColor = 'text-red-400';
+                        statusText = 'EXPIRED';
+                        statusIcon = '❌';
+                      } else if (daysToBug < 0) {
+                        statusColor = 'text-yellow-400';
+                        statusText = 'Renewal Required';
+                        statusIcon = '⚠️';
+                      } else if (daysToBug <= 30) {
+                        statusColor = 'text-orange-400';
+                        statusText = 'Renewal Approaching';
+                        statusIcon = '🔔';
+                      }
+                      
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <h5 className="font-medium text-gray-300 mb-1 text-xs">DATES</h5>
+                            <div className="space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Granted:</span>
+                                <span className="font-medium">{mockGrantedDate.toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Due:</span>
+                                <span className="font-medium">{dueDate.toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">ACR Notify:</span>
+                                <span className="font-medium">{bugDate.toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <h5 className="font-medium text-gray-300 mb-1 text-xs">STATUS</h5>
+                            <div className={`flex items-center space-x-2 ${statusColor}`}>
+                              <span className="text-lg">{statusIcon}</span>
+                              <span className="font-semibold">{statusText}</span>
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              {daysToDue > 0 ? `${daysToDue} days until due` : `${Math.abs(daysToDue)} days overdue`}
+                            </div>
+                          </div>
+                          <div>
+                            <h5 className="font-medium text-gray-300 mb-1 text-xs">NEXT ACTION</h5>
+                            <div className="text-xs text-gray-300">
+                              {daysToBug < 0 ? 'Submit renewal application' : 
+                               daysToBug <= 30 ? 'Prepare renewal application' : 
+                               'Monitor status'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Today's QC Dashboard */}
+                {qcHistory[task.machine.machineId] && (
+                  <div className="mb-4">
+                    <QCStatusDashboard 
+                      machine={task.machine} 
+                      qcHistory={qcHistory[task.machine.machineId]} 
+                      compact={true}
+                    />
+                  </div>
+                )}
+
+                {/* QC Schedule Status */}
+                <QCScheduleStatus 
+                  machine={task.machine} 
+                  worksheets={customWorksheets.filter(ws => 
+                    ws.modality === task.machine.type && 
+                    ws.assignedMachines && 
+                    ws.assignedMachines.includes(task.machine.machineId) &&
+                    ws.isWorksheet === true
+                  )} 
+                  compact={true}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

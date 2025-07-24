@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 
 const QCStatusDashboard = ({ machine, qcHistory }) => {
   const today = new Date();
@@ -13,6 +14,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
     quarterly: [],
     annual: []
   });
+  const [worksheetSchedules, setWorksheetSchedules] = useState({});
 
   // Load assigned worksheets for this machine by frequency
   useEffect(() => {
@@ -40,6 +42,86 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
       console.error('Error loading assigned worksheets:', error);
     }
   }, [machine.machineId, machine.type]);
+
+  // Load schedule data for all worksheets
+  useEffect(() => {
+    const loadAllSchedules = async () => {
+      const scheduleData = {};
+      const allWorksheets = Object.values(assignedWorksheets).flat();
+      
+      if (allWorksheets.length === 0) return;
+
+      try {
+        // Get completions from both localStorage and backend API
+        const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+        
+        // Fetch completions from backend API
+        let backendCompletions = [];
+        try {
+          const response = await axios.get(`/api/qc/completions?machineId=${machine.machineId}`);
+          backendCompletions = response.data || [];
+        } catch (error) {
+          console.error('Error fetching backend completions:', error);
+        }
+        
+        // Merge backend and local completions, with backend taking precedence
+        const allCompletions = [...backendCompletions];
+        
+        // Add local completions that aren't already in backend
+        localCompletions.forEach(localQC => {
+          const existsInBackend = backendCompletions.some(backendQC => 
+            backendQC.machineId === localQC.machineId &&
+            backendQC.frequency === localQC.frequency &&
+            backendQC.date === localQC.date &&
+            backendQC.worksheetId === localQC.worksheetId
+          );
+          
+          if (!existsInBackend) {
+            allCompletions.push(localQC);
+          }
+        });
+        
+        console.log(`🔍 QCStatusDashboard loaded ${allCompletions.length} total completions (${backendCompletions.length} from backend, ${localCompletions.length} from localStorage)`);
+
+        // Use merged completions for schedule calculation
+        
+        for (const worksheet of allWorksheets) {
+          const completedDates = allCompletions
+            .filter(qc => 
+              qc.machineId === machine.machineId && 
+              qc.worksheetId === worksheet.id
+            )
+            .map(qc => qc.date)
+            .sort();
+
+          try {
+            const response = await axios.get(
+              `/api/qc/schedule/generate?frequency=${worksheet.frequency}&startDate=${worksheet.startDate || '2024-01-15'}&completedDates=${JSON.stringify(completedDates)}`
+            );
+            
+            scheduleData[worksheet.id] = {
+              dueDates: response.data.dueDates,
+              completedDates: completedDates,
+              isDueToday: response.data.dueDates.includes(todayStr) && !completedDates.includes(todayStr)
+            };
+          } catch (error) {
+            console.error(`Error loading schedule for worksheet ${worksheet.id}:`, error);
+            scheduleData[worksheet.id] = {
+              dueDates: [],
+              completedDates: completedDates,
+              isDueToday: false
+            };
+          }
+        }
+        
+        setWorksheetSchedules(scheduleData);
+      } catch (error) {
+        console.error('Error loading worksheet schedules:', error);
+      }
+    };
+
+    loadAllSchedules();
+  }, [assignedWorksheets, machine.machineId, todayStr]);
 
   // Listen for QC completion changes
   useEffect(() => {
@@ -92,100 +174,102 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
     });
 
     worksheets.forEach(worksheet => {
-      // Check if this specific worksheet was completed in the relevant time period
-      let wasCompleted = false;
-      
-      // First check localStorage for real completions - these take absolute precedence
-      const localCompletion = localCompletions.find(qc => 
-        qc.machineId === machine.machineId &&
-        qc.frequency === frequency &&
-        qc.worksheetId === worksheet.id  // Match by unique worksheet ID only
-      );
-      
-      if (localCompletion) {
-        // Check if the completion is within the relevant time period
-        switch (frequency) {
-          case 'daily':
-            wasCompleted = localCompletion.date === todayStr;
-            break;
-          case 'weekly':
-            const startOfWeek = new Date(today);
-            startOfWeek.setDate(today.getDate() - today.getDay());
-            const weekStart = startOfWeek.toISOString().split('T')[0];
-            wasCompleted = localCompletion.date >= weekStart && localCompletion.date <= todayStr;
-            break;
-          case 'monthly':
-            const completionDate = new Date(localCompletion.date);
-            wasCompleted = completionDate.getMonth() === currentMonth && 
-                           completionDate.getFullYear() === currentYear;
-            break;
-          case 'quarterly':
-            const completionDate_q = new Date(localCompletion.date);
-            const currentQuarter = Math.floor(currentMonth / 3);
-            const completionQuarter = Math.floor(completionDate_q.getMonth() / 3);
-            wasCompleted = completionQuarter === currentQuarter && 
-                           completionDate_q.getFullYear() === currentYear;
-            break;
-          case 'annual':
-            const completionDate_a = new Date(localCompletion.date);
-            wasCompleted = completionDate_a.getFullYear() === currentYear;
-            break;
-        }
-        
-        console.log(`✅ Found localStorage completion for ${worksheet.title} on ${localCompletion.date}: ${wasCompleted}`);
-      }
-      
-      // If not found locally, check API QC history (but localStorage takes precedence)
-      if (!wasCompleted && !localCompletion) {
-        switch (frequency) {
-          case 'daily':
-            wasCompleted = qcHistory?.daily?.some(qc => 
-              qc.date === todayStr && 
-              qc.worksheetId === worksheet.id  // Match by unique worksheet ID only
-            );
-            break;
-          case 'weekly':
-            // Check if completed this week
-            const startOfWeek = new Date(today);
-            startOfWeek.setDate(today.getDate() - today.getDay());
-            const weekStart = startOfWeek.toISOString().split('T')[0];
-            wasCompleted = qcHistory?.weekly?.some(qc => 
-              qc.date >= weekStart && qc.date <= todayStr &&
-              qc.worksheetId === worksheet.id  // Match by unique worksheet ID only
-            );
-            break;
-          case 'monthly':
-            wasCompleted = qcHistory?.monthly?.some(qc => {
-              const qcDate = new Date(qc.date);
-              return qcDate.getMonth() === currentMonth && 
-                     qcDate.getFullYear() === currentYear &&
-                     qc.worksheetId === worksheet.id;  // Match by unique worksheet ID only
-            });
-            break;
-          case 'quarterly':
-            const currentQuarter = Math.floor(currentMonth / 3);
-            wasCompleted = qcHistory?.quarterly?.some(qc => {
-              const qcDate = new Date(qc.date);
-              const qcQuarter = Math.floor(qcDate.getMonth() / 3);
-              return qcQuarter === currentQuarter && 
-                     qcDate.getFullYear() === currentYear &&
-                     qc.worksheetId === worksheet.id;  // Match by unique worksheet ID only
-            });
-            break;
-          case 'annual':
-            wasCompleted = qcHistory?.annual?.some(qc => {
-              const qcDate = new Date(qc.date);
-              return qcDate.getFullYear() === currentYear &&
-                     qc.worksheetId === worksheet.id;  // Match by unique worksheet ID only
-            });
-            break;
-        }
+      const scheduleData = worksheetSchedules[worksheet.id];
+      if (!scheduleData) {
+        // Schedule data not loaded yet, skip this worksheet
+        return;
       }
 
-      if (wasCompleted) {
-        completed.push(worksheet);
-      } else {
+      // Use schedule-based logic for all frequencies to match QCScheduleStatus
+      const isDueInCurrentPeriod = (() => {
+        const today = new Date().toISOString().split('T')[0];
+        
+        switch (frequency) {
+          case 'daily':
+            return scheduleData.isDueToday;
+          
+          case 'weekly':
+            // Check if any due date falls within this week
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+            const weekStart = startOfWeek.toISOString().split('T')[0];
+            return scheduleData.dueDates.some(date => date >= weekStart && date <= today);
+          
+          case 'monthly':
+            // Check if any due date falls within this month
+            const currentMonth = new Date(today).getMonth();
+            const currentYear = new Date(today).getFullYear();
+            return scheduleData.dueDates.some(date => {
+              const dueDate = new Date(date);
+              return dueDate.getMonth() === currentMonth && dueDate.getFullYear() === currentYear;
+            });
+          
+          case 'quarterly':
+            // Check if any due date falls within this quarter
+            const currentQuarter = Math.floor(new Date(today).getMonth() / 3);
+            const quarterYear = new Date(today).getFullYear();
+            return scheduleData.dueDates.some(date => {
+              const dueDate = new Date(date);
+              const dueQuarter = Math.floor(dueDate.getMonth() / 3);
+              return dueQuarter === currentQuarter && dueDate.getFullYear() === quarterYear;
+            });
+          
+          case 'annual':
+            // Check if any due date falls within this year
+            const year = new Date(today).getFullYear();
+            return scheduleData.dueDates.some(date => {
+              return new Date(date).getFullYear() === year;
+            });
+          
+          default:
+            return false;
+        }
+      })();
+
+      const wasCompletedInPeriod = (() => {
+        switch (frequency) {
+          case 'daily':
+            return scheduleData.completedDates.includes(todayStr);
+          
+          case 'weekly':
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+            const weekStart = startOfWeek.toISOString().split('T')[0];
+            return scheduleData.completedDates.some(date => date >= weekStart && date <= todayStr);
+          
+          case 'monthly':
+            const currentMonth = new Date(todayStr).getMonth();
+            const currentYear = new Date(todayStr).getFullYear();
+            return scheduleData.completedDates.some(date => {
+              const completedDate = new Date(date);
+              return completedDate.getMonth() === currentMonth && completedDate.getFullYear() === currentYear;
+            });
+          
+          case 'quarterly':
+            const currentQuarter = Math.floor(new Date(todayStr).getMonth() / 3);
+            const quarterYear = new Date(todayStr).getFullYear();
+            return scheduleData.completedDates.some(date => {
+              const completedDate = new Date(date);
+              const completedQuarter = Math.floor(completedDate.getMonth() / 3);
+              return completedQuarter === currentQuarter && completedDate.getFullYear() === quarterYear;
+            });
+          
+          case 'annual':
+            const year = new Date(todayStr).getFullYear();
+            return scheduleData.completedDates.some(date => {
+              return new Date(date).getFullYear() === year;
+            });
+          
+          default:
+            return false;
+        }
+      })();
+
+      // Determine status based on schedule and completion
+      if (isDueInCurrentPeriod && !wasCompletedInPeriod) {
         missing.push(worksheet);
+      } else if (wasCompletedInPeriod) {
+        completed.push(worksheet);
       }
     });
 

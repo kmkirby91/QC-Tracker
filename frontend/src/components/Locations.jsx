@@ -15,6 +15,7 @@ const Locations = () => {
     fetchMachines();
   }, []);
 
+
   const fetchMachines = async () => {
     try {
       setLoading(true);
@@ -33,6 +34,7 @@ const Locations = () => {
       setLoading(false);
     }
   };
+
 
   // Get unique locations from machines (by building only)
   const getLocations = () => {
@@ -434,6 +436,7 @@ const Locations = () => {
           )}
         </div>
       )}
+
 
       {locations.length === 0 && (
         <div className="text-center py-12 text-gray-400">

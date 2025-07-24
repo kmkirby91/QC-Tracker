@@ -1,0 +1,130 @@
+[
+  {
+    "id": "1753400049212",
+    "machineId": "CT-WOM-001",
+    "machineType": "CT",
+    "frequency": "daily",
+    "date": "2025-07-24",
+    "tests": [
+      {
+        "testName": "CT Number Accuracy (Water)",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "±5 HU",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Image Noise",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "≤3.0 HU",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Uniformity",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "±5 HU",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Artifact Evaluation",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "Pass",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Patient Positioning Laser Accuracy",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "±2 mm",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Table Movement Accuracy",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "±1 mm",
+        "performedBy": "kk"
+      }
+    ],
+    "performedBy": "kk",
+    "comments": "",
+    "overallResult": "pass",
+    "completedAt": "2025-07-24T23:34:09.212Z",
+    "worksheetId": "1753399308133-CT-WOM-001",
+    "worksheetTitle": "ACR CT Daily QC Protocol",
+    "isRealSubmission": true
+  },
+  {
+    "id": "1753400152915",
+    "machineId": "CT-WOM-001",
+    "machineType": "CT",
+    "frequency": "daily",
+    "date": "2025-07-23",
+    "tests": [
+      {
+        "testName": "CT Number Accuracy (Water)",
+        "value": -2.3,
+        "result": "pass",
+        "notes": "",
+        "tolerance": "±5 HU",
+        "performedBy": "hh"
+      },
+      {
+        "testName": "Image Noise",
+        "value": 4.2,
+        "result": "pass",
+        "notes": "",
+        "tolerance": "≤3.0 HU",
+        "performedBy": "hh"
+      },
+      {
+        "testName": "Uniformity",
+        "value": "7",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "±5 HU",
+        "performedBy": "hh"
+      },
+      {
+        "testName": "Artifact Evaluation",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "Pass",
+        "performedBy": "hh"
+      },
+      {
+        "testName": "Patient Positioning Laser Accuracy",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "±2 mm",
+        "performedBy": "hh"
+      },
+      {
+        "testName": "Table Movement Accuracy",
+        "value": "",
+        "result": "",
+        "notes": "",
+        "tolerance": "±1 mm",
+        "performedBy": "hh"
+      }
+    ],
+    "performedBy": "hh",
+    "comments": "",
+    "overallResult": "pass",
+    "completedAt": "2025-07-24T23:35:52.915Z",
+    "worksheetId": "1753399308133-CT-WOM-001",
+    "worksheetTitle": "ACR CT Daily QC Protocol",
+    "isRealSubmission": true
+  }
+]

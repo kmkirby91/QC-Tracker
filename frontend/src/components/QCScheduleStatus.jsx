@@ -17,12 +17,40 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
     const schedules = {};
 
     try {
-      // Get completed QCs from localStorage
+      // Get completed QCs from both localStorage and backend
       const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
       
+      // Fetch completions from backend API
+      let backendCompletions = [];
+      try {
+        const response = await axios.get(`/api/qc/completions?machineId=${machine.machineId}`);
+        backendCompletions = response.data || [];
+      } catch (error) {
+        console.error('Error fetching backend completions for QCScheduleStatus:', error);
+      }
+      
+      // Merge backend and local completions, with backend taking precedence
+      const allCompletions = [...backendCompletions];
+      
+      // Add local completions that aren't already in backend
+      localCompletions.forEach(localQC => {
+        const existsInBackend = backendCompletions.some(backendQC => 
+          backendQC.machineId === localQC.machineId &&
+          backendQC.frequency === localQC.frequency &&
+          backendQC.date === localQC.date &&
+          backendQC.worksheetId === localQC.worksheetId
+        );
+        
+        if (!existsInBackend) {
+          allCompletions.push(localQC);
+        }
+      });
+      
+      console.log(`🔍 QCScheduleStatus loaded ${allCompletions.length} total completions (${backendCompletions.length} from backend, ${localCompletions.length} from localStorage)`);
+      
       for (const worksheet of worksheets) {
-        // Get completed dates for this specific worksheet
-        const completedDates = localCompletions
+        // Get completed dates for this specific worksheet using merged data
+        const completedDates = allCompletions
           .filter(qc => 
             qc.machineId === machine.machineId && 
             qc.worksheetId === worksheet.id

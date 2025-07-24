@@ -1564,10 +1564,24 @@ const Worksheets = () => {
                                       {/* Machine assignment */}
                                       {worksheet.assignedMachines && worksheet.assignedMachines.length > 0 && (
                                         <span className="text-blue-300">
-                                          📍 {worksheet.assignedMachines.map(machineId => {
+                                          📍 {worksheet.assignedMachines.map((machineId, index) => {
                                             const machine = machines.find(m => m.machineId === machineId);
-                                            return machine ? machine.name : machineId;
-                                          }).join(', ')}
+                                            return (
+                                              <span key={machineId}>
+                                                {machine ? (
+                                                  <Link 
+                                                    to={`/machines/${machineId}`}
+                                                    className="text-blue-300 hover:text-blue-200 hover:underline transition-colors"
+                                                  >
+                                                    {machine.name}
+                                                  </Link>
+                                                ) : (
+                                                  machineId
+                                                )}
+                                                {index < worksheet.assignedMachines.length - 1 && ', '}
+                                              </span>
+                                            );
+                                          })}
                                         </span>
                                       )}
                                       
