@@ -400,7 +400,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
             <>
               {worksheetStatus.completed.length > 0 && (
                 <div className="bg-green-900 border border-green-700 rounded p-3 mb-3">
-                  <p className="text-sm text-green-200 font-medium">✅ Completed Today</p>
+                  <p className="text-sm text-green-200 font-medium">Completed Today</p>
                   <div className="space-y-1 mt-2">
                     {worksheetStatus.completed.map((worksheet) => (
                       <div key={worksheet.id} className="text-xs text-green-300">

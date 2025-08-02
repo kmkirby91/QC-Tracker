@@ -132,7 +132,7 @@ const ACRToolkit = () => {
                 <h3 className="text-sm font-medium text-gray-400">Active Accreditations</h3>
                 <p className="text-2xl font-bold text-green-400">8</p>
               </div>
-              <span className="text-3xl text-green-400">✅</span>
+              <span className="text-3xl text-green-400">✓</span>
             </div>
           </div>
           

@@ -598,7 +598,7 @@ const MachineDetail = () => {
             // Determine status and color
             let statusColor = 'text-green-400';
             let statusText = 'Current';
-            let statusIcon = '✅';
+            let statusIcon = '';
             
             if (daysToDue < 0) {
               statusColor = 'text-red-400';

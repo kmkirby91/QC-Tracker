@@ -315,6 +315,224 @@ const QCForm = ({ viewOnly = false }) => {
     setFormData(blankData);
   };
 
+  const areAllRequiredFieldsFilled = () => {
+    // Check if performedBy is filled
+    if (!formData.performedBy || formData.performedBy.trim() === '') {
+      return false;
+    }
+
+    // Check if all required tests have required fields filled
+    for (const test of tests) {
+      // Only validate if this test is marked as required (default to true for backward compatibility)
+      if (test.required === false) {
+        continue; // Skip non-required tests
+      }
+
+      const testName = test.testName || test.name;
+      const testData = formData[testName];
+      
+      if (!testData) {
+        return false;
+      }
+
+      // For different test types, check appropriate fields
+      switch (test.testType) {
+        case 'checkbox':
+          // For checkbox, just check if there's a value (true/false)
+          if (testData.value === undefined || testData.value === '') {
+            return false;
+          }
+          break;
+        case 'passfail':
+          // For pass/fail, check result field
+          if (!testData.result || testData.result.trim() === '') {
+            return false;
+          }
+          break;
+        case 'text':
+        case 'value':
+        default:
+          // For text and numerical, check both value and result
+          if (!testData.value || testData.value.toString().trim() === '') {
+            return false;
+          }
+          if (!testData.result || testData.result.trim() === '') {
+            return false;
+          }
+          break;
+      }
+    }
+
+    return true;
+  };
+
+  const renderTestInput = (test, testName) => {
+    const testData = formData[testName];
+    const valueSource = testData?.valueSource;
+    const isAutomated = valueSource === 'automated' || (test.calculatedFromDicom && !valueSource);
+    const hasValue = testData?.value;
+    
+    const baseClassName = `w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-gray-700 text-gray-100`;
+    const errorClassName = (test.required !== false && (!testData?.value || testData?.value.toString().trim() === '')) 
+      ? 'border-red-500 focus:ring-red-500' 
+      : 'border-gray-600 focus:ring-blue-500';
+
+    switch (test.testType) {
+      case 'checkbox':
+        return (
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              checked={testData?.value === true || testData?.value === 'true'}
+              onChange={(e) => {
+                const value = e.target.checked;
+                handleTestChange(testName, 'value', value);
+                // Auto-set result based on checkbox
+                handleTestChange(testName, 'result', value ? 'pass' : 'fail');
+              }}
+              disabled={viewOnly}
+              className="w-5 h-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <label className="text-sm text-gray-300">
+              {testData?.value === true || testData?.value === 'true' ? 'Checked' : 'Unchecked'}
+            </label>
+          </div>
+        );
+
+      case 'passfail':
+        return (
+          <select
+            value={testData?.result || ''}
+            onChange={(e) => {
+              handleTestChange(testName, 'result', e.target.value);
+              handleTestChange(testName, 'value', e.target.value);
+            }}
+            disabled={viewOnly}
+            className={`${baseClassName} ${errorClassName}`}
+          >
+            <option value="">Select</option>
+            <option value="pass">Pass</option>
+            <option value="fail">Fail</option>
+          </select>
+        );
+
+      case 'text':
+        return (
+          <div className="relative">
+            <textarea
+              value={testData?.value || ''}
+              onChange={(e) => {
+                handleTestChange(testName, 'value', e.target.value);
+                // Auto-set result for text entry (if provided)
+                const result = determineResult(testName, e.target.value);
+                if (result) {
+                  handleTestChange(testName, 'result', result);
+                }
+              }}
+              className={`${baseClassName} ${errorClassName} pr-12`}
+              placeholder="Enter text observation"
+              readOnly={viewOnly}
+              rows={2}
+            />
+            {!viewOnly && (
+              <div className="absolute right-2 top-2 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
+                📝 TEXT
+              </div>
+            )}
+          </div>
+        );
+
+      case 'value':
+      default:
+        // Default numerical value input (existing logic)
+        if (isAutomated || (test.calculatedFromDicom && hasValue)) {
+          return (
+            <div className="space-y-2">
+              <div className="relative">
+                <input
+                  type="number"
+                  step="any"
+                  value={testData?.value || ''}
+                  onChange={(e) => {
+                    handleTestChange(testName, 'value', e.target.value, 'manual');
+                    // Auto-determine result
+                    const result = determineResult(testName, e.target.value);
+                    if (result) {
+                      handleTestChange(testName, 'result', result);
+                    }
+                  }}
+                  className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    testData?.valueSource === 'manual' 
+                      ? 'bg-amber-900/30 text-amber-200 border-amber-600' 
+                      : 'bg-blue-900/30 text-blue-200 border-blue-600'
+                  }`}
+                  placeholder={testData?.valueSource === 'manual' ? "Manual override value" : "Will be calculated from DICOM"}
+                  readOnly={viewOnly}
+                />
+                <div className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-xs px-1.5 py-0.5 rounded border ${
+                  testData?.valueSource === 'manual'
+                    ? 'text-amber-300 bg-amber-800/50 border-amber-400/30'
+                    : 'text-blue-300 bg-blue-800/50 border-blue-400/30'
+                }`}>
+                  {testData?.valueSource === 'manual' ? '⚠️ OVERRIDE' : '🤖 AUTO'}
+                </div>
+              </div>
+              {!viewOnly && testData?.valueSource === 'manual' && (
+                <div className="flex items-center justify-between bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1">
+                  <span className="text-xs text-amber-300">
+                    ⚠️ Manual override active
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleTestChange(testName, 'value', '');
+                      setFormData(prev => ({
+                        ...prev,
+                        [testName]: {
+                          ...prev[testName],
+                          valueSource: undefined,
+                          manuallyEnteredAt: undefined
+                        }
+                      }));
+                    }}
+                    className="text-xs text-amber-300 hover:text-amber-200 underline"
+                  >
+                    Reset to Auto
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        } else {
+          return (
+            <div className="relative">
+              <input
+                type="number"
+                step="any"
+                value={testData?.value || ''}
+                onChange={(e) => {
+                  handleTestChange(testName, 'value', e.target.value);
+                  // Auto-determine result
+                  const result = determineResult(testName, e.target.value);
+                  if (result) {
+                    handleTestChange(testName, 'result', result);
+                  }
+                }}
+                className={`${baseClassName} ${errorClassName} pr-12`}
+                placeholder={test.placeholder || "Enter numerical value"}
+                readOnly={viewOnly}
+              />
+              {!viewOnly && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
+                  🔢 NUMBER
+                </div>
+              )}
+            </div>
+          );
+        }
+    }
+  };
+
   const generateDateOptions = () => {
     const options = [];
     const today = new Date();
@@ -483,7 +701,7 @@ const QCForm = ({ viewOnly = false }) => {
       // Store a flag to trigger QC status refresh on the machine detail page
       localStorage.setItem('qcStatusRefresh', Date.now().toString());
       
-      console.log('✅ QC completion stored:', completedQC);
+      console.log('QC completion stored:', completedQC);
       
       navigate(`/machines/${machineId}`, { 
         state: { 
@@ -770,6 +988,9 @@ const QCForm = ({ viewOnly = false }) => {
                     <div className="lg:col-span-1">
                       <label className="block text-sm font-medium text-gray-100 mb-1">
                         {test.name || test.testName}
+                        {test.required !== false && (
+                          <span className="text-red-400 ml-1">*</span>
+                        )}
                         {test.isCustomField && (
                           <span className="ml-2 text-xs text-blue-400 font-bold">🔧 Custom</span>
                         )}
@@ -800,7 +1021,18 @@ const QCForm = ({ viewOnly = false }) => {
                         })()}
                       </label>
                       {test.tolerance && (
-                        <p className="text-xs text-gray-400">Tolerance: {test.tolerance}</p>
+                        <p className="text-xs text-gray-400">
+                          Tolerance: {
+                            typeof test.tolerance === 'string' ? test.tolerance :
+                            test.tolerance?.lowerLimit && test.tolerance?.upperLimit ? 
+                              `${test.tolerance.lowerLimit} - ${test.tolerance.upperLimit}` :
+                            test.tolerance?.lowerLimit ? 
+                              `Min: ${test.tolerance.lowerLimit}` :
+                            test.tolerance?.upperLimit ?
+                              `Max: ${test.tolerance.upperLimit}` :
+                            'N/A'
+                          }
+                        </p>
                       )}
                       {test.units && (
                         <p className="text-xs text-gray-400">Units: {test.units}</p>
@@ -828,121 +1060,75 @@ const QCForm = ({ viewOnly = false }) => {
                     </div>
                     
                     <div>
-{(() => {
+                      {(() => {
                         const testName = test.name || test.testName;
-                        const valueSource = formData[testName]?.valueSource;
+                        const testData = formData[testName];
+                        const valueSource = testData?.valueSource;
                         const isAutomated = valueSource === 'automated' || (test.calculatedFromDicom && !valueSource);
-                        const hasValue = formData[testName]?.value;
+                        const hasValue = testData?.value;
+                        
+                        // For pass/fail tests, don't show the value label since they use buttons
+                        if (test.testType === 'passfail') {
+                          return renderTestInput(test, testName);
+                        }
                         
                         return (
                           <>
                             <label className="block text-xs font-medium text-gray-300 mb-1">
-                              {formData[testName]?.valueSource === 'manual' ? 'Override Value' : 
+                              {test.testType === 'checkbox' ? 'Check if applicable' :
+                               test.testType === 'text' ? 'Observation' :
+                               testData?.valueSource === 'manual' ? 'Override Value' : 
                                isAutomated || (test.calculatedFromDicom && hasValue) ? 'Calculated Value' : 'Measured Value'}
                             </label>
-                            {isAutomated || (test.calculatedFromDicom && hasValue) ? (
-                              <div className="space-y-2">
-                                <div className="relative">
-                                  <input
-                                    type="text"
-                                    value={formData[testName]?.value || ''}
-                                    onChange={(e) => {
-                                      handleTestChange(testName, 'value', e.target.value, 'manual');
-                                      // Auto-determine result
-                                      const result = determineResult(testName, e.target.value);
-                                      if (result) {
-                                        handleTestChange(testName, 'result', result);
-                                      }
-                                    }}
-                                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                      formData[testName]?.valueSource === 'manual' 
-                                        ? 'bg-amber-900/30 text-amber-200 border-amber-600' 
-                                        : 'bg-blue-900/30 text-blue-200 border-blue-600'
-                                    }`}
-                                    placeholder={formData[testName]?.valueSource === 'manual' ? "Manual override value" : "Will be calculated from DICOM"}
-                                    readOnly={viewOnly}
-                                  />
-                                  <div className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-xs px-1.5 py-0.5 rounded border ${
-                                    formData[testName]?.valueSource === 'manual'
-                                      ? 'text-amber-300 bg-amber-800/50 border-amber-400/30'
-                                      : 'text-blue-300 bg-blue-800/50 border-blue-400/30'
-                                  }`}>
-                                    {formData[testName]?.valueSource === 'manual' ? '⚠️ OVERRIDE' : '🤖 AUTO'}
-                                  </div>
-                                </div>
-                                {!viewOnly && formData[testName]?.valueSource === 'manual' && (
-                                  <div className="flex items-center justify-between bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1">
-                                    <span className="text-xs text-amber-300">
-                                      ⚠️ Manual override active
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        handleTestChange(testName, 'value', '');
-                                        setFormData(prev => ({
-                                          ...prev,
-                                          [testName]: {
-                                            ...prev[testName],
-                                            valueSource: undefined,
-                                            manuallyEnteredAt: undefined
-                                          }
-                                        }));
-                                      }}
-                                      className="text-xs text-amber-300 hover:text-amber-200 underline"
-                                    >
-                                      Reset to Auto
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  value={formData[testName]?.value || ''}
-                                  onChange={(e) => {
-                                    handleTestChange(testName, 'value', e.target.value);
-                                    // Auto-determine result
-                                    const result = determineResult(testName, e.target.value);
-                                    if (result) {
-                                      handleTestChange(testName, 'result', result);
-                                    }
-                                  }}
-                                  className="w-full border border-gray-600 rounded-md px-3 py-2 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
-                                  placeholder={test.placeholder || "Enter value"}
-                                  readOnly={viewOnly}
-                                />
-                                {!viewOnly && (
-                                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
-                                    ✋ MANUAL
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            {renderTestInput(test, testName)}
                           </>
                         );
                       })()}
                     </div>
                     
-                    <div>
-                      <label className="block text-xs font-medium text-gray-300 mb-1">
-                        Result
-                      </label>
-                      <select
-                        value={formData[test.name || test.testName]?.result || ''}
-                        onChange={(e) => handleTestChange(test.name || test.testName, 'result', e.target.value)}
-                        className={`w-full border border-gray-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100 ${
-                          formData[test.name || test.testName]?.result === 'fail' ? 'bg-red-900' : 
-                          formData[test.name || test.testName]?.result === 'pass' ? 'bg-green-900' : ''
-                        }`}
-                        disabled={viewOnly}
-                      >
-                        <option value="">Select</option>
-                        <option value="pass">Pass</option>
-                        <option value="fail">Fail</option>
-                        <option value="conditional">Conditional</option>
-                      </select>
-                    </div>
+                    {test.testType !== 'passfail' && test.testType !== 'checkbox' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-1">
+                          Result{test.required !== false && (
+                            <span className="text-red-400 ml-1">*</span>
+                          )}
+                        </label>
+                        <select
+                          value={formData[test.name || test.testName]?.result || ''}
+                          onChange={(e) => handleTestChange(test.name || test.testName, 'result', e.target.value)}
+                          className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 text-gray-100 ${
+                            (test.required !== false && (!formData[test.name || test.testName]?.result || formData[test.name || test.testName]?.result.trim() === '')) 
+                              ? 'border-red-500 focus:ring-red-500 bg-gray-700' 
+                              : formData[test.name || test.testName]?.result === 'fail' ? 'bg-red-900 border-gray-600 focus:ring-blue-500' : 
+                                formData[test.name || test.testName]?.result === 'pass' ? 'bg-green-900 border-gray-600 focus:ring-blue-500' : 
+                                'bg-gray-700 border-gray-600 focus:ring-blue-500'
+                          }`}
+                          disabled={viewOnly}
+                        >
+                          <option value="">Select</option>
+                          <option value="pass">Pass</option>
+                          <option value="fail">Fail</option>
+                          <option value="conditional">Conditional</option>
+                        </select>
+                      </div>
+                    )}
+                    
+                    {(test.testType === 'passfail' || test.testType === 'checkbox') && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-1">
+                          Result
+                        </label>
+                        <div className={`w-full border rounded-md px-3 py-2 text-sm text-center font-medium ${
+                          formData[test.name || test.testName]?.result === 'fail' ? 'bg-red-900 text-red-200 border-red-600' : 
+                          formData[test.name || test.testName]?.result === 'pass' ? 'bg-green-900 text-green-200 border-green-600' : 
+                          'bg-gray-700 text-gray-400 border-gray-600'
+                        }`}>
+                          {formData[test.name || test.testName]?.result ? 
+                            (formData[test.name || test.testName]?.result === 'pass' ? '✓ Pass' : '✗ Fail') : 
+                            'Not set'}
+                        </div>
+                      </div>
+                    )}
                     
                     <div>
                       <label className="block text-xs font-medium text-gray-300 mb-1">
@@ -1034,7 +1220,7 @@ const QCForm = ({ viewOnly = false }) => {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || !formData.performedBy}
+                  disabled={submitting || !areAllRequiredFieldsFilled()}
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
                   {submitting ? 'Submitting...' : showReplaceWarning ? 'Update QC Data' : 'Complete QC'}

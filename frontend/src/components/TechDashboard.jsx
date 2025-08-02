@@ -199,7 +199,7 @@ const TechDashboard = () => {
     switch (status) {
       case 'overdue': return '🚨';
       case 'due': return '⚠️';
-      case 'current': return '✅';
+      case 'current': return '✓';
       default: return '⚪';
     }
   };
@@ -339,7 +339,7 @@ const TechDashboard = () => {
               t.annualDueStatus === 'due'
             ).length === 0 && (
               <div className="text-center py-4 text-yellow-300">
-                <span className="text-2xl">✅</span>
+                <span className="text-2xl text-green-400">✓</span>
                 <p className="text-sm mt-1">No QC tasks due today</p>
               </div>
             )}
@@ -410,7 +410,7 @@ const TechDashboard = () => {
               t.annualDueStatus === 'overdue'
             ).length === 0 && (
               <div className="text-center py-4 text-red-300">
-                <span className="text-2xl">✅</span>
+                <span className="text-2xl text-green-400">✓</span>
                 <p className="text-sm mt-1">No overdue QC tasks</p>
               </div>
             )}
@@ -427,7 +427,7 @@ const TechDashboard = () => {
             </h2>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2 text-sm">
-                <span className="text-green-400">✅ {dailyQCTasks.filter(t => t.dailyDueStatus === 'current' && t.quarterlyDueStatus === 'current' && t.annualDueStatus === 'current').length} Current</span>
+                <span className="text-green-400">{dailyQCTasks.filter(t => t.dailyDueStatus === 'current' && t.quarterlyDueStatus === 'current' && t.annualDueStatus === 'current').length} Current</span>
                 <span className="text-yellow-400">⚠️ {dailyQCTasks.filter(t => t.dailyDueStatus === 'due' || t.quarterlyDueStatus === 'due' || t.annualDueStatus === 'due').length} Due</span>
                 <span className="text-red-400">🚨 {dailyQCTasks.filter(t => t.dailyDueStatus === 'overdue' || t.quarterlyDueStatus === 'overdue' || t.annualDueStatus === 'overdue').length} Overdue</span>
               </div>
@@ -623,7 +623,7 @@ const TechDashboard = () => {
                           >
                             {task.dailyDueStatus === 'overdue' ? '🚨 Daily' : 
                              task.dailyDueStatus === 'due' ? '⚠️ Daily' : 
-                             '✅ Daily'}
+                             'Daily'}
                           </button>
                         )}
                         {task.quarterlyWorksheet && (
@@ -710,7 +710,7 @@ const TechDashboard = () => {
                       
                       let statusColor = 'text-green-400';
                       let statusText = 'Current';
-                      let statusIcon = '✅';
+                      let statusIcon = '';
                       
                       if (daysToDue < 0) {
                         statusColor = 'text-red-400';

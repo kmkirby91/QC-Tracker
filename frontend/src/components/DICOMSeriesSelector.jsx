@@ -48,6 +48,15 @@ const DICOMSeriesSelector = ({
       setConnectionStatus('connected'); // Would be based on actual connection
       setLastRefresh(new Date().toLocaleTimeString());
       
+      // Automatically select all series when they load
+      const allSeriesUIDs = mockSeries.series.map(series => series.seriesInstanceUID);
+      setSelectedSeries(allSeriesUIDs);
+      
+      // Notify parent component of automatic selection
+      if (onSeriesSelection) {
+        onSeriesSelection(mockSeries.series);
+      }
+      
       console.log('Fetched DICOM series - placeholder data');
     } catch (error) {
       console.error('Error fetching DICOM series:', error);
@@ -1351,7 +1360,7 @@ Zoom: \${(zoom * 100).toFixed(0)}%
             {/* Selection Summary */}
             {selectedSeries.length > 0 && (
               <div className="bg-green-900/20 border border-green-600 rounded-lg p-4 mt-4">
-                <h4 className="text-green-300 font-medium mb-2">✅ Selected for Analysis</h4>
+                <h4 className="text-green-300 font-medium mb-2">Selected for Analysis</h4>
                 <div className="text-sm text-green-200">
                   {selectedSeries.length} series selected for automated QC analysis.
                   These images will be processed to automatically calculate measurement values.

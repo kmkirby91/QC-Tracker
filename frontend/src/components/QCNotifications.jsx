@@ -124,7 +124,7 @@ const QCNotifications = ({ minimized = false, showAll = false }) => {
               </span>
             </>
           ) : (
-            <span className="text-green-100 text-sm">✅ All QC Current</span>
+            <span className="text-green-100 text-sm">All QC Current</span>
           )}
           <span className="text-xs opacity-70">{showNotifications ? '▼' : '▶'}</span>
         </div>
@@ -148,7 +148,7 @@ const QCNotifications = ({ minimized = false, showAll = false }) => {
     return (
       <div className="bg-green-900/20 border border-green-600 rounded-lg p-4 mb-4">
         <div className="flex items-center space-x-2">
-          <span className="text-green-100">✅</span>
+          <span className="text-green-100">✓</span>
           <span className="text-green-200 font-medium">All QC Up to Date</span>
         </div>
         <p className="text-green-300 text-sm mt-1">
@@ -228,7 +228,7 @@ const QCNotificationsList = ({ dueTasks, onPerformQC, getPriorityColor, getPrior
   if (allTasks.length === 0) {
     return (
       <div className="p-4 text-center text-gray-400">
-        <span>✅ No outstanding QC tasks</span>
+        <span>No outstanding QC tasks</span>
       </div>
     );
   }

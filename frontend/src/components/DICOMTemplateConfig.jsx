@@ -308,7 +308,7 @@ const DICOMTemplateConfig = ({
                   className="w-3 h-3 text-green-600 bg-gray-600 border-gray-500 rounded focus:ring-green-500 focus:ring-1"
                 />
                 <label htmlFor={`enabled-${config.id}`} className="text-xs text-green-300 font-medium">
-                  {config.enabled !== false ? '✅' : '❌'}
+                  {config.enabled !== false ? '✓' : '✗'}
                 </label>
               </div>
               <h5 className="text-sm font-medium text-gray-100">
@@ -407,7 +407,7 @@ const DICOMTemplateConfig = ({
                         className="w-3 h-3 text-green-600 bg-gray-600 border-gray-500 rounded focus:ring-green-500 focus:ring-1"
                       />
                       <label htmlFor={`tag-enabled-${config.id}-${tagIndex}`} className="text-xs text-green-300">
-                        {tag.enabled !== false ? '✅' : '❌'}
+                        {tag.enabled !== false ? '✓' : '✗'}
                       </label>
                       <span className="text-xs text-gray-400">
                         Criteria #{tagIndex + 1}
@@ -559,7 +559,7 @@ const DICOMTemplateConfig = ({
                 <div key={config.id} className="flex items-center justify-between py-1">
                   <div className="flex items-center space-x-2">
                     <span className={config.enabled !== false ? 'text-green-300' : 'text-red-300'}>
-                      {config.enabled !== false ? '✅' : '❌'}
+                      {config.enabled !== false ? '✓' : '✗'}
                     </span>
                     <span className="text-gray-200">
                       {config.name || `Series #${index + 1}`}

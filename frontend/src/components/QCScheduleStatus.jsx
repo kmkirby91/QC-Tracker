@@ -400,7 +400,7 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
 
       {qcsDue.length === 0 && overdueQCs.length === 0 && qcFailures.length === 0 && (
         <div className="text-green-400 text-sm mt-4">
-          ✅ All QCs are up to date with no failures!
+          All QCs are up to date with no failures!
         </div>
       )}
     </div>

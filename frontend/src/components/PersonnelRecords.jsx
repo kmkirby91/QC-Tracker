@@ -157,7 +157,7 @@ const PersonnelRecords = () => {
                 <h3 className="text-sm font-medium text-gray-400">Active Staff</h3>
                 <p className="text-2xl font-bold text-green-400">{personnel.filter(p => p.status === 'active').length}</p>
               </div>
-              <span className="text-3xl text-green-400">✅</span>
+              <span className="text-3xl text-green-400">✓</span>
             </div>
           </div>
           

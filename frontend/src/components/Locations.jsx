@@ -393,7 +393,7 @@ const Locations = () => {
                                   {frequency.charAt(0).toUpperCase() + frequency.slice(1)}
                                 </span>
                                 <span className={`text-xs ${getDueStatusColor(dueStatus)}`}>
-                                  {dueStatus === 'due' ? '⚠️ Due' : '✅ Current'}
+                                  {dueStatus === 'due' ? '⚠️ Due' : 'Current'}
                                 </span>
                                 <button
                                   onClick={() => navigate(`/qc/perform/${machine.machineId}/${frequency}`)}

@@ -1184,7 +1184,7 @@ const QCOverviewCalendar = ({ navigate }) => {
             {(taskGroups.overdue.length === 0 && taskGroups.dueToday.length === 0 && 
               taskGroups.dueThisWeek.length === 0 && taskGroups.dueThisMonth.length === 0) && (
               <div className="text-center py-8">
-                <div className="text-6xl mb-4">✅</div>
+                <div className="text-6xl mb-4 text-green-400">✓</div>
                 <h3 className="text-xl font-semibold text-gray-200 mb-2">All Caught Up!</h3>
                 <p className="text-gray-400">No QC tasks are due in the immediate future.</p>
               </div>

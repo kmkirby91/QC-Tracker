@@ -272,7 +272,7 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, selectedSeries = [
                   <div className={`text-sm ${
                     result.status === 'pass' ? 'text-green-300' : 'text-red-300'
                   }`}>
-                    {result.status === 'pass' ? '✅ Pass' : '❌ Fail'}
+                    {result.status === 'pass' ? 'Pass' : 'Fail'}
                   </div>
                 </div>
               </div>

@@ -33,7 +33,20 @@ const Worksheets = () => {
 
   const [viewMode, setViewMode] = useState('worksheets'); // 'worksheets', 'custom', 'templates', 'view-only', 'dicom-config'
   const [customTests, setCustomTests] = useState([
-    { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '', calculatedFromDicom: false, dicomSeriesSource: '' }
+    { 
+      id: 1, 
+      testName: '', 
+      testType: 'value', 
+      tolerance: {
+        upperLimit: '',
+        lowerLimit: ''
+      }, 
+      units: '', 
+      notes: '', 
+      calculatedFromDicom: false, 
+      dicomSeriesSource: '', 
+      required: true 
+    }
   ]);
   const [customWorksheetInfo, setCustomWorksheetInfo] = useState({
     title: '',
@@ -73,6 +86,7 @@ const Worksheets = () => {
   const [isCreatingFromCopy, setIsCreatingFromCopy] = useState(false);
   const [templateJustLoadedFlag, setTemplateJustLoadedFlag] = useState(false);
   const [isViewingWorksheet, setIsViewingWorksheet] = useState(false);
+  const [saveAsTemplateChecked, setSaveAsTemplateChecked] = useState(false);
 
   // Machine-specific DICOM configuration storage
   const getMachineSpecificDicomConfig = (machineId, modality, frequency) => {
@@ -996,7 +1010,20 @@ const Worksheets = () => {
       endDate: ''
     });
     setCustomTests([
-      { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '' }
+      { 
+        id: 1, 
+        testName: '', 
+        testType: 'value', 
+        tolerance: {
+          upperLimit: '',
+          lowerLimit: ''
+        }, 
+        units: '', 
+        notes: '', 
+        calculatedFromDicom: false, 
+        dicomSeriesSource: '', 
+        required: true 
+      }
     ]);
     setSelectedTemplate(null);
     setSelectedTemplateForGeneration('');
@@ -1008,6 +1035,7 @@ const Worksheets = () => {
     setOtherModalitySpecification('');
     setIsCreatingFromCopy(false);
     setTemplateJustLoadedFlag(false);
+    setSaveAsTemplateChecked(false);
   };
 
   const saveWorksheet = (worksheetData) => {
@@ -1126,6 +1154,7 @@ const Worksheets = () => {
     const isActuallyModified = detectActualModifications();
     
     // Create unique worksheet for this specific machine
+    const isEditingExisting = worksheetData && worksheetData.id;
     const uniqueWorksheetData = {
       ...customWorksheetInfo,
       title: customWorksheetInfo.title,
@@ -1138,8 +1167,8 @@ const Worksheets = () => {
         customFieldType: (selectedTemplate && matchedToTemplate) ? 
           (test.customFieldType || 'template-default') : 'original'
       })),
-      id: `${Date.now()}-${customWorksheetInfo.machineId}`,
-      createdAt: new Date().toISOString(),
+      id: isEditingExisting ? worksheetData.id : `${Date.now()}-${customWorksheetInfo.machineId}`,
+      createdAt: isEditingExisting ? worksheetData.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       isModified: isActuallyModified,
       sourceTemplateId: (selectedTemplate && matchedToTemplate) ? selectedTemplate.id : null,
@@ -1163,8 +1192,44 @@ const Worksheets = () => {
     if (savedWorksheet) {
       setRefreshKey(prev => prev + 1);
       window.dispatchEvent(new Event('storage'));
+      // Dispatch specific worksheet update event for dashboard components
+      window.dispatchEvent(new CustomEvent('worksheetUpdate', { 
+        detail: { 
+          worksheetId: uniqueWorksheetData.id,
+          machineId: uniqueWorksheetData.machineId,
+          isUpdate: isEditingExisting 
+        } 
+      }));
       
-      // Success notification removed
+      // Save as template if checkbox is checked
+      if (saveAsTemplateChecked) {
+        try {
+          // Prepare template data similar to saveAsTemplate function
+          const savedTemplates = getModalityTemplates();
+          const templateData = {
+            id: Date.now(),
+            title: customWorksheetInfo.title,
+            modality: customWorksheetInfo.modality,
+            frequency: customWorksheetInfo.frequency,
+            description: customWorksheetInfo.description,
+            tests: customTests.filter(test => test.testName.trim()),
+            dicomSeriesConfig: dicomSeriesConfig || [],
+            otherModalitySpecification: otherModalitySpecification,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          
+          savedTemplates.push(templateData);
+          localStorage.setItem('qcModalityTemplates', JSON.stringify(savedTemplates));
+          
+          toast.success(isEditingExisting ? 'Worksheet updated and saved as template!' : 'Worksheet created and saved as template!');
+        } catch (error) {
+          console.error('Error saving template:', error);
+          toast.error(isEditingExisting ? 'Worksheet updated but failed to save as template' : 'Worksheet created but failed to save as template');
+        }
+      } else {
+        toast.success(isEditingExisting ? 'Worksheet updated successfully!' : 'Worksheet created successfully!');
+      }
       
       // Switch to worksheets view to see the result
       setTimeout(() => {
@@ -1240,7 +1305,20 @@ const Worksheets = () => {
         description: ''
       });
       setCustomTests([
-        { id: 1, testName: '', testType: 'value', tolerance: '', units: '', notes: '', calculatedFromDicom: false, dicomSeriesSource: '' }
+        { 
+          id: 1, 
+          testName: '', 
+          testType: 'value', 
+          tolerance: {
+            upperLimit: '',
+            lowerLimit: ''
+          }, 
+          units: '', 
+          notes: '', 
+          calculatedFromDicom: false, 
+          dicomSeriesSource: '', 
+          required: true 
+        }
       ]);
       setDicomSeriesConfig([]);
       setDicomConfigEnabled(false);
@@ -1261,11 +1339,15 @@ const Worksheets = () => {
       id: Date.now() + Math.random(),
       testName: '',
       testType: 'value',
-      tolerance: '',
+      tolerance: {
+        upperLimit: '',
+        lowerLimit: ''
+      },
       units: '',
       notes: '',
       calculatedFromDicom: false,
-      dicomSeriesSource: ''
+      dicomSeriesSource: '',
+      required: true
     };
     setCustomTests([...customTests, newTest]);
   };
@@ -1282,6 +1364,115 @@ const Worksheets = () => {
     ));
     // Clear the "just loaded" flag when user makes modifications
     setTemplateJustLoadedFlag(false);
+  };
+
+  const updateTestTolerance = (id, toleranceField, value) => {
+    setCustomTests(customTests.map(test => 
+      test.id === id ? { 
+        ...test, 
+        tolerance: { 
+          ...test.tolerance, 
+          [toleranceField]: value 
+        } 
+      } : test
+    ));
+    // Clear the "just loaded" flag when user makes modifications
+    setTemplateJustLoadedFlag(false);
+  };
+
+  const handleTestTypeChange = (id, newType) => {
+    setCustomTests(customTests.map(test => {
+      if (test.id === id) {
+        // Reset tolerance structure based on test type
+        let newTolerance;
+        switch (newType) {
+          case 'value':
+            newTolerance = {
+              upperLimit: '',
+              lowerLimit: ''
+            };
+            break;
+          case 'checkbox':
+          case 'text':
+          case 'passfail':
+            newTolerance = {
+              upperLimit: '',
+              lowerLimit: ''
+            };
+            break;
+          default:
+            newTolerance = test.tolerance;
+        }
+        
+        return { 
+          ...test, 
+          testType: newType,
+          tolerance: newTolerance
+        };
+      }
+      return test;
+    }));
+    // Clear the "just loaded" flag when user makes modifications
+    setTemplateJustLoadedFlag(false);
+  };
+
+  const renderToleranceField = (test, fieldMods) => {
+    const baseClassName = `w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+      isViewingWorksheet 
+        ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+        : 'bg-gray-600 border-gray-500'
+    }`;
+
+    switch (test.testType) {
+      case 'value':
+        return (
+          <div className="flex space-x-2">
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">Min</label>
+              <input
+                type="text"
+                value={test.tolerance?.lowerLimit || ''}
+                onChange={(e) => updateTestTolerance(test.id, 'lowerLimit', e.target.value)}
+                placeholder="Min value"
+                readOnly={isViewingWorksheet}
+                className={baseClassName}
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">Max</label>
+              <input
+                type="text"
+                value={test.tolerance?.upperLimit || ''}
+                onChange={(e) => updateTestTolerance(test.id, 'upperLimit', e.target.value)}
+                placeholder="Max value"
+                readOnly={isViewingWorksheet}
+                className={baseClassName}
+              />
+            </div>
+          </div>
+        );
+
+      case 'checkbox':
+      case 'text':
+      case 'passfail':
+        return (
+          <div className="text-sm text-gray-400 italic">
+            No tolerance needed
+          </div>
+        );
+
+      default:
+        return (
+          <input
+            type="text"
+            value={typeof test.tolerance === 'string' ? test.tolerance : ''}
+            onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
+            placeholder="e.g., ±5%, >100, 0-10"
+            readOnly={isViewingWorksheet}
+            className={baseClassName}
+          />
+        );
+    }
   };
 
   const updateCustomWorksheetInfo = (field, value) => {
@@ -1608,21 +1799,23 @@ const Worksheets = () => {
                                       
                                       {/* Modified indicator */}
                                       {(() => {
-                                        // Use comprehensive modification detection
-                                        const isModified = isWorksheetModifiedFromTemplate(worksheet);
-                                        
-                                        if (isModified) {
-                                          return (
-                                            <span className="text-amber-300">
-                                              🔧 Modified
-                                            </span>
-                                          );
-                                        } else if (worksheet.templateSource || worksheet.sourceTemplateName) {
-                                          return (
-                                            <span className="text-green-300">
-                                              ✓ Unmodified
-                                            </span>
-                                          );
+                                        // Only show modification status for template-based worksheets
+                                        if (worksheet.templateSource || worksheet.sourceTemplateName || worksheet.templateId || worksheet.sourceTemplateId) {
+                                          const isModified = isWorksheetModifiedFromTemplate(worksheet);
+                                          
+                                          if (isModified) {
+                                            return (
+                                              <span className="text-amber-300">
+                                                🔧 Modified
+                                              </span>
+                                            );
+                                          } else {
+                                            return (
+                                              <span className="text-green-300">
+                                                ✓ Unmodified
+                                              </span>
+                                            );
+                                          }
                                         }
                                         return null;
                                       })()}
@@ -2132,7 +2325,7 @@ const Worksheets = () => {
           <div className="bg-green-900/20 border border-green-600 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <span className="text-green-400 text-lg">✅</span>
+                <span className="text-green-400 text-lg">✓</span>
                 <div>
                   <h3 className="text-lg font-semibold text-green-200">Template Loaded</h3>
                   <p className="text-sm text-green-300">"{selectedTemplate.title}"</p>
@@ -2401,7 +2594,7 @@ const Worksheets = () => {
               <div className="bg-green-900/20 border border-green-600 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center text-green-300 text-sm">
-                    <span className="mr-2">✅</span>
+                    <span className="mr-2">✓</span>
                     <span>
                       {dicomSeriesConfig.length} DICOM series configured for automated identification
                     </span>
@@ -2556,7 +2749,7 @@ const Worksheets = () => {
                     </label>
                     <select
                       value={test.testType}
-                      onChange={(e) => updateCustomTest(test.id, 'testType', e.target.value)}
+                      onChange={(e) => handleTestTypeChange(test.id, e.target.value)}
                       disabled={isViewingWorksheet}
                       className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
                         isViewingWorksheet 
@@ -2565,9 +2758,9 @@ const Worksheets = () => {
                       }`}
                     >
                       <option value="value">Numerical Value</option>
+                      <option value="checkbox">Checkbox</option>
                       <option value="text">Text Entry</option>
                       <option value="passfail">Pass/Fail</option>
-                      <option value="checkbox">Checkbox</option>
                     </select>
                   </div>
                   
@@ -2585,47 +2778,44 @@ const Worksheets = () => {
                         </span>
                       )}
                     </label>
-                    <input
-                      type="text"
-                      value={test.tolerance}
-                      onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
-                      placeholder="e.g., ±5%, >100, 0-10"
-                      readOnly={isViewingWorksheet}
-                      className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
-                        isViewingWorksheet 
-                          ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
-                          : 'bg-gray-600 border-gray-500'
-                      }`}
-                    />
+                    {renderToleranceField(test, fieldMods)}
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
-                      <span>Units</span>
-                      {fieldMods.units && (
-                        <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
-                          fieldMods.isCustomTest 
-                            ? 'text-blue-700 bg-blue-100 border-blue-300' 
-                            : 'text-orange-700 bg-orange-100 border-orange-300'
-                        }`} 
-                              title={fieldMods.isCustomTest ? "Custom units" : "Modified units"}>
-                          🔧
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={test.units}
-                      onChange={(e) => updateCustomTest(test.id, 'units', e.target.value)}
-                      placeholder="e.g., mm, %, dB, HU"
-                      readOnly={isViewingWorksheet}
-                      className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
-                        isViewingWorksheet 
-                          ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
-                          : 'bg-gray-600 border-gray-500'
-                      }`}
-                    />
-                  </div>
+                  {test.testType === 'value' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
+                        <span>Units</span>
+                        {fieldMods.units && (
+                          <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                            fieldMods.isCustomTest 
+                              ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                              : 'text-orange-700 bg-orange-100 border-orange-300'
+                          }`} 
+                                title={fieldMods.isCustomTest ? "Custom units" : "Modified units"}>
+                            🔧
+                          </span>
+                        )}
+                      </label>
+                      <input
+                        type="text"
+                        value={test.units}
+                        onChange={(e) => updateCustomTest(test.id, 'units', e.target.value)}
+                        placeholder="e.g., mm, %, dB, HU"
+                        readOnly={isViewingWorksheet}
+                        className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500 ${
+                          isViewingWorksheet 
+                            ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                            : 'bg-gray-600 border-gray-500'
+                        }`}
+                      />
+                    </div>
+                  )}
+                  
+                  {(test.testType === 'checkbox' || test.testType === 'text' || test.testType === 'passfail') && (
+                    <div className="text-sm text-gray-400 italic">
+                      No units needed
+                    </div>
+                  )}
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center">
@@ -2744,6 +2934,42 @@ const Worksheets = () => {
                       </p>
                     </div>
                   </div>
+
+                  {/* Required Field */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                      <span>Required Field</span>
+                      {fieldMods.required && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                          fieldMods.isCustomTest 
+                            ? 'text-green-300 bg-green-900/20 border-green-600' 
+                            : 'text-amber-300 bg-amber-900/20 border-amber-600'
+                        }`}>
+                          🔧
+                        </span>
+                      )}
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`required-${test.id}`}
+                        checked={test.required !== false}
+                        disabled={isViewingWorksheet}
+                        onChange={(e) => updateCustomTest(test.id, 'required', e.target.checked)}
+                        className={`w-4 h-4 text-blue-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2 ${
+                          isViewingWorksheet 
+                            ? 'bg-gray-700 cursor-not-allowed' 
+                            : 'bg-gray-600'
+                        }`}
+                      />
+                      <label htmlFor={`required-${test.id}`} className="text-sm text-gray-300">
+                        This test must be completed during QC
+                      </label>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      When checked, this test must have a value and result before QC can be completed
+                    </p>
+                  </div>
                 </div>
               </div>
             );
@@ -2801,13 +3027,16 @@ const Worksheets = () => {
                 <span>Cancel</span>
               </button>
               
-              <button
-                onClick={saveAsTemplate}
-                className="px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
-              >
+              <label className="flex items-center space-x-3 px-6 py-3 bg-blue-600/20 border border-blue-600 text-blue-200 font-medium rounded-md hover:bg-blue-600/30 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveAsTemplateChecked}
+                  onChange={(e) => setSaveAsTemplateChecked(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                />
                 <span>💾</span>
                 <span>Save as Template</span>
-              </button>
+              </label>
             </div>
             
             {!isViewingWorksheet && (
@@ -3325,7 +3554,7 @@ const Worksheets = () => {
                             <label className="block text-xs font-medium text-gray-400 mb-1">Test Type</label>
                             <select
                               value={test.testType}
-                              onChange={(e) => updateCustomTest(test.id, 'testType', e.target.value)}
+                              onChange={(e) => handleTestTypeChange(test.id, e.target.value)}
                               disabled={isViewingWorksheet}
                               className={`w-full p-2 border rounded text-white text-sm ${
                                 isViewingWorksheet 
@@ -3333,41 +3562,97 @@ const Worksheets = () => {
                                   : 'bg-gray-600 border-gray-500'
                               }`}
                             >
-                              <option value="value">Value</option>
+                              <option value="value">Numerical Value</option>
+                              <option value="checkbox">Checkbox</option>
+                              <option value="text">Text Entry</option>
                               <option value="passfail">Pass/Fail</option>
-                              <option value="visual">Visual Check</option>
                             </select>
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-400 mb-1">Tolerance</label>
-                            <input
-                              type="text"
-                              value={test.tolerance}
-                              onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
-                              readOnly={isViewingWorksheet}
-                              className={`w-full p-2 border rounded text-white text-sm ${
+                            {(() => {
+                              const baseClassName = `w-full p-2 border rounded text-white text-sm ${
                                 isViewingWorksheet 
                                   ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
                                   : 'bg-gray-600 border-gray-500'
-                              }`}
-                              placeholder="e.g. ±5"
-                            />
+                              }`;
+
+                              switch (test.testType) {
+                                case 'value':
+                                  return (
+                                    <div className="flex space-x-2">
+                                      <div className="flex-1">
+                                        <input
+                                          type="text"
+                                          value={test.tolerance?.lowerLimit || ''}
+                                          onChange={(e) => updateTestTolerance(test.id, 'lowerLimit', e.target.value)}
+                                          placeholder="Min value"
+                                          readOnly={isViewingWorksheet}
+                                          className={baseClassName}
+                                        />
+                                      </div>
+                                      <div className="flex-1">
+                                        <input
+                                          type="text"
+                                          value={test.tolerance?.upperLimit || ''}
+                                          onChange={(e) => updateTestTolerance(test.id, 'upperLimit', e.target.value)}
+                                          placeholder="Max value"
+                                          readOnly={isViewingWorksheet}
+                                          className={baseClassName}
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+
+                                case 'checkbox':
+                                case 'text':
+                                case 'passfail':
+                                  return (
+                                    <div className="text-xs text-gray-400 italic p-2">
+                                      No tolerance needed
+                                    </div>
+                                  );
+
+                                default:
+                                  return (
+                                    <input
+                                      type="text"
+                                      value={typeof test.tolerance === 'string' ? test.tolerance : ''}
+                                      onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
+                                      placeholder="e.g. ±5"
+                                      readOnly={isViewingWorksheet}
+                                      className={baseClassName}
+                                    />
+                                  );
+                              }
+                            })()}
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-400 mb-1">Units</label>
-                            <input
-                              type="text"
-                              value={test.units}
-                              onChange={(e) => updateCustomTest(test.id, 'units', e.target.value)}
-                              readOnly={isViewingWorksheet}
-                              className={`w-full p-2 border rounded text-white text-sm ${
-                                isViewingWorksheet 
-                                  ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
-                                  : 'bg-gray-600 border-gray-500'
-                              }`}
-                              placeholder="e.g. HU, mm"
-                            />
-                          </div>
+                          {test.testType === 'value' && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-400 mb-1">Units</label>
+                              <input
+                                type="text"
+                                value={test.units}
+                                onChange={(e) => updateCustomTest(test.id, 'units', e.target.value)}
+                                readOnly={isViewingWorksheet}
+                                className={`w-full p-2 border rounded text-white text-sm ${
+                                  isViewingWorksheet 
+                                    ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                    : 'bg-gray-600 border-gray-500'
+                                }`}
+                                placeholder="e.g. HU, mm"
+                              />
+                            </div>
+                          )}
+                          
+                          {(test.testType === 'checkbox' || test.testType === 'text' || test.testType === 'passfail') && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-400 mb-1">Units</label>
+                              <div className="text-xs text-gray-400 italic p-2">
+                                No units needed
+                              </div>
+                            </div>
+                          )}
                           <div>
                             <label className="block text-xs font-medium text-gray-400 mb-1">Notes</label>
                             <input
@@ -3431,6 +3716,26 @@ const Worksheets = () => {
                                   </select>
                                 </div>
                               )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-400 mb-1">Required</label>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`template-required-${test.id}`}
+                                checked={test.required !== false}
+                                disabled={isViewingWorksheet}
+                                onChange={(e) => updateCustomTest(test.id, 'required', e.target.checked)}
+                                className={`w-3 h-3 text-blue-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2 ${
+                                  isViewingWorksheet 
+                                    ? 'bg-gray-700 cursor-not-allowed' 
+                                    : 'bg-gray-600'
+                                }`}
+                              />
+                              <label htmlFor={`template-required-${test.id}`} className="text-xs text-gray-300">
+                                Required
+                              </label>
                             </div>
                           </div>
                         </div>
