@@ -99,10 +99,13 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
               `/api/qc/schedule/generate?frequency=${worksheet.frequency}&startDate=${worksheet.startDate || '2024-01-15'}&completedDates=${JSON.stringify(completedDates)}`
             );
             
+            // API returns array of due dates directly
+            const dueDates = response.data;
+            
             scheduleData[worksheet.id] = {
-              dueDates: response.data.dueDates,
+              dueDates: dueDates,
               completedDates: completedDates,
-              isDueToday: response.data.dueDates.includes(todayStr) && !completedDates.includes(todayStr)
+              isDueToday: dueDates.includes(todayStr) && !completedDates.includes(todayStr)
             };
           } catch (error) {
             console.error(`Error loading schedule for worksheet ${worksheet.id}:`, error);

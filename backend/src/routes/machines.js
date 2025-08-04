@@ -822,35 +822,47 @@ const mockMachines = [
   }
 ];
 
-// Get machines that should have worksheet assignments based on current implementation
+// Get machines that should have worksheet assignments 
+// TODO: This should read from actual database/worksheet service
 const getMachinesWithWorksheetAssignments = () => {
-  // Based on the current frontend worksheets, these machines have assignments:
-  return {
+  // For now, include ALL machines that have worksheets based on sample data
+  // The key issue is that the application should check for BOTH 7/31 AND any custom start dates
+  
+  const assignments = {
     'CT-GON-001': { 
       hasWorksheets: true, 
       frequencies: ['daily', 'monthly', 'annual'],
-      startDate: '2025-07-31',
-      nextQCDue: '2025-07-31' // Should be calculated based on today's date and frequency
+      startDate: '2025-07-31'
     },
     'MRI-GON-001': { 
       hasWorksheets: true, 
       frequencies: ['daily', 'quarterly'],
-      startDate: '2025-07-31',
-      nextQCDue: '2025-07-31'
+      startDate: '2025-07-31'
     },
     'MAMMO-WOM-001': { 
       hasWorksheets: true, 
       frequencies: ['daily'],
-      startDate: '2025-07-31',
-      nextQCDue: '2025-07-31'
+      startDate: '2025-07-31'
     },
     'PET-WOM-001': { 
       hasWorksheets: true, 
       frequencies: ['weekly'],
-      startDate: '2025-07-31',
-      nextQCDue: '2025-07-31'  // Should be calculated for weekly frequency
+      startDate: '2025-07-31'
     }
   };
+
+  // CRITICAL: If there are custom worksheets with different start dates (like 7/19),
+  // they should be added here. The system must check for ALL assigned worksheets,
+  // regardless of where they were created.
+  
+  // Add the Canon Aquilion ONE (CT-WOM-001) with 7/19 start date to test the consistency
+  assignments['CT-WOM-001'] = {
+    hasWorksheets: true,
+    frequencies: ['daily'],
+    startDate: '2025-07-19'  // Earlier start date should show many more overdue items
+  };
+
+  return assignments;
 };
 
 // Calculate next QC due date based on frequency and start date
@@ -870,15 +882,23 @@ const calculateNextQCDue = (startDate, frequencies) => {
       
       const allDueDates = generateQCDueDates(frequency, startDate, futureDate.toISOString().split('T')[0]);
       
-      // Find the first date that is today or in the future (overdue or upcoming)
-      const nextDueForFrequency = allDueDates.find(dateStr => {
+      // For QC tracking, we want to show the earliest overdue date or next upcoming date
+      // Split dates into overdue and upcoming
+      const overdueDates = [];
+      const upcomingDates = [];
+      
+      allDueDates.forEach(dateStr => {
         const dueDate = new Date(dateStr);
         dueDate.setHours(0, 0, 0, 0);
-        return dueDate >= today;
+        if (dueDate < today) {
+          overdueDates.push(dateStr);
+        } else {
+          upcomingDates.push(dateStr);
+        }
       });
       
-      // If no future dates, get the last generated date (most overdue)
-      const relevantDate = nextDueForFrequency || allDueDates[allDueDates.length - 1];
+      // Priority: earliest overdue date, or earliest upcoming date
+      const relevantDate = overdueDates.length > 0 ? overdueDates[0] : upcomingDates[0];
       
       if (relevantDate) {
         const dueDate = new Date(relevantDate);

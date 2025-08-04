@@ -38,12 +38,6 @@ const StatusSummary = ({ machines }) => {
     return dueDate < new Date();
   }).length;
 
-  const dueSoonCount = machines.filter(machine => {
-    const today = new Date();
-    const dueDate = new Date(machine.nextQCDue);
-    const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 && diffDays <= 3;
-  }).length;
 
   const getSeverityColor = (severity) => {
     switch (severity) {
@@ -67,7 +61,7 @@ const StatusSummary = ({ machines }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
       <div className="bg-gray-800 rounded-lg shadow-lg p-6">
         <h3 className="text-sm font-medium text-gray-400 mb-2">Operational Status</h3>
         <p className="text-3xl font-bold text-green-400">{statusCounts.operational || 0}</p>
@@ -88,18 +82,6 @@ const StatusSummary = ({ machines }) => {
       </div>
 
       <PostItNote />
-
-      <div className="bg-gray-800 rounded-lg shadow-lg p-6">
-        <h3 className="text-sm font-medium text-gray-400 mb-2">QC Schedule</h3>
-        <p className="text-3xl font-bold text-blue-400">{dueSoonCount}</p>
-        <p className="text-xs text-gray-400 mt-1">Due in next 3 days</p>
-        <div className="mt-3">
-          <div className="flex justify-between text-xs">
-            <span className="text-red-400 font-medium">Overdue:</span>
-            <span className="font-bold text-red-400">{overdueCount}</span>
-          </div>
-        </div>
-      </div>
 
       <div className="bg-gray-800 rounded-lg shadow-lg p-6">
         <div className="flex items-center justify-between mb-2">

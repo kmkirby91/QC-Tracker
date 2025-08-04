@@ -11,7 +11,8 @@
 const generateQCDueDates = (frequency, startDate, endDate = null) => {
   const dueDates = [];
   const start = new Date(startDate);
-  const end = endDate ? new Date(endDate) : new Date();
+  // If no end date specified, generate up to 30 days in the future to include today and upcoming QC
+  const end = endDate ? new Date(endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   
   let currentDue = new Date(start);
   
@@ -19,8 +20,13 @@ const generateQCDueDates = (frequency, startDate, endDate = null) => {
     switch (frequency) {
       case 'daily':
         // Daily QC is due on weekdays only (skip weekends)
-        if (currentDue.getDay() !== 0 && currentDue.getDay() !== 6) {
-          dueDates.push(currentDue.toISOString().split('T')[0]);
+        // Use UTC to avoid timezone issues
+        const dateStr = currentDue.toISOString().split('T')[0];
+        const utcDate = new Date(dateStr + 'T12:00:00.000Z'); // Force noon UTC to avoid timezone edge cases
+        const dayOfWeek = utcDate.getUTCDay();
+        
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          dueDates.push(dateStr);
         }
         currentDue.setDate(currentDue.getDate() + 1);
         break;
@@ -291,68 +297,33 @@ const getQCPriority = (daysOverdue, frequency) => {
 /**
  * Generate realistic sample worksheet assignments with proper start dates
  * This creates a consistent set of assigned worksheets for demo purposes
+ * UPDATED: Now returns empty by default - assignments should come from actual worksheet data
  */
 const generateSampleWorksheetAssignments = () => {
-  const today = new Date();
+  // Return empty assignments by default
+  // Real worksheet assignments should be fetched from the database or localStorage
+  console.log('generateSampleWorksheetAssignments: Returning empty assignments - use real worksheet data instead');
+  return [];
+  
+  // Legacy sample assignments (commented out to prevent false due dates)
+  /*
   const assignments = [];
   
-  // Sample assignments with proper start dates
   assignments.push({
     id: 'ws-ct-daily-001',
     machineId: 'CT-GON-001',
     frequency: 'daily',
     modality: 'CT',
     title: 'ACR CT Daily QC Protocol',
-    startDate: '2024-01-15', // Started in January - should have lots of QC history
+    startDate: '2024-01-15',
     endDate: null,
     hasEndDate: false
   });
   
-  assignments.push({
-    id: 'ws-mri-daily-001', 
-    machineId: 'MRI-GON-001',
-    frequency: 'daily',
-    modality: 'MRI',
-    title: 'ACR MR Daily QC Protocol',
-    startDate: '2024-02-01', // Started in February
-    endDate: null,
-    hasEndDate: false
-  });
-  
-  assignments.push({
-    id: 'ws-ct-monthly-001',
-    machineId: 'CT-GON-001',
-    frequency: 'monthly',
-    modality: 'CT', 
-    title: 'ACR CT Monthly QC Protocol',
-    startDate: '2024-01-01', // Started at beginning of year
-    endDate: null,
-    hasEndDate: false
-  });
-  
-  assignments.push({
-    id: 'ws-mammo-daily-001',
-    machineId: 'MAMMO-GON-001',
-    frequency: 'daily',
-    modality: 'Mammography',
-    title: 'ACR Mammography Daily QC Protocol', 
-    startDate: '2025-01-15', // Started recently - should have some missing QC
-    endDate: null,
-    hasEndDate: false
-  });
-  
-  assignments.push({
-    id: 'ws-pet-weekly-001',
-    machineId: 'PET-WOM-001',
-    frequency: 'weekly', 
-    modality: 'PET',
-    title: 'PET Weekly QC Protocol',
-    startDate: '2024-12-01', // Started in December
-    endDate: null,
-    hasEndDate: false
-  });
+  // Other sample assignments...
   
   return assignments;
+  */
 };
 
 /**

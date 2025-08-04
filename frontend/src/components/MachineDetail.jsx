@@ -6,7 +6,7 @@ import QCCalendar from './QCCalendar';
 import QCStatusDashboard from './QCStatusDashboard';
 import QCReportWidget from './QCReportWidget';
 import QCScheduleStatus from './QCScheduleStatus';
-import { ensureSampleWorksheets, reinitializeSampleWorksheets } from '../utils/initializeSampleWorksheets';
+import { ensureSampleWorksheets } from '../utils/initializeSampleWorksheets';
 
 const MachineDetail = () => {
   const { machineId } = useParams();
@@ -16,13 +16,14 @@ const MachineDetail = () => {
   const [activeTab, setActiveTab] = useState(null);
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'history'
   const [customWorksheets, setCustomWorksheets] = useState([]);
+  const [forceRefresh, setForceRefresh] = useState(0);
 
   useEffect(() => {
     fetchMachineData();
     loadCustomWorksheets();
     // Initialize sample worksheets if they don't exist
     ensureSampleWorksheets();
-  }, [machineId]);
+  }, [machineId, forceRefresh]);
 
   // Listen for localStorage changes to update custom worksheets
   useEffect(() => {
@@ -248,31 +249,6 @@ const MachineDetail = () => {
           ← Back to Dashboard
         </Link>
         
-        {/* Temporary testing button */}
-        {machine?.machineId === 'CT-GON-001' && (
-          <div className="flex space-x-2">
-            <button
-              onClick={() => {
-                reinitializeSampleWorksheets();
-                window.location.reload();
-              }}
-              className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 transition-colors"
-              title="Reinitialize with multiple daily QCs for testing"
-            >
-              🔄 Test Multiple QCs
-            </button>
-            <button
-              onClick={() => {
-                localStorage.removeItem('qcCompletions');
-                window.location.reload();
-              }}
-              className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
-              title="Clear all QC completions to reset status"
-            >
-              🗑️ Clear Completions
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Machine Header */}
@@ -377,36 +353,58 @@ const MachineDetail = () => {
 
 
           <div>
-            <h3 className="font-semibold text-gray-300 mb-2">Perform QC</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-gray-300">Perform QC</h3>
+              <button 
+                onClick={() => {
+                  localStorage.removeItem('qcWorksheets');
+                  setForceRefresh(prev => prev + 1);
+                }}
+                className="text-xs text-blue-400 hover:text-blue-300"
+                title="Refresh worksheet data"
+              >
+                🔄
+              </button>
+            </div>
             <div className="space-y-1">
               {/* Get all assigned worksheets and create individual buttons */}
-              {customWorksheets
-                .filter(ws => 
-                  ws.modality === machine.type && 
-                  ws.assignedMachines && 
-                  ws.assignedMachines.includes(machine.machineId) &&
-                  ws.isWorksheet === true
-                )
-                .sort((a, b) => {
-                  // Sort by frequency priority: daily, weekly, monthly, quarterly, annual, on-demand
-                  const order = { daily: 0, weekly: 1, monthly: 2, quarterly: 3, annual: 4, 'on-demand': 5 };
-                  return (order[a.frequency] || 5) - (order[b.frequency] || 5);
-                })
-                .map((worksheet) => {
-                  const frequencyColors = {
-                    daily: 'bg-blue-600 hover:bg-blue-700',
-                    weekly: 'bg-green-600 hover:bg-green-700', 
-                    monthly: 'bg-yellow-600 hover:bg-yellow-700',
-                    quarterly: 'bg-purple-600 hover:bg-purple-700',
-                    annual: 'bg-red-600 hover:bg-red-700',
-                    'on-demand': 'bg-gray-600 hover:bg-gray-700'
-                  };
+{(() => {
+                // Define frequency order outside sort function
+                const frequencyOrder = { daily: 0, weekly: 1, monthly: 2, quarterly: 3, annual: 4, 'on-demand': 5 };
+                
+                const filtered = customWorksheets
+                  .filter(ws => 
+                    ws.modality === machine.type && 
+                    ws.assignedMachines && 
+                    ws.assignedMachines.includes(machine.machineId) &&
+                    ws.isWorksheet === true
+                  );
+                
+                console.log(`🔍 Machine ${machine.machineId} worksheets BEFORE sort:`, filtered.map(w => `${w.title} (${w.frequency})`));
+                
+                const sorted = filtered.sort((a, b) => {
+                  const aOrder = frequencyOrder[a.frequency] !== undefined ? frequencyOrder[a.frequency] : 6;
+                  const bOrder = frequencyOrder[b.frequency] !== undefined ? frequencyOrder[b.frequency] : 6;
+                  console.log(`🔍 Comparing: "${a.title}" (${a.frequency}=${aOrder}) vs "${b.title}" (${b.frequency}=${bOrder})`);
+                  console.log(`🔍 Frequency lookup: a.frequency='${a.frequency}' -> ${frequencyOrder[a.frequency]}, b.frequency='${b.frequency}' -> ${frequencyOrder[b.frequency]}`);
                   
+                  // If same order, sort by title for consistent results
+                  if (aOrder === bOrder) {
+                    return a.title.localeCompare(b.title);
+                  }
+                  return aOrder - bOrder;
+                });
+                
+                console.log(`🔍 Machine ${machine.machineId} worksheets AFTER sort:`, sorted.map(w => `${w.title} (${w.frequency})`));
+                
+                return sorted;
+              })()
+                .map((worksheet) => {
                   return (
                     <Link
                       key={worksheet.id}
                       to={`/qc/perform/${machine.machineId}/${worksheet.frequency}/${worksheet.id}`}
-                      className={`block w-full px-2 py-1 text-xs font-medium text-center text-white rounded transition-colors ${frequencyColors[worksheet.frequency] || 'bg-gray-600 hover:bg-gray-700'}`}
+                      className="block w-full px-2 py-1 text-xs font-medium text-center text-white bg-gray-600 hover:bg-gray-700 rounded transition-colors"
                     >
                       ▶️ {worksheet.title}
                     </Link>
@@ -475,14 +473,6 @@ const MachineDetail = () => {
             {getAssignedFrequencies(machine).map(frequency => {
               const worksheets = getWorksheetNamesForFrequency(machine, frequency);
               const hasWorksheet = worksheets.some(ws => !ws.needsWorksheet);
-              const frequencyColors = {
-                daily: 'text-blue-400',
-                weekly: 'text-green-400', 
-                monthly: 'text-yellow-400',
-                quarterly: 'text-purple-400',
-                annual: 'text-red-400',
-                'on-demand': 'text-gray-400'
-              };
               
               if (!hasWorksheet) return null; // Skip frequencies without actual worksheets
               
@@ -501,7 +491,7 @@ const MachineDetail = () => {
                 <div key={frequency} className="border border-gray-600 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className={`text-sm font-medium ${frequencyColors[frequency]} mb-1`}>
+                      <h3 className="text-sm font-medium text-gray-100 mb-1">
                         {frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC
                       </h3>
                       

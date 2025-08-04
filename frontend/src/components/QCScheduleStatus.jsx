@@ -64,16 +64,23 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
             `/api/qc/schedule/generate?frequency=${worksheet.frequency}&startDate=${worksheet.startDate || '2024-01-15'}&completedDates=${JSON.stringify(completedDates)}`
           );
           
+          // API returns array of due dates directly
+          const dueDates = response.data;
+          
           schedules[worksheet.id] = {
-            ...response.data,
+            dueDates: dueDates,
             worksheet: worksheet,
             completedDates: completedDates,
-            overdueCount: response.data.dueDates.filter(date => {
+            overdueCount: dueDates.filter(date => {
               const today = new Date().toISOString().split('T')[0];
-              return date <= today && !completedDates.includes(date);
+              return date < today && !completedDates.includes(date);
             }).length,
-            completionRate: response.data.dueDates.length > 0 ? 
-              (completedDates.length / response.data.dueDates.filter(date => date <= new Date().toISOString().split('T')[0]).length * 100).toFixed(1) : 0
+            dueToday: dueDates.filter(date => {
+              const today = new Date().toISOString().split('T')[0];
+              return date === today && !completedDates.includes(date);
+            }).length,
+            completionRate: dueDates.length > 0 ? 
+              (completedDates.length / dueDates.filter(date => date <= new Date().toISOString().split('T')[0]).length * 100).toFixed(1) : 0
           };
         } catch (error) {
           console.error(`Error loading schedule for worksheet ${worksheet.id}:`, error);
