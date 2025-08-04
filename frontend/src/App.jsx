@@ -205,6 +205,10 @@ function Dashboard() {
     filtered.sort((a, b) => {
       switch (filters.sortBy) {
         case 'nextQCDue':
+          // Handle null nextQCDue values - put them at the end
+          if (!a.nextQCDue && !b.nextQCDue) return 0;
+          if (!a.nextQCDue) return 1;
+          if (!b.nextQCDue) return -1;
           return new Date(a.nextQCDue) - new Date(b.nextQCDue)
         case 'name':
           return a.name.localeCompare(b.name)

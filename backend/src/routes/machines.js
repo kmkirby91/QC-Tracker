@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { generateQCDueDates, calculateNextDueDate } = require('../utils/qcScheduling');
 
 // Mock data for development
 const mockMachines = [
@@ -18,18 +19,18 @@ const mockMachines = [
     installationDate: '2021-03-15',
     status: 'operational',
     lastQC: {
-      date: '2024-01-02',
-      result: 'pass',
-      performedBy: 'John Smith',
-      notes: 'All parameters within normal limits'
+      date: null,
+      result: null,
+      performedBy: null,
+      notes: 'No QC worksheets assigned - QC program not active'
     },
-    nextQCDue: '2024-01-09',
+    nextQCDue: null,
     qcSchedule: {
       daily: false,
-      weekly: true,
-      monthly: true,
+      weekly: false,
+      monthly: false,
       quarterly: false,
-      annual: true
+      annual: false
     }
   },
   {
@@ -821,16 +822,143 @@ const mockMachines = [
   }
 ];
 
+// Get machines that should have worksheet assignments based on current implementation
+const getMachinesWithWorksheetAssignments = () => {
+  // Based on the current frontend worksheets, these machines have assignments:
+  return {
+    'CT-GON-001': { 
+      hasWorksheets: true, 
+      frequencies: ['daily', 'monthly', 'annual'],
+      startDate: '2025-07-31',
+      nextQCDue: '2025-07-31' // Should be calculated based on today's date and frequency
+    },
+    'MRI-GON-001': { 
+      hasWorksheets: true, 
+      frequencies: ['daily', 'quarterly'],
+      startDate: '2025-07-31',
+      nextQCDue: '2025-07-31'
+    },
+    'MAMMO-WOM-001': { 
+      hasWorksheets: true, 
+      frequencies: ['daily'],
+      startDate: '2025-07-31',
+      nextQCDue: '2025-07-31'
+    },
+    'PET-WOM-001': { 
+      hasWorksheets: true, 
+      frequencies: ['weekly'],
+      startDate: '2025-07-31',
+      nextQCDue: '2025-07-31'  // Should be calculated for weekly frequency
+    }
+  };
+};
+
+// Calculate next QC due date based on frequency and start date
+// This generates all due dates from start date and finds the next overdue/upcoming one
+const calculateNextQCDue = (startDate, frequencies) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  let earliestDue = null;
+  
+  // For each frequency, generate all due dates and find the earliest overdue or upcoming
+  frequencies.forEach(frequency => {
+    try {
+      // Generate all due dates from start date to today + 30 days
+      const futureDate = new Date(today);
+      futureDate.setDate(futureDate.getDate() + 30);
+      
+      const allDueDates = generateQCDueDates(frequency, startDate, futureDate.toISOString().split('T')[0]);
+      
+      // Find the first date that is today or in the future (overdue or upcoming)
+      const nextDueForFrequency = allDueDates.find(dateStr => {
+        const dueDate = new Date(dateStr);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate >= today;
+      });
+      
+      // If no future dates, get the last generated date (most overdue)
+      const relevantDate = nextDueForFrequency || allDueDates[allDueDates.length - 1];
+      
+      if (relevantDate) {
+        const dueDate = new Date(relevantDate);
+        if (!earliestDue || dueDate < earliestDue) {
+          earliestDue = dueDate;
+        }
+      }
+    } catch (error) {
+      console.error(`Error calculating due dates for frequency ${frequency}:`, error);
+    }
+  });
+  
+  return earliestDue ? earliestDue.toISOString().split('T')[0] : null;
+};
+
+// Normalize machine QC data to be consistent with worksheet assignments
+const normalizeMachineQCData = (machines) => {
+  const machinesWithWorksheets = getMachinesWithWorksheetAssignments();
+  
+  return machines.map(machine => {
+    const worksheetInfo = machinesWithWorksheets[machine.machineId];
+    
+    if (worksheetInfo && worksheetInfo.hasWorksheets) {
+      // Machine has worksheets assigned - calculate proper QC data
+      const nextQCDue = calculateNextQCDue(worksheetInfo.startDate, worksheetInfo.frequencies);
+      
+      return {
+        ...machine,
+        lastQC: {
+          date: null,
+          result: null,
+          performedBy: null,
+          notes: 'QC worksheet assigned - ready for QC testing'
+        },
+        nextQCDue: nextQCDue,
+        qcSchedule: {
+          daily: worksheetInfo.frequencies.includes('daily'),
+          weekly: worksheetInfo.frequencies.includes('weekly'),
+          monthly: worksheetInfo.frequencies.includes('monthly'),
+          quarterly: worksheetInfo.frequencies.includes('quarterly'),
+          annual: worksheetInfo.frequencies.includes('annual')
+        }
+      };
+    } else {
+      // No worksheets assigned - null QC data
+      return {
+        ...machine,
+        lastQC: {
+          date: null,
+          result: null,
+          performedBy: null,
+          notes: 'No QC worksheets assigned - QC program not active'
+        },
+        nextQCDue: null,
+        qcSchedule: {
+          daily: false,
+          weekly: false,
+          monthly: false,
+          quarterly: false,
+          annual: false
+        }
+      };
+    }
+  });
+};
+
 // Get all machines
 router.get('/', (req, res) => {
-  res.json(mockMachines);
+  // Return normalized machine data that's consistent with worksheet assignments
+  const normalizedMachines = normalizeMachineQCData(mockMachines);
+  res.json(normalizedMachines);
 });
 
 // Get machine by ID
 router.get('/:id', (req, res) => {
   const machine = mockMachines.find(m => m.machineId === req.params.id);
   if (machine) {
-    res.json(machine);
+    // Return normalized machine data that's consistent with worksheet assignments
+    const normalizedMachine = normalizeMachineQCData([machine])[0];
+    res.json(normalizedMachine);
   } else {
     res.status(404).json({ error: 'Machine not found' });
   }
@@ -839,13 +967,15 @@ router.get('/:id', (req, res) => {
 // Get machines by status
 router.get('/status/:status', (req, res) => {
   const machines = mockMachines.filter(m => m.status === req.params.status);
-  res.json(machines);
+  const normalizedMachines = normalizeMachineQCData(machines);
+  res.json(normalizedMachines);
 });
 
 // Get machines by type
 router.get('/type/:type', (req, res) => {
   const machines = mockMachines.filter(m => m.type === req.params.type);
-  res.json(machines);
+  const normalizedMachines = normalizeMachineQCData(machines);
+  res.json(normalizedMachines);
 });
 
 // Create new machine
@@ -895,7 +1025,7 @@ router.patch('/:id/status', (req, res) => {
 });
 
 // Export function to get all machines (for internal use)
-const getAllMachines = () => mockMachines;
+const getAllMachines = () => normalizeMachineQCData(mockMachines);
 
 module.exports = router;
 module.exports.getAllMachines = getAllMachines;

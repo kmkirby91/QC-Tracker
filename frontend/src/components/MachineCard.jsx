@@ -151,15 +151,6 @@ const MachineCard = ({ machine }) => {
     }
   };
 
-  const getDaysUntilQC = () => {
-    const today = new Date();
-    const dueDate = new Date(machine.nextQCDue);
-    const diffTime = dueDate - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  const daysUntilQC = getDaysUntilQC();
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
@@ -209,12 +200,20 @@ const MachineCard = ({ machine }) => {
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-400">Next QC Due:</span>
           <div className="text-right">
-            <p className="text-sm font-medium text-gray-100">
-              {new Date(machine.nextQCDue).toLocaleDateString()}
-            </p>
-            <p className={`text-xs ${daysUntilQC <= 3 ? 'text-red-400 font-semibold' : 'text-gray-400'}`}>
-              {daysUntilQC > 0 ? `${daysUntilQC} days` : daysUntilQC === 0 ? 'Today' : 'Overdue'}
-            </p>
+            {machine.nextQCDue ? (
+              <p className="text-sm font-medium text-gray-100">
+                {new Date(machine.nextQCDue).toLocaleDateString()}
+              </p>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-gray-400">
+                  No QC scheduled
+                </p>
+                <p className="text-xs text-gray-500">
+                  No worksheets assigned
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>
