@@ -35,6 +35,15 @@ const QCForm = ({ viewOnly = false }) => {
     }
   }, [currentWorksheet]);
 
+  // Debug warning state changes
+  useEffect(() => {
+    console.log('🚨 Warning state changed:', {
+      showReplaceWarning,
+      loadingExistingData,
+      shouldShow: showReplaceWarning && showReplaceWarning.show && !loadingExistingData
+    });
+  }, [showReplaceWarning, loadingExistingData]);
+
   const fetchQCDueDates = async () => {
     try {
       if (!currentWorksheet || !currentWorksheet.startDate) return;
@@ -171,9 +180,52 @@ const QCForm = ({ viewOnly = false }) => {
 
       // Get existing QC dates (skip for view-only mode)
       if (!viewOnly) {
-        const qcHistoryResponse = await axios.get(`/api/qc/machines/${machineId}/qc-history?type=${foundMachine.type}`);
-        const existingDates = qcHistoryResponse.data[frequency]?.map(qc => qc.date) || [];
-        setExistingQCDates(existingDates);
+        try {
+          // Get QC completions from both localStorage and backend
+          const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+          
+          // Fetch completions from backend API  
+          let backendCompletions = [];
+          try {
+            const response = await axios.get(`/api/qc/completions?machineId=${machineId}`);
+            backendCompletions = response.data || [];
+          } catch (error) {
+            console.error('Error fetching backend completions for existing dates:', error);
+          }
+          
+          // Merge backend and local completions
+          const allCompletions = [...backendCompletions];
+          localCompletions.forEach(localQC => {
+            const existsInBackend = backendCompletions.some(backendQC => 
+              backendQC.machineId === localQC.machineId &&
+              backendQC.frequency === localQC.frequency &&
+              backendQC.date === localQC.date &&
+              backendQC.worksheetId === localQC.worksheetId
+            );
+            if (!existsInBackend) {
+              allCompletions.push(localQC);
+            }
+          });
+          
+          // Filter for this machine, frequency, and worksheet (if specified)
+          const relevantCompletions = allCompletions.filter(qc => 
+            qc.machineId === machineId && 
+            qc.frequency === frequency &&
+            (worksheetId ? qc.worksheetId === worksheetId : true)
+          );
+          
+          const existingDates = relevantCompletions.map(qc => qc.date).sort();
+          setExistingQCDates(existingDates);
+          console.log('📅 Loaded existing QC dates for', frequency, 'QC:', existingDates);
+          
+          // Store existing dates for auto-check (to avoid race condition)
+          window.currentExistingDates = existingDates;
+          
+        } catch (error) {
+          console.error('Error loading existing QC dates:', error);
+          setExistingQCDates([]);
+          window.currentExistingDates = [];
+        }
       }
 
       // Initialize form data
@@ -224,6 +276,15 @@ const QCForm = ({ viewOnly = false }) => {
       
       setFormData(initialData);
       
+      // Auto-check for existing QC data on initial load (including period-based matching)
+      if (!viewOnly) {
+        console.log('📋 Auto-checking for existing QC data on form load for date:', selectedDate);
+        // Use setTimeout to avoid state update during render and ensure all data is loaded
+        setTimeout(() => {
+          handleDateChange(selectedDate, window.currentExistingDates);
+        }, 100);
+      }
+      
     } catch (error) {
       console.error('Error fetching data:', error);
       setError(error.message || 'Failed to load QC form data');
@@ -254,49 +315,226 @@ const QCForm = ({ viewOnly = false }) => {
     }));
   };
 
-  const handleDateChange = async (date) => {
+  const handleDateChange = async (date, currentExistingDates = null) => {
     setSelectedDate(date);
-    const hasExistingData = existingQCDates.includes(date);
-    setShowReplaceWarning(hasExistingData);
+    
+    // Use provided dates or current state (to handle race conditions)
+    const datesToCheck = currentExistingDates || existingQCDates;
+    console.log(`🔍 handleDateChange called with date: ${date}, using dates:`, datesToCheck);
+    
+    // Check for existing data using period-based logic for monthly/quarterly/annual QC
+    let hasExistingData = false;
+    
+    if (frequency === 'daily' || frequency === 'weekly') {
+      // For daily/weekly, use exact date matching
+      hasExistingData = datesToCheck.includes(date);
+    } else {
+      // For monthly/quarterly/annual, use period-based matching
+      // Use date string parsing to avoid timezone issues
+      const selectedParts = date.split('-'); // date is in YYYY-MM-DD format
+      const selectedYear = parseInt(selectedParts[0]);
+      const selectedMonth = parseInt(selectedParts[1]) - 1; // Convert to 0-based month
+      
+      console.log(`🔍 Date change for ${frequency} QC - Selected: ${date} (Month: ${selectedMonth}, Year: ${selectedYear})`);
+      console.log(`🔍 Existing QC dates:`, datesToCheck);
+      
+      hasExistingData = datesToCheck.some(dateStr => {
+        const existingParts = dateStr.split('-'); // dateStr is in YYYY-MM-DD format
+        const existingYear = parseInt(existingParts[0]);
+        const existingMonth = parseInt(existingParts[1]) - 1; // Convert to 0-based month
+        
+        if (frequency === 'monthly') {
+          console.log(`🔍 Monthly comparison - Selected: ${selectedMonth}/${selectedYear}, Existing: ${existingMonth}/${existingYear} (${dateStr})`);
+          console.log(`🔍 Date parsing details:`);
+          console.log(`  - Selected date string: "${date}"`);
+          console.log(`  - Selected parts: [${selectedParts.join(', ')}]`);
+          console.log(`  - Selected month (0-based): ${selectedMonth}`);
+          console.log(`  - Existing date string: "${dateStr}"`);
+          console.log(`  - Existing parts: [${existingParts.join(', ')}]`);
+          console.log(`  - Existing month (0-based): ${existingMonth}`);
+          
+          const matches = selectedMonth === existingMonth && selectedYear === existingYear;
+          console.log(`🔍 Month match result: ${matches} (${selectedMonth} === ${existingMonth} && ${selectedYear} === ${existingYear})`);
+          if (matches) {
+            console.log(`✅ Found matching monthly QC for ${date}`);
+          }
+          return matches;
+        } else if (frequency === 'quarterly') {
+          const selectedQuarter = Math.floor(selectedMonth / 3);
+          const existingQuarter = Math.floor(existingMonth / 3);
+          const matches = selectedQuarter === existingQuarter && selectedYear === existingYear;
+          if (matches) {
+            console.log(`✅ Found matching quarterly QC for ${date}`);
+          }
+          return matches;
+        } else if (frequency === 'annual') {
+          const matches = selectedYear === existingYear;
+          if (matches) {
+            console.log(`✅ Found matching annual QC for ${date}`);
+          }
+          return matches;
+        }
+        
+        return false;
+      });
+      
+      console.log(`🔍 Has existing data for ${date}:`, hasExistingData);
+    }
     
     if (hasExistingData) {
       await fetchExistingQCData(date);
     } else {
       // Reset form to blank if no existing data
       resetFormToBlank();
+      setShowReplaceWarning(false);
     }
   };
 
   const fetchExistingQCData = async (date) => {
+    console.log(`🔄 fetchExistingQCData called for date: ${date}`);
     setLoadingExistingData(true);
     try {
-      const response = await axios.get(`/api/qc/machines/${machineId}/qc-history/${date}?type=${machine.type}`);
-      const existingQC = response.data[frequency];
+      // Get QC completions from both localStorage and backend
+      const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+      
+      // Fetch completions from backend API  
+      let backendCompletions = [];
+      try {
+        const response = await axios.get(`/api/qc/completions?machineId=${machineId}`);
+        backendCompletions = response.data || [];
+      } catch (error) {
+        console.error('Error fetching backend completions:', error);
+      }
+      
+      // Merge backend and local completions, with backend taking precedence
+      const allCompletions = [...backendCompletions];
+      
+      // Add local completions that aren't already in backend
+      localCompletions.forEach(localQC => {
+        const existsInBackend = backendCompletions.some(backendQC => 
+          backendQC.machineId === localQC.machineId &&
+          backendQC.frequency === localQC.frequency &&
+          backendQC.date === localQC.date &&
+          backendQC.worksheetId === localQC.worksheetId
+        );
+        
+        if (!existsInBackend) {
+          allCompletions.push(localQC);
+        }
+      });
+      
+      // Find existing QC for this date/period, machine, and frequency
+      const existingQC = allCompletions.find(qc => {
+        if (qc.machineId !== machineId || qc.frequency !== frequency) {
+          return false;
+        }
+        
+        if (worksheetId && qc.worksheetId !== worksheetId) {
+          return false;
+        }
+        
+        // For daily and weekly QC, match exact date
+        if (frequency === 'daily' || frequency === 'weekly') {
+          return qc.date === date;
+        }
+        
+        // For monthly QC, find any completion within the same month
+        if (frequency === 'monthly') {
+          // Use string parsing to avoid timezone issues
+          const [selectedYear, selectedMonth] = date.split('-').map(Number);
+          const [completedYear, completedMonth] = qc.date.split('-').map(Number);
+          return selectedMonth === completedMonth && selectedYear === completedYear;
+        }
+        
+        // For quarterly QC, find any completion within the same quarter
+        if (frequency === 'quarterly') {
+          // Use string parsing to avoid timezone issues
+          const [selectedYear, selectedMonth] = date.split('-').map(Number);
+          const [completedYear, completedMonth] = qc.date.split('-').map(Number);
+          const selectedQuarter = Math.floor((selectedMonth - 1) / 3);
+          const completedQuarter = Math.floor((completedMonth - 1) / 3);
+          return selectedQuarter === completedQuarter && selectedYear === completedYear;
+        }
+        
+        // For annual QC, find any completion within the same year
+        if (frequency === 'annual') {
+          // Use string parsing to avoid timezone issues
+          const selectedYear = parseInt(date.split('-')[0]);
+          const completedYear = parseInt(qc.date.split('-')[0]);
+          return selectedYear === completedYear;
+        }
+        
+        return false;
+      });
+      
+      console.log(`🔍 Searching for existing QC - machineId: ${machineId}, frequency: ${frequency}, worksheetId: ${worksheetId}`);
+      console.log(`🔍 All completions found:`, allCompletions);
       
       if (existingQC) {
+        console.log('📋 Found existing QC data for', date, ':', existingQC);
+        
         // Populate form with existing data
         const populatedData = { ...formData };
         
         // Fill in test data
-        existingQC.tests.forEach(test => {
-          populatedData[test.testName] = {
-            value: test.value || '',
-            result: test.result || '',
-            notes: test.notes || ''
-          };
-        });
+        if (existingQC.tests) {
+          existingQC.tests.forEach(test => {
+            populatedData[test.testName] = {
+              value: test.value || '',
+              result: test.result || '',
+              notes: test.notes || '',
+              performedBy: test.performedBy || existingQC.performedBy || ''
+            };
+          });
+        }
         
         // Fill in global fields
         populatedData.performedBy = existingQC.performedBy || '';
         populatedData.comments = existingQC.comments || '';
         
         setFormData(populatedData);
+        
+        // Enhanced warning message for period-based QC
+        let warningMessage;
+        if (frequency === 'monthly') {
+          const completedDate = new Date(existingQC.date);
+          const monthName = completedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          warningMessage = `Monthly QC already completed for ${monthName}. Performed on ${completedDate.toLocaleDateString()} by ${existingQC.performedBy || 'Unknown'}. You can edit the existing data or perform additional QC if needed.`;
+        } else if (frequency === 'quarterly') {
+          const completedDate = new Date(existingQC.date);
+          const quarter = Math.floor(completedDate.getMonth() / 3) + 1;
+          const year = completedDate.getFullYear();
+          warningMessage = `Quarterly QC already completed for Q${quarter} ${year}. Performed on ${completedDate.toLocaleDateString()} by ${existingQC.performedBy || 'Unknown'}. You can edit the existing data or perform additional QC if needed.`;
+        } else if (frequency === 'annual') {
+          const completedDate = new Date(existingQC.date);
+          const year = completedDate.getFullYear();
+          warningMessage = `Annual QC already completed for ${year}. Performed on ${completedDate.toLocaleDateString()} by ${existingQC.performedBy || 'Unknown'}. You can edit the existing data or perform additional QC if needed.`;
+        } else {
+          warningMessage = `QC data already exists for ${date}. Last performed by: ${existingQC.performedBy || 'Unknown'} on ${new Date(existingQC.completedAt || existingQC.date).toLocaleString()}`;
+        }
+        
+        // Show enhanced warning with more details
+        console.log('🚨 Setting warning message:', warningMessage);
+        const warningState = {
+          show: true,
+          existingData: existingQC,
+          date: existingQC.date, // Use the actual completion date
+          message: warningMessage
+        };
+        console.log('🚨 About to set warning state:', warningState);
+        setShowReplaceWarning(warningState);
+        console.log('🚨 Warning state set, should show warning now');
+      } else {
+        console.log('❌ No existing QC found for this period');
+        setShowReplaceWarning(false);
       }
     } catch (error) {
-      console.error('Error fetching existing QC data:', error);
+      console.error('💥 Error fetching existing QC data:', error);
       // If error, reset to blank form
       resetFormToBlank();
+      setShowReplaceWarning(false);
     } finally {
+      console.log('🏁 Finished loading existing data, setting loadingExistingData to false');
       setLoadingExistingData(false);
     }
   };
@@ -533,46 +771,19 @@ const QCForm = ({ viewOnly = false }) => {
     }
   };
 
-  const generateDateOptions = () => {
-    const options = [];
-    const today = new Date();
+  // Helper function to check date status
+  const getDateStatus = (dateStr) => {
+    const hasData = existingQCDates.includes(dateStr);
+    const isDueDate = qcDueDates.includes(dateStr);
+    const isToday = dateStr === new Date().toISOString().split('T')[0];
+    const isWeekend = frequency === 'daily' && [0, 6].includes(new Date(dateStr).getDay());
     
-    // Generate dates for the past 30 days up to today (no future dates)
-    for (let i = -30; i <= 0; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      
-      // Skip weekends for daily QC
-      if (frequency === 'daily' && (date.getDay() === 0 || date.getDay() === 6)) {
-        continue;
-      }
-      
-      const dateStr = date.toISOString().split('T')[0];
-      const hasData = existingQCDates.includes(dateStr);
-      const isToday = dateStr === today.toISOString().split('T')[0];
-      const isDueDate = qcDueDates.includes(dateStr);
-      
-      let label = date.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric',
-        year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
-      });
-      
-      if (isToday) label += ' (Today)';
-      if (hasData) label += ' ✓';
-      if (isDueDate && !hasData) label += ' 📅';
-      
-      options.push({
-        value: dateStr,
-        label: label,
-        hasData: hasData,
-        isToday: isToday,
-        isDueDate: isDueDate
-      });
-    }
-    
-    return options.reverse(); // Most recent dates first
+    return {
+      hasData,
+      isDueDate,
+      isToday,
+      isWeekend
+    };
   };
 
   const determineResult = (testName, value) => {
@@ -804,36 +1015,80 @@ const QCForm = ({ viewOnly = false }) => {
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
                     Select Date for QC *
+                    {(frequency === 'monthly' || frequency === 'quarterly' || frequency === 'annual') && (
+                      <span className="block text-xs text-yellow-300 font-normal mt-1">
+                        {frequency === 'monthly' && 'Select any date in the month - this will mark the entire month as complete'}
+                        {frequency === 'quarterly' && 'Select any date in the quarter - this will mark the entire quarter as complete'}
+                        {frequency === 'annual' && 'Select any date in the year - this will mark the entire year as complete'}
+                      </span>
+                    )}
                   </label>
-                  <select
+                  <input
+                    type="date"
                     value={selectedDate}
                     onChange={(e) => handleDateChange(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]} // Prevent future dates
+                    min={new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} // Allow up to 90 days back
                     className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
                     required
-                  >
-                    {generateDateOptions().map(option => (
-                      <option 
-                        key={option.value} 
-                        value={option.value}
-                        style={{
-                          backgroundColor: option.hasData ? '#374151' : 
-                                         option.isDueDate ? '#92400e' : '#064e3b',
-                          color: option.hasData ? '#d1d5db' : 
-                                option.isDueDate ? '#fbbf24' : '#86efac'
-                        }}
-                      >
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="mt-1 text-xs text-gray-400">
-                    <span className="inline-block w-3 h-3 bg-green-900 border border-green-600 rounded mr-1"></span>
-                    Available dates
-                    <span className="inline-block w-3 h-3 bg-yellow-900 border border-yellow-600 rounded mr-1 ml-3"></span>
-                    Scheduled QC due 📅
-                    <span className="inline-block w-3 h-3 bg-gray-900 border border-gray-600 rounded mr-1 ml-3"></span>
-                    Data exists ✓
+                  />
+                  <div className="mt-2 text-xs text-gray-400">
+                    <div className="flex items-center space-x-4">
+                      <span className="flex items-center">
+                        <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-1"></span>
+                        Available
+                      </span>
+                      <span className="flex items-center">
+                        <span className="inline-block w-3 h-3 bg-yellow-500 rounded-full mr-1"></span>
+                        Due 📅
+                      </span>
+                      <span className="flex items-center">
+                        <span className="inline-block w-3 h-3 bg-blue-500 rounded-full mr-1"></span>
+                        Complete ✓
+                      </span>
+                    </div>
                   </div>
+                  {selectedDate && (
+                    <div className="mt-2 p-2 bg-gray-800 rounded border border-gray-600">
+                      <div className="text-xs text-gray-300">
+                        <div className="font-medium mb-1">Selected: {(() => {
+                          // Parse date string manually to avoid timezone issues
+                          const [year, month, day] = selectedDate.split('-');
+                          const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                          return dateObj.toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          });
+                        })()}</div>
+                        <div className="flex items-center space-x-3">
+                          {existingQCDates.includes(selectedDate) && (
+                            <span className="text-blue-400 flex items-center">
+                              <span className="w-2 h-2 bg-blue-400 rounded-full mr-1"></span>
+                              QC Data Exists
+                            </span>
+                          )}
+                          {qcDueDates.includes(selectedDate) && (
+                            <span className="text-yellow-400 flex items-center">
+                              <span className="w-2 h-2 bg-yellow-400 rounded-full mr-1"></span>
+                              Scheduled Due Date
+                            </span>
+                          )}
+                          {frequency === 'daily' && (() => {
+                            const [year, month, day] = selectedDate.split('-');
+                            const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                            return [0, 6].includes(dateObj.getDay());
+                          })() && (
+                            <span className="text-gray-400 flex items-center">
+                              <span className="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
+                              Weekend
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {loadingExistingData && (
                   <div className="bg-blue-900 border border-blue-700 rounded-md p-3">
@@ -844,7 +1099,7 @@ const QCForm = ({ viewOnly = false }) => {
                   </div>
                 )}
                 
-                {showReplaceWarning && !loadingExistingData && (
+                {showReplaceWarning && showReplaceWarning.show && !loadingExistingData && (
                   <div className="bg-amber-900 border border-amber-700 rounded-md p-3">
                     <div className="flex">
                       <div className="flex-shrink-0">
@@ -854,11 +1109,22 @@ const QCForm = ({ viewOnly = false }) => {
                       </div>
                       <div className="ml-3">
                         <h4 className="text-sm font-medium text-amber-200">
-                          Editing Existing Data
+                          ⚠️ Editing Existing QC Data
                         </h4>
                         <p className="text-sm text-amber-300 mt-1">
-                          Form has been populated with existing QC data for this date. You can review and modify the values below. Submitting will replace the existing data.
+                          {showReplaceWarning.message}
                         </p>
+                        <p className="text-xs text-amber-400 mt-2">
+                          The form has been populated with existing data. You can review and modify values below. Submitting will replace the existing QC record.
+                        </p>
+                        {showReplaceWarning.existingData && (
+                          <div className="mt-2 text-xs text-amber-400">
+                            <span className="font-medium">Previous Result:</span> {showReplaceWarning.existingData.overallResult || 'Unknown'}
+                            {showReplaceWarning.existingData.worksheetTitle && (
+                              <span className="ml-2">• <span className="font-medium">Worksheet:</span> {showReplaceWarning.existingData.worksheetTitle}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1223,7 +1489,7 @@ const QCForm = ({ viewOnly = false }) => {
                   disabled={submitting || !areAllRequiredFieldsFilled()}
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
-                  {submitting ? 'Submitting...' : showReplaceWarning ? 'Update QC Data' : 'Complete QC'}
+                  {submitting ? 'Submitting...' : (showReplaceWarning && showReplaceWarning.show) ? 'Update QC Data' : 'Complete QC'}
                 </button>
               </div>
             )}
