@@ -1007,28 +1007,131 @@ const QCForm = ({ viewOnly = false }) => {
             <p>Location: {machine.location.building} - {machine.location.room}</p>
           </div>
           
+          {/* Period Display - Show prominently for monthly/quarterly/annual */}
+          {!viewOnly && (frequency === 'monthly' || frequency === 'quarterly' || frequency === 'annual') && selectedDate && (() => {
+            // Calculate period status once and reuse it
+            const selectedParts = selectedDate.split('-');
+            const selectedYear = parseInt(selectedParts[0]);
+            const selectedMonth = parseInt(selectedParts[1]) - 1;
+            
+            // Determine if this PERIOD has existing QC data (not just the selected date)
+            const hasExistingData = existingQCDates.some(dateStr => {
+              const existingParts = dateStr.split('-');
+              const existingYear = parseInt(existingParts[0]);
+              const existingMonth = parseInt(existingParts[1]) - 1;
+              
+              if (frequency === 'monthly') {
+                return selectedMonth === existingMonth && selectedYear === existingYear;
+              } else if (frequency === 'quarterly') {
+                const selectedQuarter = Math.floor(selectedMonth / 3);
+                const existingQuarter = Math.floor(existingMonth / 3);
+                return selectedQuarter === existingQuarter && selectedYear === existingYear;
+              } else if (frequency === 'annual') {
+                return selectedYear === existingYear;
+              }
+              return false;
+            });
+            
+            // Check if this period is overdue
+            const today = new Date();
+            const isOverdue = (() => {
+              if (frequency === 'monthly') {
+                const selectedMonth = new Date(selectedYear, selectedMonth);
+                return selectedMonth < new Date(today.getFullYear(), today.getMonth());
+              } else if (frequency === 'quarterly') {
+                const selectedQuarter = Math.floor(selectedMonth / 3);
+                const currentQuarter = Math.floor(today.getMonth() / 3);
+                return selectedYear < today.getFullYear() || 
+                       (selectedYear === today.getFullYear() && selectedQuarter < currentQuarter);
+              } else if (frequency === 'annual') {
+                return selectedYear < today.getFullYear();
+              }
+              return false;
+            })();
+            
+            // Determine colors and status based on calculated state
+            let bgColor, textColor, subtitleColor, statusText;
+            if (hasExistingData) {
+              bgColor = 'bg-green-900 border-green-600';
+              textColor = 'text-green-100';
+              subtitleColor = 'text-green-300';
+              statusText = '✓ Complete';
+            } else if (isOverdue) {
+              bgColor = 'bg-red-900 border-red-600';
+              textColor = 'text-red-100';
+              subtitleColor = 'text-red-300';
+              statusText = '⚠️ Overdue';
+            } else {
+              bgColor = 'bg-blue-900 border-blue-600';
+              textColor = 'text-blue-100';
+              subtitleColor = 'text-blue-300';
+              statusText = '📋 Due';
+            }
+            
+            return (
+              <div className={`mt-4 p-4 rounded-lg border-2 ${bgColor}`}>
+                <div className="text-center">
+                  <h2 className={`text-2xl font-bold mb-1 ${textColor}`}>
+                    {(() => {
+                      const [year, month, day] = selectedDate.split('-');
+                      const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                      
+                      if (frequency === 'monthly') {
+                        return dateObj.toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long' 
+                        });
+                      } else if (frequency === 'quarterly') {
+                        const quarter = Math.floor(dateObj.getMonth() / 3) + 1;
+                        return `Q${quarter} ${dateObj.getFullYear()}`;
+                      } else if (frequency === 'annual') {
+                        return dateObj.getFullYear().toString();
+                      }
+                    })()}
+                  </h2>
+                  <p className={`text-sm capitalize ${subtitleColor}`}>
+                    {frequency} QC {statusText}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Date Selection - Hide in view-only mode */}
           {!viewOnly && (
             <div className="mt-4 p-4 bg-blue-900 rounded-lg">
-              <h3 className="text-sm font-semibold text-blue-200 mb-2">QC Date Selection</h3>
+              <h3 className="text-sm font-semibold text-blue-200 mb-2">QC Date</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Select Date for QC *
-                    {(frequency === 'monthly' || frequency === 'quarterly' || frequency === 'annual') && (
-                      <span className="block text-xs text-yellow-300 font-normal mt-1">
-                        {frequency === 'monthly' && 'Select any date in the month - this will mark the entire month as complete'}
-                        {frequency === 'quarterly' && 'Select any date in the quarter - this will mark the entire quarter as complete'}
-                        {frequency === 'annual' && 'Select any date in the year - this will mark the entire year as complete'}
-                      </span>
-                    )}
+                    Select Date *
                   </label>
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => handleDateChange(e.target.value)}
                     max={new Date().toISOString().split('T')[0]} // Prevent future dates
-                    min={new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} // Allow up to 90 days back
+                    min={(() => {
+                      // Use worksheet start date if available, otherwise use reasonable defaults
+                      if (currentWorksheet && currentWorksheet.startDate) {
+                        return currentWorksheet.startDate;
+                      }
+                      
+                      // Fallback to frequency-based limits
+                      if (frequency === 'annual') {
+                        // For annual QC, allow selection from 3 years back
+                        return new Date(Date.now() - 3 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      } else if (frequency === 'quarterly') {
+                        // For quarterly QC, allow selection from 1 year back
+                        return new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      } else if (frequency === 'monthly') {
+                        // For monthly QC, allow selection from 6 months back
+                        return new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      } else {
+                        // For daily/weekly QC, keep the 90-day limit
+                        return new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      }
+                    })()} // Dynamic minimum based on worksheet start date or frequency
                     className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
                     required
                   />
@@ -1048,11 +1151,10 @@ const QCForm = ({ viewOnly = false }) => {
                       </span>
                     </div>
                   </div>
-                  {selectedDate && (
+                  {selectedDate && (frequency === 'daily' || frequency === 'weekly') && (
                     <div className="mt-2 p-2 bg-gray-800 rounded border border-gray-600">
                       <div className="text-xs text-gray-300">
-                        <div className="font-medium mb-1">Selected: {(() => {
-                          // Parse date string manually to avoid timezone issues
+                        <div className="font-medium mb-1">{(() => {
                           const [year, month, day] = selectedDate.split('-');
                           const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                           return dateObj.toLocaleDateString('en-US', { 
@@ -1489,7 +1591,7 @@ const QCForm = ({ viewOnly = false }) => {
                   disabled={submitting || !areAllRequiredFieldsFilled()}
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
-                  {submitting ? 'Submitting...' : (showReplaceWarning && showReplaceWarning.show) ? 'Update QC Data' : 'Complete QC'}
+                  {submitting ? 'Submitting...' : (showReplaceWarning && showReplaceWarning.show) ? 'Update QC' : 'Complete QC'}
                 </button>
               </div>
             )}
