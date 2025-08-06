@@ -182,7 +182,17 @@ const QCForm = ({ viewOnly = false }) => {
       if (!viewOnly) {
         try {
           // Get QC completions from both localStorage and backend
-          const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+          const rawLocalCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+          
+          // Filter out empty localStorage completions (same logic as backend)
+          const localCompletions = rawLocalCompletions.filter(qc => {
+            if (!qc.tests || qc.tests.length === 0) return false;
+            // Check if at least one test has a value or result
+            return qc.tests.some(test => 
+              (test.value && test.value.toString().trim() !== '') || 
+              (test.result && test.result.toString().trim() !== '')
+            );
+          });
           
           // Fetch completions from backend API  
           let backendCompletions = [];
@@ -395,7 +405,17 @@ const QCForm = ({ viewOnly = false }) => {
     setLoadingExistingData(true);
     try {
       // Get QC completions from both localStorage and backend
-      const localCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+      const rawLocalCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
+      
+      // Filter out empty localStorage completions (same logic as backend)
+      const localCompletions = rawLocalCompletions.filter(qc => {
+        if (!qc.tests || qc.tests.length === 0) return false;
+        // Check if at least one test has a value or result
+        return qc.tests.some(test => 
+          (test.value && test.value.toString().trim() !== '') || 
+          (test.result && test.result.toString().trim() !== '')
+        );
+      });
       
       // Fetch completions from backend API  
       let backendCompletions = [];
@@ -662,7 +682,7 @@ const QCForm = ({ viewOnly = false }) => {
               onChange={(e) => {
                 handleTestChange(testName, 'value', e.target.value);
                 // Auto-set result for text entry (if provided)
-                const result = determineResult(testName, e.target.value);
+                const result = determineResult(testName, e.target.value, test);
                 if (result) {
                   handleTestChange(testName, 'result', result);
                 }
@@ -670,7 +690,7 @@ const QCForm = ({ viewOnly = false }) => {
               className={`${baseClassName} ${errorClassName} pr-12`}
               placeholder="Enter text observation"
               readOnly={viewOnly}
-              rows={2}
+              rows={1}
             />
             {!viewOnly && (
               <div className="absolute right-2 top-2 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
@@ -685,73 +705,47 @@ const QCForm = ({ viewOnly = false }) => {
         // Default numerical value input (existing logic)
         if (isAutomated || (test.calculatedFromDicom && hasValue)) {
           return (
-            <div className="space-y-2">
-              <div className="relative">
-                <input
-                  type="number"
-                  step="any"
-                  value={testData?.value || ''}
-                  onChange={(e) => {
-                    handleTestChange(testName, 'value', e.target.value, 'manual');
-                    // Auto-determine result
-                    const result = determineResult(testName, e.target.value);
-                    if (result) {
-                      handleTestChange(testName, 'result', result);
-                    }
-                  }}
-                  className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    testData?.valueSource === 'manual' 
-                      ? 'bg-amber-900/30 text-amber-200 border-amber-600' 
-                      : 'bg-blue-900/30 text-blue-200 border-blue-600'
-                  }`}
-                  placeholder={testData?.valueSource === 'manual' ? "Manual override value" : "Will be calculated from DICOM"}
-                  readOnly={viewOnly}
-                />
-                <div className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-xs px-1.5 py-0.5 rounded border ${
-                  testData?.valueSource === 'manual'
-                    ? 'text-amber-300 bg-amber-800/50 border-amber-400/30'
-                    : 'text-blue-300 bg-blue-800/50 border-blue-400/30'
-                }`}>
-                  {testData?.valueSource === 'manual' ? '⚠️ OVERRIDE' : '🤖 AUTO'}
-                </div>
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={testData?.value || ''}
+                onChange={(e) => {
+                  handleTestChange(testName, 'value', e.target.value, 'manual');
+                  // Auto-determine result
+                  const result = determineResult(testName, e.target.value, test);
+                  if (result) {
+                    handleTestChange(testName, 'result', result);
+                  }
+                }}
+                className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-16 ${
+                  testData?.valueSource === 'manual' 
+                    ? 'bg-amber-900/30 text-amber-200 border-amber-600' 
+                    : 'bg-blue-900/30 text-blue-200 border-blue-600'
+                }`}
+                placeholder={testData?.valueSource === 'manual' ? "Manual override" : "Auto-calculated"}
+                readOnly={viewOnly}
+              />
+              <div className={`absolute right-1 top-1/2 transform -translate-y-1/2 text-xs px-1 py-0.5 rounded ${
+                testData?.valueSource === 'manual'
+                  ? 'text-amber-300 bg-amber-800/50'
+                  : 'text-blue-300 bg-blue-800/50'
+              }`}>
+                {testData?.valueSource === 'manual' ? '⚠️' : '🤖'}
               </div>
-              {!viewOnly && testData?.valueSource === 'manual' && (
-                <div className="flex items-center justify-between bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1">
-                  <span className="text-xs text-amber-300">
-                    ⚠️ Manual override active
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleTestChange(testName, 'value', '');
-                      setFormData(prev => ({
-                        ...prev,
-                        [testName]: {
-                          ...prev[testName],
-                          valueSource: undefined,
-                          manuallyEnteredAt: undefined
-                        }
-                      }));
-                    }}
-                    className="text-xs text-amber-300 hover:text-amber-200 underline"
-                  >
-                    Reset to Auto
-                  </button>
-                </div>
-              )}
             </div>
           );
         } else {
           return (
             <div className="relative">
               <input
-                type="number"
-                step="any"
+                type="text"
+                inputMode="decimal"
                 value={testData?.value || ''}
                 onChange={(e) => {
                   handleTestChange(testName, 'value', e.target.value);
                   // Auto-determine result
-                  const result = determineResult(testName, e.target.value);
+                  const result = determineResult(testName, e.target.value, test);
                   if (result) {
                     handleTestChange(testName, 'result', result);
                   }
@@ -760,11 +754,6 @@ const QCForm = ({ viewOnly = false }) => {
                 placeholder={test.placeholder || "Enter numerical value"}
                 readOnly={viewOnly}
               />
-              {!viewOnly && (
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
-                  🔢 NUMBER
-                </div>
-              )}
             </div>
           );
         }
@@ -786,30 +775,58 @@ const QCForm = ({ viewOnly = false }) => {
     };
   };
 
-  const determineResult = (testName, value) => {
-    // Auto-determine pass/fail based on test criteria
-    if (!value) return '';
+  const determineResult = (testName, value, test = null) => {
+    // Auto-determine pass/fail based on test criteria and tolerance
+    if (!value || value.toString().trim() === '') return '';
     
-    if (testName === 'Table Positioning') {
-      const deviation = parseFloat(value);
-      return Math.abs(deviation) <= 5 ? 'pass' : 'fail';
-    } else if (testName === 'Center (Central) Frequency') {
-      const freq = parseFloat(value);
-      const expectedFreq = 63.86; // MHz at 1.5T
-      const ppmDrift = Math.abs((freq - expectedFreq) / expectedFreq * 1e6);
-      return ppmDrift <= 3 ? 'pass' : 'fail';
-    } else if (testName === 'Transmitter Gain or Attenuation') {
-      const change = parseFloat(value);
-      return Math.abs(change) <= 5 ? 'pass' : 'fail';
-    } else if (testName === 'Geometric Accuracy') {
-      const error = parseFloat(value);
-      return Math.abs(error) <= 2 ? 'pass' : 'fail';
-    } else if (testName === 'Low Contrast Resolution (Detectability)') {
-      const objects = parseInt(value);
-      return objects >= 37 ? 'pass' : 'fail';
+    // Find the test object to get tolerance
+    const currentTest = test || tests.find(t => (t.name || t.testName) === testName);
+    if (!currentTest || !currentTest.tolerance) {
+      return 'pass'; // Default for tests without tolerance
     }
     
-    return 'pass'; // Default for qualitative tests
+    const numericValue = parseFloat(value);
+    if (isNaN(numericValue)) {
+      return 'pass'; // For non-numeric values, default to pass
+    }
+    
+    const tolerance = currentTest.tolerance;
+    
+    // Parse different tolerance formats
+    if (typeof tolerance === 'string') {
+      // Handle formats like "±5", "≤10", "≥20", ">5", "<10", "5-15", etc.
+      if (tolerance.includes('±')) {
+        const toleranceValue = parseFloat(tolerance.replace('±', ''));
+        return Math.abs(numericValue) <= toleranceValue ? 'pass' : 'fail';
+      } else if (tolerance.includes('≤') || tolerance.includes('<=')) {
+        const maxValue = parseFloat(tolerance.replace(/≤|<=/g, ''));
+        return numericValue <= maxValue ? 'pass' : 'fail';
+      } else if (tolerance.includes('≥') || tolerance.includes('>=')) {
+        const minValue = parseFloat(tolerance.replace(/≥|>=/g, ''));
+        return numericValue >= minValue ? 'pass' : 'fail';
+      } else if (tolerance.includes('<')) {
+        const maxValue = parseFloat(tolerance.replace('<', ''));
+        return numericValue < maxValue ? 'pass' : 'fail';
+      } else if (tolerance.includes('>')) {
+        const minValue = parseFloat(tolerance.replace('>', ''));
+        return numericValue > minValue ? 'pass' : 'fail';
+      } else if (tolerance.includes('-') && !tolerance.startsWith('-')) {
+        // Range format like "5-15"
+        const [min, max] = tolerance.split('-').map(v => parseFloat(v.trim()));
+        return (numericValue >= min && numericValue <= max) ? 'pass' : 'fail';
+      }
+    } else if (typeof tolerance === 'object') {
+      // Handle object format with lowerLimit/upperLimit
+      if (tolerance.lowerLimit !== undefined && numericValue < tolerance.lowerLimit) {
+        return 'fail';
+      }
+      if (tolerance.upperLimit !== undefined && numericValue > tolerance.upperLimit) {
+        return 'fail';
+      }
+      return 'pass';
+    }
+    
+    return 'pass'; // Default if tolerance format not recognized
   };
 
   const saveDraft = async () => {
@@ -858,7 +875,7 @@ const QCForm = ({ viewOnly = false }) => {
         tests: tests.map(test => ({
           testName: test.testName,
           value: formData[test.testName]?.value || '',
-          result: formData[test.testName]?.result || determineResult(test.testName, formData[test.testName]?.value),
+          result: formData[test.testName]?.result || determineResult(test.testName, formData[test.testName]?.value, test),
           notes: formData[test.testName]?.notes || '',
           tolerance: test.tolerance || '',
           performedBy: formData.performedBy
@@ -866,7 +883,7 @@ const QCForm = ({ viewOnly = false }) => {
         performedBy: formData.performedBy,
         comments: formData.comments,
         overallResult: tests.some(test => 
-          (formData[test.testName]?.result || determineResult(test.testName, formData[test.testName]?.value)) === 'fail'
+          (formData[test.testName]?.result || determineResult(test.testName, formData[test.testName]?.value, test)) === 'fail'
         ) ? 'fail' : 'pass',
         // Include worksheet information for status tracking
         worksheetId: currentWorksheet?.id || worksheetId,
@@ -1099,13 +1116,10 @@ const QCForm = ({ viewOnly = false }) => {
 
           {/* Date Selection - Hide in view-only mode */}
           {!viewOnly && (
-            <div className="mt-4 p-4 bg-blue-900 rounded-lg">
+            <div className="mt-4 p-3 bg-blue-900 rounded-lg">
               <h3 className="text-sm font-semibold text-blue-200 mb-2">QC Date</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Select Date *
-                  </label>
+              <div className="flex items-center space-x-4">
+                <div className="flex-1">
                   <input
                     type="date"
                     value={selectedDate}
@@ -1135,103 +1149,97 @@ const QCForm = ({ viewOnly = false }) => {
                     className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
                     required
                   />
-                  <div className="mt-2 text-xs text-gray-400">
-                    <div className="flex items-center space-x-4">
-                      <span className="flex items-center">
-                        <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-1"></span>
-                        Available
-                      </span>
-                      <span className="flex items-center">
-                        <span className="inline-block w-3 h-3 bg-yellow-500 rounded-full mr-1"></span>
-                        Due 📅
-                      </span>
-                      <span className="flex items-center">
-                        <span className="inline-block w-3 h-3 bg-blue-500 rounded-full mr-1"></span>
-                        Complete ✓
-                      </span>
-                    </div>
-                  </div>
-                  {selectedDate && (frequency === 'daily' || frequency === 'weekly') && (
-                    <div className="mt-2 p-2 bg-gray-800 rounded border border-gray-600">
-                      <div className="text-xs text-gray-300">
-                        <div className="font-medium mb-1">{(() => {
-                          const [year, month, day] = selectedDate.split('-');
-                          const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                          return dateObj.toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          });
-                        })()}</div>
-                        <div className="flex items-center space-x-3">
-                          {existingQCDates.includes(selectedDate) && (
-                            <span className="text-blue-400 flex items-center">
-                              <span className="w-2 h-2 bg-blue-400 rounded-full mr-1"></span>
-                              QC Data Exists
-                            </span>
-                          )}
-                          {qcDueDates.includes(selectedDate) && (
-                            <span className="text-yellow-400 flex items-center">
-                              <span className="w-2 h-2 bg-yellow-400 rounded-full mr-1"></span>
-                              Scheduled Due Date
-                            </span>
-                          )}
-                          {frequency === 'daily' && (() => {
-                            const [year, month, day] = selectedDate.split('-');
-                            const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                            return [0, 6].includes(dateObj.getDay());
-                          })() && (
-                            <span className="text-gray-400 flex items-center">
-                              <span className="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
-                              Weekend
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                </div>
+                <div className="flex items-center space-x-2 text-xs text-gray-400">
+                  {existingQCDates.includes(selectedDate) && (
+                    <span className="text-green-400 flex items-center">
+                      <span className="w-2 h-2 bg-green-400 rounded-full mr-1"></span>
+                      Done
+                    </span>
+                  )}
+                  {qcDueDates.includes(selectedDate) && (
+                    <span className="text-yellow-400 flex items-center">
+                      <span className="w-2 h-2 bg-yellow-400 rounded-full mr-1"></span>
+                      Due
+                    </span>
                   )}
                 </div>
-                {loadingExistingData && (
-                  <div className="bg-blue-900 border border-blue-700 rounded-md p-3">
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400 mr-3"></div>
-                      <p className="text-sm text-blue-300">Loading existing QC data...</p>
-                    </div>
-                  </div>
-                )}
-                
-                {showReplaceWarning && showReplaceWarning.show && !loadingExistingData && (
-                  <div className="bg-amber-900 border border-amber-700 rounded-md p-3">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <h4 className="text-sm font-medium text-amber-200">
-                          ⚠️ Editing Existing QC Data
-                        </h4>
-                        <p className="text-sm text-amber-300 mt-1">
-                          {showReplaceWarning.message}
-                        </p>
-                        <p className="text-xs text-amber-400 mt-2">
-                          The form has been populated with existing data. You can review and modify values below. Submitting will replace the existing QC record.
-                        </p>
-                        {showReplaceWarning.existingData && (
-                          <div className="mt-2 text-xs text-amber-400">
-                            <span className="font-medium">Previous Result:</span> {showReplaceWarning.existingData.overallResult || 'Unknown'}
-                            {showReplaceWarning.existingData.worksheetTitle && (
-                              <span className="ml-2">• <span className="font-medium">Worksheet:</span> {showReplaceWarning.existingData.worksheetTitle}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
+              
+              {/* Due Date Indicator */}
+              {selectedDate && qcDueDates.includes(selectedDate) && (
+                <div className="mt-2 p-2 bg-yellow-900/30 border border-yellow-700/50 rounded text-xs">
+                  <div className="text-yellow-300 font-medium">
+                    📅 Fulfilling {frequency} QC due date: {(() => {
+                      const [year, month, day] = selectedDate.split('-');
+                      const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                      
+                      if (frequency === 'daily') {
+                        return dateObj.toLocaleDateString('en-US', { 
+                          weekday: 'long',
+                          month: 'short', 
+                          day: 'numeric' 
+                        });
+                      } else if (frequency === 'weekly') {
+                        return `Week of ${dateObj.toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}`;
+                      } else if (frequency === 'monthly') {
+                        return dateObj.toLocaleDateString('en-US', { 
+                          month: 'long', 
+                          year: 'numeric' 
+                        });
+                      } else if (frequency === 'quarterly') {
+                        const quarter = Math.floor(dateObj.getMonth() / 3) + 1;
+                        return `Q${quarter} ${dateObj.getFullYear()}`;
+                      } else if (frequency === 'annual') {
+                        return dateObj.getFullYear().toString();
+                      }
+                    })()}
+                  </div>
+                </div>
+              )}
+              
+              {loadingExistingData && (
+                <div className="mt-2 bg-blue-900 border border-blue-700 rounded-md p-3">
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400 mr-3"></div>
+                    <p className="text-sm text-blue-300">Loading existing QC data...</p>
+                  </div>
+                </div>
+              )}
+              
+              {showReplaceWarning && showReplaceWarning.show && !loadingExistingData && (
+                <div className="mt-2 bg-amber-900 border border-amber-700 rounded-md p-3">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h4 className="text-sm font-medium text-amber-200">
+                        ⚠️ Editing Existing QC Data
+                      </h4>
+                      <p className="text-sm text-amber-300 mt-1">
+                        {showReplaceWarning.message}
+                      </p>
+                      <p className="text-xs text-amber-400 mt-2">
+                        The form has been populated with existing data. You can review and modify values below. Submitting will replace the existing QC record.
+                      </p>
+                      {showReplaceWarning.existingData && (
+                        <div className="mt-2 text-xs text-amber-400">
+                          <span className="font-medium">Previous Result:</span> {showReplaceWarning.existingData.overallResult || 'Unknown'}
+                          {showReplaceWarning.existingData.worksheetTitle && (
+                            <span className="ml-2">• <span className="font-medium">Worksheet:</span> {showReplaceWarning.existingData.worksheetTitle}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           
@@ -1335,179 +1343,68 @@ const QCForm = ({ viewOnly = false }) => {
 
           {/* QC Tests */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-100 mb-4">{machine.type} {frequency} QC Tests</h3>
+            <h3 className="text-sm font-semibold text-gray-100 mb-3">QC Tests ({tests.length})</h3>
             
-            {/* Template Source Information */}
             {tests.length > 0 && tests[0].templateSource && (
-              <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
-                <div className="text-sm text-blue-300 font-medium">
-                  📋 Worksheet based on: {tests[0].templateSource}
-                </div>
-                <div className="text-xs text-blue-200 mt-1">
-                  Custom fields and modifications are marked with 🔧
-                </div>
+              <div className="mb-2 p-2 bg-blue-900/30 border border-blue-700/50 rounded text-xs text-blue-300">
+                📋 {tests[0].templateSource}
               </div>
             )}
             
-            <div className="space-y-4">
+            <div className="space-y-1">
               {tests.map((test, index) => (
-                <div key={index} className="border border-gray-700 rounded-lg p-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                    <div className="lg:col-span-1">
-                      <label className="block text-sm font-medium text-gray-100 mb-1">
+                <div key={index} className="border border-gray-700 rounded px-3 py-2">
+                  <div className="grid grid-cols-12 gap-2 items-center text-sm">
+                    {/* Test Name - 4 cols */}
+                    <div className="col-span-4">
+                      <span className="font-medium text-gray-100">
                         {test.name || test.testName}
-                        {test.required !== false && (
-                          <span className="text-red-400 ml-1">*</span>
-                        )}
-                        {test.isCustomField && (
-                          <span className="ml-2 text-xs text-blue-400 font-bold">🔧 Custom</span>
-                        )}
-{(() => {
-                          const testName = test.name || test.testName;
-                          const valueSource = formData[testName]?.valueSource;
-                          const isAutomated = valueSource === 'automated' || (test.calculatedFromDicom && !valueSource);
-                          
-                          if (valueSource === 'manual' && test.calculatedFromDicom) {
-                            return (
-                              <span className="ml-2 text-xs text-amber-400 font-bold bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/50">
-                                ⚠️ Overridden
-                              </span>
-                            );
-                          } else if (isAutomated) {
-                            return (
-                              <span className="ml-2 text-xs text-blue-400 font-bold bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/50">
-                                🤖 Automated
-                              </span>
-                            );
-                          } else {
-                            return (
-                              <span className="ml-2 text-xs text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded border border-gray-600/50">
-                                ✋ Manual Entry
-                              </span>
-                            );
-                          }
-                        })()}
-                      </label>
+                        {test.required !== false && <span className="text-red-400 ml-1">*</span>}
+                        {test.isCustomField && <span className="ml-1 text-blue-400">🔧</span>}
+                        {formData[test.name || test.testName]?.valueSource === 'automated' && <span className="ml-1 text-blue-400">🤖</span>}
+                      </span>
                       {test.tolerance && (
-                        <p className="text-xs text-gray-400">
-                          Tolerance: {
-                            typeof test.tolerance === 'string' ? test.tolerance :
-                            test.tolerance?.lowerLimit && test.tolerance?.upperLimit ? 
-                              `${test.tolerance.lowerLimit} - ${test.tolerance.upperLimit}` :
-                            test.tolerance?.lowerLimit ? 
-                              `Min: ${test.tolerance.lowerLimit}` :
-                            test.tolerance?.upperLimit ?
-                              `Max: ${test.tolerance.upperLimit}` :
-                            'N/A'
-                          }
-                        </p>
-                      )}
-                      {test.units && (
-                        <p className="text-xs text-gray-400">Units: {test.units}</p>
-                      )}
-                      {test.calculatedFromDicom && (
-                        <div className="text-xs text-blue-300 bg-blue-900/20 px-2 py-1 rounded mt-1 border border-blue-600/30">
-                          <div className="flex items-center">
-                            <span className="mr-1">🤖</span>
-                            <span className="font-medium">Automated Analysis</span>
-                          </div>
-                          <p className="text-blue-200 mt-0.5">
-                            Value will be calculated from DICOM images
-                          </p>
-                          {test.dicomSeriesSource && (
-                            <div className="text-xs text-blue-200 mt-1 flex items-center">
-                              <span className="mr-1">📊</span>
-                              <span>Source: {test.dicomSeriesSourceName || test.dicomSeriesSource}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {test.description && (
-                        <p className="text-xs text-gray-400 mt-1">{test.description}</p>
+                        <span className="text-xs text-gray-400 ml-2">
+                          ({typeof test.tolerance === 'string' ? test.tolerance : 'See spec'})
+                        </span>
                       )}
                     </div>
                     
-                    <div>
+                    {/* Value Input - 3 cols */}
+                    <div className="col-span-3">
+                      {renderTestInput(test, test.name || test.testName)}
+                    </div>
+                    
+                    {/* Result - 2 cols */}
+                    <div className="col-span-2">
                       {(() => {
                         const testName = test.name || test.testName;
-                        const testData = formData[testName];
-                        const valueSource = testData?.valueSource;
-                        const isAutomated = valueSource === 'automated' || (test.calculatedFromDicom && !valueSource);
-                        const hasValue = testData?.value;
-                        
-                        // For pass/fail tests, don't show the value label since they use buttons
-                        if (test.testType === 'passfail') {
-                          return renderTestInput(test, testName);
-                        }
+                        const testValue = formData[testName]?.value;
+                        const autoResult = testValue ? determineResult(testName, testValue, test) : '';
+                        const displayResult = autoResult || formData[testName]?.result || '';
                         
                         return (
-                          <>
-                            <label className="block text-xs font-medium text-gray-300 mb-1">
-                              {test.testType === 'checkbox' ? 'Check if applicable' :
-                               test.testType === 'text' ? 'Observation' :
-                               testData?.valueSource === 'manual' ? 'Override Value' : 
-                               isAutomated || (test.calculatedFromDicom && hasValue) ? 'Calculated Value' : 'Measured Value'}
-                            </label>
-                            {renderTestInput(test, testName)}
-                          </>
+                          <div className={`w-full border rounded px-2 py-1 text-xs text-center font-medium ${
+                            displayResult === 'fail' ? 'bg-red-900 border-red-600 text-red-200' : 
+                            displayResult === 'pass' ? 'bg-green-900 border-green-600 text-green-200' : 
+                            'bg-gray-700 border-gray-600 text-gray-100'
+                          }`}>
+                            {displayResult === 'pass' ? '✓' : 
+                             displayResult === 'fail' ? '✗' : 
+                             '-'}
+                          </div>
                         );
                       })()}
                     </div>
                     
-                    {test.testType !== 'passfail' && test.testType !== 'checkbox' && (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-300 mb-1">
-                          Result{test.required !== false && (
-                            <span className="text-red-400 ml-1">*</span>
-                          )}
-                        </label>
-                        <select
-                          value={formData[test.name || test.testName]?.result || ''}
-                          onChange={(e) => handleTestChange(test.name || test.testName, 'result', e.target.value)}
-                          className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 text-gray-100 ${
-                            (test.required !== false && (!formData[test.name || test.testName]?.result || formData[test.name || test.testName]?.result.trim() === '')) 
-                              ? 'border-red-500 focus:ring-red-500 bg-gray-700' 
-                              : formData[test.name || test.testName]?.result === 'fail' ? 'bg-red-900 border-gray-600 focus:ring-blue-500' : 
-                                formData[test.name || test.testName]?.result === 'pass' ? 'bg-green-900 border-gray-600 focus:ring-blue-500' : 
-                                'bg-gray-700 border-gray-600 focus:ring-blue-500'
-                          }`}
-                          disabled={viewOnly}
-                        >
-                          <option value="">Select</option>
-                          <option value="pass">Pass</option>
-                          <option value="fail">Fail</option>
-                          <option value="conditional">Conditional</option>
-                        </select>
-                      </div>
-                    )}
-                    
-                    {(test.testType === 'passfail' || test.testType === 'checkbox') && (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-300 mb-1">
-                          Result
-                        </label>
-                        <div className={`w-full border rounded-md px-3 py-2 text-sm text-center font-medium ${
-                          formData[test.name || test.testName]?.result === 'fail' ? 'bg-red-900 text-red-200 border-red-600' : 
-                          formData[test.name || test.testName]?.result === 'pass' ? 'bg-green-900 text-green-200 border-green-600' : 
-                          'bg-gray-700 text-gray-400 border-gray-600'
-                        }`}>
-                          {formData[test.name || test.testName]?.result ? 
-                            (formData[test.name || test.testName]?.result === 'pass' ? '✓ Pass' : '✗ Fail') : 
-                            'Not set'}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-300 mb-1">
-                        Notes
-                      </label>
+                    {/* Notes - 3 cols */}
+                    <div className="col-span-3">
                       <input
                         type="text"
                         value={formData[test.name || test.testName]?.notes || ''}
                         onChange={(e) => handleTestChange(test.name || test.testName, 'notes', e.target.value)}
-                        className="w-full border border-gray-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
-                        placeholder="Optional notes"
+                        className="w-full border border-gray-600 rounded px-2 py-1 text-xs bg-gray-700 text-gray-100"
+                        placeholder="Notes"
                         readOnly={viewOnly}
                       />
                     </div>

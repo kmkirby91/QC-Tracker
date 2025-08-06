@@ -84,26 +84,63 @@ const addQCCompletion = (qcData) => {
 // Get QC completions for a specific machine
 const getQCCompletionsByMachine = (machineId) => {
   const completions = loadQCCompletions();
-  return completions.filter(qc => qc.machineId === machineId);
+  // Filter out empty completions and then filter by machine ID
+  return completions
+    .filter(qc => {
+      if (!qc.tests || qc.tests.length === 0) return false;
+      // Check if at least one test has a value or result
+      return qc.tests.some(test => 
+        (test.value && test.value.toString().trim() !== '') || 
+        (test.result && test.result.toString().trim() !== '')
+      );
+    })
+    .filter(qc => qc.machineId === machineId);
 };
 
 // Get QC completions for a specific machine and frequency
 const getQCCompletionsByMachineAndFrequency = (machineId, frequency) => {
   const completions = loadQCCompletions();
-  return completions.filter(qc => 
-    qc.machineId === machineId && qc.frequency === frequency
-  );
+  // Filter out empty completions and then filter by machine ID and frequency
+  return completions
+    .filter(qc => {
+      if (!qc.tests || qc.tests.length === 0) return false;
+      // Check if at least one test has a value or result
+      return qc.tests.some(test => 
+        (test.value && test.value.toString().trim() !== '') || 
+        (test.result && test.result.toString().trim() !== '')
+      );
+    })
+    .filter(qc => qc.machineId === machineId && qc.frequency === frequency);
 };
 
 // Get QC completions for a specific worksheet
 const getQCCompletionsByWorksheet = (worksheetId) => {
   const completions = loadQCCompletions();
-  return completions.filter(qc => qc.worksheetId === worksheetId);
+  // Filter out empty completions and then filter by worksheet ID
+  return completions
+    .filter(qc => {
+      if (!qc.tests || qc.tests.length === 0) return false;
+      // Check if at least one test has a value or result
+      return qc.tests.some(test => 
+        (test.value && test.value.toString().trim() !== '') || 
+        (test.result && test.result.toString().trim() !== '')
+      );
+    })
+    .filter(qc => qc.worksheetId === worksheetId);
 };
 
 // Get all QC completions
 const getAllQCCompletions = () => {
-  return loadQCCompletions();
+  const completions = loadQCCompletions();
+  // Filter out empty completions (records with no actual test values)
+  return completions.filter(qc => {
+    if (!qc.tests || qc.tests.length === 0) return false;
+    // Check if at least one test has a value or result
+    return qc.tests.some(test => 
+      (test.value && test.value.toString().trim() !== '') || 
+      (test.result && test.result.toString().trim() !== '')
+    );
+  });
 };
 
 // Delete QC completion by ID
