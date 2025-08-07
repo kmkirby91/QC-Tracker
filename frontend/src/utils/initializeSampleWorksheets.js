@@ -400,6 +400,67 @@ export const initializeSampleWorksheets = () => {
         ],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
+      },
+
+      // CT Annual QC for Houma CT
+      {
+        id: 'houma-ct-annual-001',
+        title: 'Houma CT Annual QC Protocol',
+        modality: 'CT',
+        frequency: 'annual',
+        description: 'Annual quality control tests for Houma CT scanner',
+        assignedMachines: ['CT-HOU-001'], // Canon Aquilion Prime
+        isWorksheet: true,
+        startDate: '2025-08-07',
+        tests: [
+          {
+            id: 1,
+            testName: 'Complete System Calibration',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'Factory specifications must be met',
+            description: 'Full system calibration verification'
+          },
+          {
+            id: 2,
+            testName: 'Radiation Safety Certification',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'Pass radiation safety tests',
+            description: 'Radiation safety compliance check'
+          },
+          {
+            id: 3,
+            testName: 'Electrical Safety Testing',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'Pass electrical safety tests',
+            description: 'Electrical safety verification'
+          },
+          {
+            id: 4,
+            testName: 'Mechanical Safety Verification',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'All mechanical systems safe',
+            description: 'Mechanical safety system check'
+          },
+          {
+            id: 5,
+            testName: 'Safety Systems Check',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'All safety systems must be functional',
+            description: 'Comprehensive safety system verification'
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
     ];
 
@@ -417,8 +478,89 @@ export const initializeSampleWorksheets = () => {
 
 // Call this function to initialize sample worksheets
 export const ensureSampleWorksheets = () => {
-  const worksheets = initializeSampleWorksheets();
-  return worksheets;
+  try {
+    let worksheets = initializeSampleWorksheets();
+    
+    // If worksheets already existed, check if Houma CT worksheet is missing and add it
+    const existingWorksheets = JSON.parse(localStorage.getItem('qcWorksheets') || '[]');
+    const hasHoumaWorksheet = existingWorksheets.some(ws => 
+      ws.id === 'houma-ct-annual-001' || 
+      (ws.assignedMachines && ws.assignedMachines.includes('CT-HOU-001') && ws.frequency === 'annual')
+    );
+    
+    if (!hasHoumaWorksheet) {
+      console.log('🔧 Adding missing Houma CT annual worksheet...');
+      const houmaWorksheet = {
+        id: 'houma-ct-annual-001',
+        title: 'Houma CT Annual QC Protocol',
+        modality: 'CT',
+        frequency: 'annual',
+        description: 'Annual quality control tests for Houma CT scanner',
+        assignedMachines: ['CT-HOU-001'],
+        isWorksheet: true,
+        startDate: '2025-08-07',
+        tests: [
+          {
+            id: 1,
+            testName: 'Complete System Calibration',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'Factory specifications must be met',
+            description: 'Full system calibration verification'
+          },
+          {
+            id: 2,
+            testName: 'Radiation Safety Certification', 
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'Pass radiation safety tests',
+            description: 'Radiation safety compliance check'
+          },
+          {
+            id: 3,
+            testName: 'Electrical Safety Testing',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'Pass electrical safety tests',
+            description: 'Electrical safety verification'
+          },
+          {
+            id: 4,
+            testName: 'Mechanical Safety Verification',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'All mechanical systems safe',
+            description: 'Mechanical safety system check'
+          },
+          {
+            id: 5,
+            testName: 'Safety Systems Check',
+            testType: 'passfail',
+            tolerance: 'Pass',
+            units: 'pass/fail',
+            notes: 'All safety systems must be functional',
+            description: 'Comprehensive safety system verification'
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      const updatedWorksheets = [...existingWorksheets, houmaWorksheet];
+      localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+      console.log('✅ Houma CT annual worksheet added successfully');
+      worksheets = updatedWorksheets;
+    }
+    
+    return worksheets;
+  } catch (error) {
+    console.error('Error ensuring sample worksheets:', error);
+    return [];
+  }
 };
 
 // Force reinitialize worksheets (useful for testing multiple worksheet scenarios)

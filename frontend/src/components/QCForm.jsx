@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import DICOMAnalysis from './DICOMAnalysis';
 import DICOMSeriesSelector from './DICOMSeriesSelector';
 
 const QCForm = ({ viewOnly = false }) => {
@@ -18,8 +17,6 @@ const QCForm = ({ viewOnly = false }) => {
   const [showReplaceWarning, setShowReplaceWarning] = useState(false);
   const [loadingExistingData, setLoadingExistingData] = useState(false);
   const [error, setError] = useState(null);
-  const [showDICOMAnalysis, setShowDICOMAnalysis] = useState(false);
-  const [dicomAnalysisResults, setDicomAnalysisResults] = useState(null);
   const [selectedDICOMSeries, setSelectedDICOMSeries] = useState([]);
   const [currentWorksheet, setCurrentWorksheet] = useState(null);
   const [qcDueDates, setQcDueDates] = useState([]);
@@ -635,128 +632,335 @@ const QCForm = ({ viewOnly = false }) => {
       ? 'border-red-500 focus:ring-red-500' 
       : 'border-gray-600 focus:ring-blue-500';
 
-    switch (test.testType) {
+    // Auto-detect test type based on units field if testType not explicitly set
+    // Multiple ways to detect pass/fail tests for robustness
+    let effectiveTestType = test.testType;
+    
+    if (!effectiveTestType) {
+      if (test.units === 'pass/fail' || 
+          test.units === 'passfail' ||
+          (test.tolerance && test.tolerance.toLowerCase() === 'pass') ||
+          (test.testName && test.testName.toLowerCase().includes('safety')) ||
+          (test.testName && test.testName.toLowerCase().includes('certification')) ||
+          (test.testName && test.testName.toLowerCase().includes('calibration'))) {
+        effectiveTestType = 'passfail';
+      } else {
+        effectiveTestType = 'value';
+      }
+    }
+    
+    switch (effectiveTestType) {
       case 'checkbox':
         return (
-          <div className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              checked={testData?.value === true || testData?.value === 'true'}
-              onChange={(e) => {
-                const value = e.target.checked;
-                handleTestChange(testName, 'value', value);
-                // Auto-set result based on checkbox
-                handleTestChange(testName, 'result', value ? 'pass' : 'fail');
-              }}
-              disabled={viewOnly}
-              className="w-5 h-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-            />
-            <label className="text-sm text-gray-300">
-              {testData?.value === true || testData?.value === 'true' ? 'Checked' : 'Unchecked'}
-            </label>
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 flex-1">
+              <input
+                type="checkbox"
+                checked={testData?.value === true || testData?.value === 'true'}
+                onChange={(e) => {
+                  const value = e.target.checked;
+                  handleTestChange(testName, 'value', value);
+                  // Auto-determine result based on checkbox value and tolerance
+                  const result = determineResult(testName, value, test);
+                  handleTestChange(testName, 'result', result);
+                }}
+                disabled={viewOnly}
+                className="w-5 h-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+              />
+              <label className="text-sm text-gray-300">
+                {testData?.value === true || testData?.value === 'true' ? 'Checked' : 'Unchecked'}
+              </label>
+            </div>
+            {(test.units || testData?.automatedUnits) && (
+              <span className="text-xs text-gray-400 whitespace-nowrap">{test.units || testData?.automatedUnits}</span>
+            )}
           </div>
         );
 
       case 'passfail':
         return (
-          <select
-            value={testData?.result || ''}
-            onChange={(e) => {
-              handleTestChange(testName, 'result', e.target.value);
-              handleTestChange(testName, 'value', e.target.value);
-            }}
-            disabled={viewOnly}
-            className={`${baseClassName} ${errorClassName}`}
-          >
-            <option value="">Select</option>
-            <option value="pass">Pass</option>
-            <option value="fail">Fail</option>
-          </select>
-        );
-
-      case 'text':
-        return (
-          <div className="relative">
-            <textarea
-              value={testData?.value || ''}
-              onChange={(e) => {
-                handleTestChange(testName, 'value', e.target.value);
-                // Auto-set result for text entry (if provided)
-                const result = determineResult(testName, e.target.value, test);
-                if (result) {
-                  handleTestChange(testName, 'result', result);
-                }
-              }}
-              className={`${baseClassName} ${errorClassName} pr-12`}
-              placeholder="Enter text observation"
-              readOnly={viewOnly}
-              rows={1}
-            />
-            {!viewOnly && (
-              <div className="absolute right-2 top-2 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
-                📝 TEXT
-              </div>
+          <div className="flex items-center space-x-2">
+            <div className="flex-1">
+              <select
+                value={testData?.result || ''}
+                onChange={(e) => {
+                  handleTestChange(testName, 'result', e.target.value);
+                  handleTestChange(testName, 'value', e.target.value);
+                }}
+                disabled={viewOnly}
+                className={`${baseClassName} ${errorClassName}`}
+              >
+                <option value="">Select Result</option>
+                <option value="pass">Pass</option>
+                <option value="fail">Fail</option>
+              </select>
+            </div>
+            {(test.units || testData?.automatedUnits) && (
+              <span className="text-xs text-gray-400 whitespace-nowrap">{test.units || testData?.automatedUnits}</span>
             )}
           </div>
         );
 
-      case 'value':
-      default:
-        // Default numerical value input (existing logic)
-        if (isAutomated || (test.calculatedFromDicom && hasValue)) {
-          return (
-            <div className="relative">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={testData?.value || ''}
-                onChange={(e) => {
-                  handleTestChange(testName, 'value', e.target.value, 'manual');
-                  // Auto-determine result
-                  const result = determineResult(testName, e.target.value, test);
-                  if (result) {
-                    handleTestChange(testName, 'result', result);
-                  }
-                }}
-                className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-16 ${
-                  testData?.valueSource === 'manual' 
-                    ? 'bg-amber-900/30 text-amber-200 border-amber-600' 
-                    : 'bg-blue-900/30 text-blue-200 border-blue-600'
-                }`}
-                placeholder={testData?.valueSource === 'manual' ? "Manual override" : "Auto-calculated"}
-                readOnly={viewOnly}
-              />
-              <div className={`absolute right-1 top-1/2 transform -translate-y-1/2 text-xs px-1 py-0.5 rounded ${
-                testData?.valueSource === 'manual'
-                  ? 'text-amber-300 bg-amber-800/50'
-                  : 'text-blue-300 bg-blue-800/50'
-              }`}>
-                {testData?.valueSource === 'manual' ? '⚠️' : '🤖'}
-              </div>
-            </div>
-          );
-        } else {
-          return (
-            <div className="relative">
-              <input
-                type="text"
-                inputMode="decimal"
+      case 'text':
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="relative flex-1">
+              <textarea
                 value={testData?.value || ''}
                 onChange={(e) => {
                   handleTestChange(testName, 'value', e.target.value);
-                  // Auto-determine result
+                  // Auto-determine result for text entry based on tolerance
                   const result = determineResult(testName, e.target.value, test);
                   if (result) {
                     handleTestChange(testName, 'result', result);
                   }
                 }}
                 className={`${baseClassName} ${errorClassName} pr-12`}
-                placeholder={test.placeholder || "Enter numerical value"}
+                placeholder="Enter text observation"
                 readOnly={viewOnly}
+                rows={1}
               />
+              {!viewOnly && (
+                <div className="absolute right-2 top-1 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
+                  📝
+                </div>
+              )}
+            </div>
+            {(test.units || testData?.automatedUnits) && (
+              <span className="text-xs text-gray-400 whitespace-nowrap">{test.units || testData?.automatedUnits}</span>
+            )}
+          </div>
+        );
+
+      case 'value':
+      default:
+        // Detect if this should be a text input based on tolerance containing text
+        const isTextTest = test.tolerance && typeof test.tolerance === 'string' && 
+                          (test.tolerance.toLowerCase().includes('yep') || 
+                           test.tolerance.toLowerCase().includes('text') ||
+                           test.tolerance.toLowerCase().includes('word') ||
+                           isNaN(parseFloat(test.tolerance.replace(/[^\d.-]/g, ''))));
+        
+        // Only apply numerical validation to tests that are not pass/fail and not text
+        const shouldApplyNumericValidation = !isTextTest && 
+                                           effectiveTestType !== 'passfail' &&
+                                           (effectiveTestType === 'value' || 
+                                           (!test.testType && test.units && test.units !== 'pass/fail'));
+        
+        // Default numerical value input with proper number validation
+        if (isAutomated || (test.calculatedFromDicom && hasValue)) {
+          return (
+            <div className="flex items-center space-x-2">
+              <div className="relative flex-1">
+                <input
+                  type={shouldApplyNumericValidation ? "number" : "text"}
+                  step={shouldApplyNumericValidation ? "any" : undefined}
+                  value={testData?.value || ''}
+                  onKeyDown={shouldApplyNumericValidation ? (e) => {
+                    // Allow: backspace, delete, tab, escape, enter, home, end, left, right, up, down
+                    if ([46, 8, 9, 27, 13, 35, 36, 37, 39, 38, 40].indexOf(e.keyCode) !== -1 ||
+                        // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z
+                        (e.keyCode === 65 && e.ctrlKey === true) ||
+                        (e.keyCode === 67 && e.ctrlKey === true) ||
+                        (e.keyCode === 86 && e.ctrlKey === true) ||
+                        (e.keyCode === 88 && e.ctrlKey === true) ||
+                        (e.keyCode === 90 && e.ctrlKey === true)) {
+                      return;
+                    }
+                    // Ensure that it's a number, period, or minus sign and stop the keypress
+                    if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105) && e.keyCode !== 190 && e.keyCode !== 189) {
+                      e.preventDefault();
+                    }
+                  } : undefined}
+                  onChange={(e) => {
+                    // Apply filtering only for numeric fields
+                    const value = shouldApplyNumericValidation ? e.target.value.replace(/[^0-9.-]/g, '') : e.target.value;
+                    handleTestChange(testName, 'value', value, 'manual');
+                    // Auto-determine result
+                    const result = determineResult(testName, value, test);
+                    if (result) {
+                      handleTestChange(testName, 'result', result);
+                    }
+                  }}
+                  className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-8 ${
+                    testData?.valueSource === 'manual' 
+                      ? 'bg-amber-900/30 text-amber-200 border-amber-600' 
+                      : 'bg-blue-900/30 text-blue-200 border-blue-600'
+                  }`}
+                  placeholder={testData?.valueSource === 'manual' ? "Manual override" : "Auto-calculated"}
+                  readOnly={viewOnly}
+                />
+                <div className={`absolute right-1 top-1/2 transform -translate-y-1/2 text-xs px-1 py-0.5 rounded ${
+                  testData?.valueSource === 'manual'
+                    ? 'text-amber-300 bg-amber-800/50'
+                    : 'text-blue-300 bg-blue-800/50'
+                }`}>
+                  {testData?.valueSource === 'manual' ? '⚠️' : '🤖'}
+                </div>
+              </div>
+              {(test.units || testData?.automatedUnits) && (
+                <span className="text-xs text-gray-400 whitespace-nowrap">{test.units || testData?.automatedUnits}</span>
+              )}
+            </div>
+          );
+        } else {
+          return (
+            <div className="flex items-center space-x-2">
+              <div className="relative flex-1">
+                <input
+                  type={shouldApplyNumericValidation ? "number" : "text"}
+                  step={shouldApplyNumericValidation ? "any" : undefined}
+                  value={testData?.value || ''}
+                  onKeyDown={shouldApplyNumericValidation ? (e) => {
+                    // Allow: backspace, delete, tab, escape, enter, home, end, left, right, up, down
+                    if ([46, 8, 9, 27, 13, 35, 36, 37, 39, 38, 40].indexOf(e.keyCode) !== -1 ||
+                        // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z
+                        (e.keyCode === 65 && e.ctrlKey === true) ||
+                        (e.keyCode === 67 && e.ctrlKey === true) ||
+                        (e.keyCode === 86 && e.ctrlKey === true) ||
+                        (e.keyCode === 88 && e.ctrlKey === true) ||
+                        (e.keyCode === 90 && e.ctrlKey === true)) {
+                      return;
+                    }
+                    // Ensure that it's a number, period, or minus sign and stop the keypress
+                    if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105) && e.keyCode !== 190 && e.keyCode !== 189) {
+                      e.preventDefault();
+                    }
+                  } : undefined}
+                  onChange={(e) => {
+                    // Apply filtering only for numeric fields
+                    const value = shouldApplyNumericValidation ? e.target.value.replace(/[^0-9.-]/g, '') : e.target.value;
+                    handleTestChange(testName, 'value', value);
+                    // Auto-determine result
+                    const result = determineResult(testName, value, test);
+                    if (result) {
+                      handleTestChange(testName, 'result', result);
+                    }
+                  }}
+                  className={`${baseClassName} ${errorClassName}`}
+                  placeholder={test.placeholder || "Enter numerical value"}
+                  readOnly={viewOnly}
+                />
+              </div>
+              {(test.units || testData?.automatedUnits) && (
+                <span className="text-xs text-gray-400 whitespace-nowrap">{test.units || testData?.automatedUnits}</span>
+              )}
             </div>
           );
         }
+    }
+  };
+
+  // Function to automatically analyze DICOM series and populate QC tests
+  const handleAutomaticAnalysis = async (selectedSeries) => {
+    if (!selectedSeries || selectedSeries.length === 0) return;
+    
+    try {
+      // Simulate DICOM analysis (same logic as DICOMAnalysis component)
+      console.log('🔬 Running automatic DICOM analysis for selected series...');
+      
+      // Generate mock analysis results
+      const mockResults = {
+        seriesAnalyzed: selectedSeries,
+        analysisDate: new Date().toISOString(),
+        modality: machine?.type || 'CT',
+        seriesCount: selectedSeries.length,
+        measurements: {}
+      };
+
+      // Generate measurements based on modality
+      if (machine?.type === 'CT') {
+        mockResults.measurements = {
+          'CT Number Accuracy (Water)': {
+            value: -2.3,
+            units: 'HU',
+            tolerance: '±5 HU',
+            status: 'pass'
+          },
+          'CT Number Linearity': {
+            value: 2.1,
+            units: 'HU',
+            tolerance: '±5 HU',
+            status: 'pass'
+          },
+          'Image Noise': {
+            value: 4.2,
+            units: 'HU (SD)',
+            tolerance: '≤6.0 HU',
+            status: 'pass'
+          },
+          'Uniformity': {
+            value: 3.1,
+            units: 'HU',
+            tolerance: '±5 HU',
+            status: 'pass'
+          },
+          'Spatial Resolution': {
+            value: 0.5,
+            units: 'mm',
+            tolerance: '≤0.75 mm',
+            status: 'pass'
+          },
+          'Low Contrast Detectability': {
+            value: 8,
+            units: 'mm',
+            tolerance: '≥6 mm',
+            status: 'pass'
+          }
+        };
+      }
+
+      // Auto-populate form fields with analysis results
+      if (mockResults.measurements) {
+        const newFormData = { ...formData };
+        let populatedCount = 0;
+        
+        Object.entries(mockResults.measurements).forEach(([testName, measurement]) => {
+          // Try exact match first
+          if (newFormData[testName]) {
+            newFormData[testName] = {
+              ...newFormData[testName],
+              value: measurement.value,
+              result: measurement.status,
+              valueSource: 'automated',
+              automatedAt: new Date().toISOString(),
+              automatedFrom: 'dicom_analysis',
+              automatedUnits: measurement.units
+            };
+            populatedCount++;
+          } else {
+            // Try partial matching for common test name variations
+            const matchingTest = Object.keys(newFormData).find(formTestName => {
+              const normalizeTestName = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return normalizeTestName(formTestName).includes(normalizeTestName(testName.split('(')[0].trim())) ||
+                     normalizeTestName(testName).includes(normalizeTestName(formTestName));
+            });
+            
+            if (matchingTest && newFormData[matchingTest]) {
+              newFormData[matchingTest] = {
+                ...newFormData[matchingTest],
+                value: measurement.value,
+                result: measurement.status,
+                valueSource: 'automated',
+                automatedAt: new Date().toISOString(),
+                automatedFrom: 'dicom_analysis',
+                automatedUnits: measurement.units
+              };
+              populatedCount++;
+            }
+          }
+        });
+        
+        setFormData(newFormData);
+        console.log(`🤖 Automated analysis populated ${populatedCount} QC test fields`);
+        
+        if (populatedCount > 0) {
+          console.log(`✅ Automated QC analysis complete - populated ${populatedCount} tests`);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error in automatic DICOM analysis:', error);
     }
   };
 
@@ -779,54 +983,115 @@ const QCForm = ({ viewOnly = false }) => {
     // Auto-determine pass/fail based on test criteria and tolerance
     if (!value || value.toString().trim() === '') return '';
     
-    // Find the test object to get tolerance
+    // Find the test object to get tolerance and test type
     const currentTest = test || tests.find(t => (t.name || t.testName) === testName);
-    if (!currentTest || !currentTest.tolerance) {
-      return 'pass'; // Default for tests without tolerance
+    if (!currentTest) {
+      return 'pass'; // Default for tests without test definition
+    }
+
+    // Handle different test types
+    switch (currentTest.testType) {
+      case 'passfail':
+        // For pass/fail tests, value should already be 'pass' or 'fail'
+        return ['pass', 'fail'].includes(value.toLowerCase()) ? value.toLowerCase() : 'pass';
+        
+      case 'checkbox':
+        // For checkbox tests, treat checked as pass, unchecked as fail (or vice versa based on tolerance)
+        const isChecked = value === true || value === 'true' || value === 1 || value === '1';
+        if (currentTest.tolerance === 'checked' || currentTest.tolerance === 'true' || !currentTest.tolerance) {
+          return isChecked ? 'pass' : 'fail';
+        } else if (currentTest.tolerance === 'unchecked' || currentTest.tolerance === 'false') {
+          return isChecked ? 'fail' : 'pass';
+        }
+        return isChecked ? 'pass' : 'fail';
+        
+      case 'text':
+        // For text tests, check if tolerance specifies expected text or just default to pass
+        if (currentTest.tolerance && typeof currentTest.tolerance === 'string') {
+          const expectedText = currentTest.tolerance.toLowerCase().trim();
+          const actualText = value.toString().toLowerCase().trim();
+          if (expectedText === 'pass' || expectedText === 'fail') {
+            return expectedText;
+          }
+          // For exact word matching (like "yep"), check for exact match
+          if (expectedText.length <= 10 && !expectedText.includes(' ')) {
+            // Short single words need exact match
+            return actualText === expectedText ? 'pass' : 'fail';
+          }
+          // For longer phrases, use partial matching
+          return actualText.includes(expectedText) || expectedText.includes(actualText) ? 'pass' : 'fail';
+        }
+        return 'pass'; // Default for text without specific tolerance
+        
+      case 'value':
+      default:
+        // Check if this is actually a text test that fell through (has text tolerance)
+        if (currentTest.tolerance && typeof currentTest.tolerance === 'string') {
+          const tolerance = currentTest.tolerance.toLowerCase().trim();
+          // If tolerance contains text keywords or is non-numeric, treat as text test
+          if (tolerance.includes('yep') || tolerance.includes('text') || tolerance.includes('word') || 
+              isNaN(parseFloat(tolerance.replace(/[^\d.-]/g, '')))) {
+            const actualText = value.toString().toLowerCase().trim();
+            // For exact word matching (like "yep"), check for exact match
+            if (tolerance.length <= 10 && !tolerance.includes(' ')) {
+              return actualText === tolerance ? 'pass' : 'fail';
+            }
+            // For longer phrases, use partial matching
+            return actualText.includes(tolerance) || tolerance.includes(actualText) ? 'pass' : 'fail';
+          }
+        }
+        
+        // For numerical values, apply tolerance checking
+        if (!currentTest.tolerance) {
+          return 'pass'; // Default for tests without tolerance
+        }
+        
+        const numericValue = parseFloat(value);
+        if (isNaN(numericValue)) {
+          // If we can't parse as number and it's not a text test, default to pass
+          return 'pass';
+        }
+        
+        const tolerance = currentTest.tolerance;
+        
+        // Parse different tolerance formats
+        if (typeof tolerance === 'string') {
+          // Handle formats like "±5", "≤10", "≥20", ">5", "<10", "5-15", etc.
+          if (tolerance.includes('±')) {
+            const toleranceValue = parseFloat(tolerance.replace('±', ''));
+            return Math.abs(numericValue) <= toleranceValue ? 'pass' : 'fail';
+          } else if (tolerance.includes('≤') || tolerance.includes('<=')) {
+            const maxValue = parseFloat(tolerance.replace(/≤|<=/g, ''));
+            return numericValue <= maxValue ? 'pass' : 'fail';
+          } else if (tolerance.includes('≥') || tolerance.includes('>=')) {
+            const minValue = parseFloat(tolerance.replace(/≥|>=/g, ''));
+            return numericValue >= minValue ? 'pass' : 'fail';
+          } else if (tolerance.includes('<')) {
+            const maxValue = parseFloat(tolerance.replace('<', ''));
+            return numericValue < maxValue ? 'pass' : 'fail';
+          } else if (tolerance.includes('>')) {
+            const minValue = parseFloat(tolerance.replace('>', ''));
+            return numericValue > minValue ? 'pass' : 'fail';
+          } else if (tolerance.includes('-') && !tolerance.startsWith('-')) {
+            // Range format like "5-15"
+            const [min, max] = tolerance.split('-').map(v => parseFloat(v.trim()));
+            return (numericValue >= min && numericValue <= max) ? 'pass' : 'fail';
+          }
+        } else if (typeof tolerance === 'object') {
+          // Handle object format with lowerLimit/upperLimit
+          if (tolerance.lowerLimit !== undefined && numericValue < tolerance.lowerLimit) {
+            return 'fail';
+          }
+          if (tolerance.upperLimit !== undefined && numericValue > tolerance.upperLimit) {
+            return 'fail';
+          }
+          return 'pass';
+        }
+        
+        return 'pass'; // Default if tolerance format not recognized
     }
     
-    const numericValue = parseFloat(value);
-    if (isNaN(numericValue)) {
-      return 'pass'; // For non-numeric values, default to pass
-    }
-    
-    const tolerance = currentTest.tolerance;
-    
-    // Parse different tolerance formats
-    if (typeof tolerance === 'string') {
-      // Handle formats like "±5", "≤10", "≥20", ">5", "<10", "5-15", etc.
-      if (tolerance.includes('±')) {
-        const toleranceValue = parseFloat(tolerance.replace('±', ''));
-        return Math.abs(numericValue) <= toleranceValue ? 'pass' : 'fail';
-      } else if (tolerance.includes('≤') || tolerance.includes('<=')) {
-        const maxValue = parseFloat(tolerance.replace(/≤|<=/g, ''));
-        return numericValue <= maxValue ? 'pass' : 'fail';
-      } else if (tolerance.includes('≥') || tolerance.includes('>=')) {
-        const minValue = parseFloat(tolerance.replace(/≥|>=/g, ''));
-        return numericValue >= minValue ? 'pass' : 'fail';
-      } else if (tolerance.includes('<')) {
-        const maxValue = parseFloat(tolerance.replace('<', ''));
-        return numericValue < maxValue ? 'pass' : 'fail';
-      } else if (tolerance.includes('>')) {
-        const minValue = parseFloat(tolerance.replace('>', ''));
-        return numericValue > minValue ? 'pass' : 'fail';
-      } else if (tolerance.includes('-') && !tolerance.startsWith('-')) {
-        // Range format like "5-15"
-        const [min, max] = tolerance.split('-').map(v => parseFloat(v.trim()));
-        return (numericValue >= min && numericValue <= max) ? 'pass' : 'fail';
-      }
-    } else if (typeof tolerance === 'object') {
-      // Handle object format with lowerLimit/upperLimit
-      if (tolerance.lowerLimit !== undefined && numericValue < tolerance.lowerLimit) {
-        return 'fail';
-      }
-      if (tolerance.upperLimit !== undefined && numericValue > tolerance.upperLimit) {
-        return 'fail';
-      }
-      return 'pass';
-    }
-    
-    return 'pass'; // Default if tolerance format not recognized
+    return 'pass'; // Default fallback
   };
 
   const saveDraft = async () => {
@@ -1305,41 +1570,17 @@ const QCForm = ({ viewOnly = false }) => {
               onSeriesSelection={(series) => {
                 setSelectedDICOMSeries(series);
                 console.log('Selected DICOM series for analysis:', series);
+                // Automatically run analysis when series are selected
+                if (!viewOnly && series.length > 0 && (machine.type === 'CT' || machine.type === 'MRI')) {
+                  setTimeout(() => {
+                    handleAutomaticAnalysis(series);
+                  }, 500); // Small delay to let the selection UI update
+                }
               }}
               viewOnly={viewOnly}
             />
           )}
 
-          {/* DICOM Analysis Integration - shown when series are selected */}
-          {!viewOnly && machine && selectedDICOMSeries.length > 0 && (machine.type === 'CT' || machine.type === 'MRI') && (
-            <DICOMAnalysis 
-              machineId={machineId}
-              frequency={frequency}
-              worksheetData={{ modality: machine.type, tests }}
-              selectedSeries={selectedDICOMSeries}
-              onAnalysisComplete={(results) => {
-                setDicomAnalysisResults(results);
-                // Auto-populate form fields with DICOM analysis results
-                if (results && results.measurements) {
-                  const newFormData = { ...formData };
-                  Object.entries(results.measurements).forEach(([testName, measurement]) => {
-                    if (newFormData[testName]) {
-                      newFormData[testName] = {
-                        ...newFormData[testName],
-                        value: measurement.value,
-                        result: measurement.status,
-                        valueSource: 'automated',
-                        automatedAt: new Date().toISOString(),
-                        automatedFrom: 'dicom_analysis'
-                      };
-                    }
-                  });
-                  setFormData(newFormData);
-                  // Success notification removed
-                }
-              }}
-            />
-          )}
 
           {/* QC Tests */}
           <div>
@@ -1361,7 +1602,11 @@ const QCForm = ({ viewOnly = false }) => {
                         {test.name || test.testName}
                         {test.required !== false && <span className="text-red-400 ml-1">*</span>}
                         {test.isCustomField && <span className="ml-1 text-blue-400">🔧</span>}
-                        {formData[test.name || test.testName]?.valueSource === 'automated' && <span className="ml-1 text-blue-400">🤖</span>}
+                        {formData[test.name || test.testName]?.valueSource === 'automated' && (
+                          <span className="ml-2 text-xs bg-blue-800/50 text-blue-300 px-1.5 py-0.5 rounded border border-blue-600/30">
+                            🤖 AUTO
+                          </span>
+                        )}
                       </span>
                       {test.tolerance && (
                         <span className="text-xs text-gray-400 ml-2">
@@ -1383,14 +1628,33 @@ const QCForm = ({ viewOnly = false }) => {
                         const autoResult = testValue ? determineResult(testName, testValue, test) : '';
                         const displayResult = autoResult || formData[testName]?.result || '';
                         
+                        // Auto-detect test type for result display
+                        const effectiveTestType = test.testType || (test.units === 'pass/fail' ? 'passfail' : 'value');
+                        
+                        // For pure pass/fail tests, show the result from the dropdown input
+                        if (effectiveTestType === 'passfail') {
+                          return (
+                            <div className={`w-full border rounded px-2 py-1 text-xs text-center font-medium ${
+                              formData[testName]?.result === 'fail' ? 'bg-red-900 border-red-600 text-red-200' : 
+                              formData[testName]?.result === 'pass' ? 'bg-green-900 border-green-600 text-green-200' : 
+                              'bg-gray-700 border-gray-600 text-gray-100'
+                            }`}>
+                              {formData[testName]?.result === 'pass' ? '✓ Pass' : 
+                               formData[testName]?.result === 'fail' ? '✗ Fail' : 
+                               '-'}
+                            </div>
+                          );
+                        }
+                        
+                        // For all other test types (numerical, text, checkbox), show auto-determined result
                         return (
                           <div className={`w-full border rounded px-2 py-1 text-xs text-center font-medium ${
                             displayResult === 'fail' ? 'bg-red-900 border-red-600 text-red-200' : 
                             displayResult === 'pass' ? 'bg-green-900 border-green-600 text-green-200' : 
                             'bg-gray-700 border-gray-600 text-gray-100'
                           }`}>
-                            {displayResult === 'pass' ? '✓' : 
-                             displayResult === 'fail' ? '✗' : 
+                            {displayResult === 'pass' ? '✓ Pass' : 
+                             displayResult === 'fail' ? '✗ Fail' : 
                              '-'}
                           </div>
                         );

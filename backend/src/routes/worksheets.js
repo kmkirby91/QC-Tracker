@@ -82,7 +82,8 @@ const worksheetTemplates = {
       { name: 'Complete System Calibration', tolerance: 'Factory specifications', units: 'pass/fail' },
       { name: 'Radiation Safety Certification', tolerance: 'Pass radiation safety tests', units: 'pass/fail' },
       { name: 'Electrical Safety Testing', tolerance: 'Pass electrical safety tests', units: 'pass/fail' },
-      { name: 'Mechanical Safety Verification', tolerance: 'All mechanical systems safe', units: 'pass/fail' }
+      { name: 'Mechanical Safety Verification', tolerance: 'All mechanical systems safe', units: 'pass/fail' },
+      { name: 'Safety Systems Check', tolerance: 'All safety systems functional', units: 'pass/fail' }
     ]
   },
   PET: {
