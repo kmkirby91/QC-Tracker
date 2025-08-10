@@ -95,28 +95,6 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
     }
   };
 
-  const getQCsDue = () => {
-    const today = new Date().toISOString().split('T')[0];
-    const dueList = [];
-
-    Object.values(scheduleData).forEach(schedule => {
-      // QCs due today that haven't been completed
-      const dueTodayDates = schedule.dueDates.filter(date => 
-        date === today && !schedule.completedDates.includes(date)
-      );
-      
-      if (dueTodayDates.length > 0) {
-        dueList.push({
-          worksheet: schedule.worksheet,
-          dueDates: dueTodayDates,
-          count: dueTodayDates.length,
-          status: 'due_today'
-        });
-      }
-    });
-
-    return dueList;
-  };
 
   const getOverdueQCs = () => {
     const today = new Date().toISOString().split('T')[0];
@@ -184,20 +162,17 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
     let totalDue = 0;
     let totalCompleted = 0;
     let totalOverdue = 0;
-    let totalDueToday = 0;
     let totalFailures = 0;
 
     const today = new Date().toISOString().split('T')[0];
 
     Object.values(scheduleData).forEach(schedule => {
       const dueToDate = schedule.dueDates.filter(date => date <= today);
-      const dueToday = schedule.dueDates.filter(date => date === today && !schedule.completedDates.includes(date));
       const overdue = schedule.dueDates.filter(date => date < today && !schedule.completedDates.includes(date));
       
       totalDue += dueToDate.length;
       totalCompleted += schedule.completedDates.length;
       totalOverdue += overdue.length;
-      totalDueToday += dueToday.length;
     });
 
     // Count failures
@@ -207,8 +182,7 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
     return { 
       totalDue, 
       totalCompleted, 
-      totalOverdue, 
-      totalDueToday,
+      totalOverdue,
       totalFailures
     };
   };
@@ -226,7 +200,6 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
     return null;
   }
 
-  const qcsDue = getQCsDue();
   const overdueQCs = getOverdueQCs();
   const qcFailures = getQCFailures();
   const stats = getTotalStats();
@@ -235,12 +208,8 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
     <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
       <h2 className="text-lg font-semibold text-gray-100 mb-4">QC Schedule Status</h2>
       
-      {/* Overall Stats */}
-      <div className={`grid gap-4 mb-6 ${compact ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-2 md:grid-cols-5'}`}>
-        <div className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-4">
-          <div className="text-sm text-yellow-400">Due Today</div>
-          <div className="text-2xl font-bold text-yellow-400">{stats.totalDueToday}</div>
-        </div>
+      {/* Overall Stats - Only Overdues and Failures */}
+      <div className={`grid gap-4 mb-6 ${compact ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
         <div className="bg-red-900/20 border border-red-600 rounded-lg p-4">
           <div className="text-sm text-red-400">Overdue</div>
           <div className="text-2xl font-bold text-red-400">{stats.totalOverdue}</div>
@@ -263,39 +232,6 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
         )}
       </div>
 
-      {/* QCs Due Today */}
-      {qcsDue.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-md font-medium text-yellow-400 mb-3">📅 QCs Due Today</h3>
-          <div className="space-y-3">
-            {qcsDue.map((item, index) => (
-              <div key={index} className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-3">
-                <div className="flex justify-between items-center mb-2">
-                  <div>
-                    <div className="font-medium text-yellow-200">{item.worksheet.title}</div>
-                    <div className="text-xs text-yellow-300 mt-1">
-                      Frequency: {item.worksheet.frequency} | 
-                      Started: {item.worksheet.startDate || 'Unknown'}
-                    </div>
-                    <div className="text-xs text-yellow-400 mt-1">
-                      Due date: {item.dueDates[0]}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end space-y-2">
-                    <div className="text-sm text-yellow-300">{item.count} due today</div>
-                    <Link
-                      to={`/qc/perform/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}`}
-                      className="px-3 py-1 bg-yellow-600 text-white text-xs rounded-md hover:bg-yellow-700 transition-colors"
-                    >
-                      ▶️ Perform QC
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Overdue QCs */}
       {overdueQCs.length > 0 && (
@@ -304,26 +240,17 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
           <div className="space-y-3">
             {overdueQCs.map((item, index) => (
               <div key={index} className="bg-red-900/20 border border-red-600 rounded-lg p-3">
-                <div className="flex justify-between items-center mb-2">
-                  <div>
-                    <div className="font-medium text-red-200">{item.worksheet.title}</div>
-                    <div className="text-xs text-red-300 mt-1">
-                      Frequency: {item.worksheet.frequency} | 
-                      Started: {item.worksheet.startDate || 'Unknown'}
-                    </div>
-                    <div className="text-xs text-red-400 mt-1">
-                      Oldest overdue: {item.overdueDates[0]}
-                    </div>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-3">
+                    <div className="font-medium text-red-200">{item.worksheet.title} ({item.count})</div>
+                    <div className="text-xs text-red-400">Oldest overdue: {item.overdueDates[0]}</div>
                   </div>
-                  <div className="flex flex-col items-end space-y-2">
-                    <div className="text-sm text-red-300">{item.count} overdue</div>
-                    <Link
-                      to={`/qc/perform/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}`}
-                      className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
-                    >
-                      ▶️ Perform QC
-                    </Link>
-                  </div>
+                  <Link
+                    to={`/qc/perform/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}`}
+                    className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
+                  >
+                    ▶️ Perform QC
+                  </Link>
                 </div>
               </div>
             ))}
@@ -340,30 +267,20 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
               const mostRecentFailure = item.failures[item.failures.length - 1];
               return (
                 <div key={index} className="bg-red-900/30 border border-red-500 rounded-lg p-3">
-                  <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <div className="font-medium text-red-200">{item.worksheet.title}</div>
-                      <div className="text-xs text-red-300 mt-1">
-                        Frequency: {item.worksheet.frequency}
-                      </div>
-                      <div className="text-xs text-red-400 mt-1">
-                        Most recent failure: {mostRecentFailure?.date || 'Unknown'}
-                      </div>
-                      <div className="text-xs text-red-400">
-                        Performed by: {mostRecentFailure?.performedBy || 'Unknown'}
-                      </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center space-x-3">
+                      <div className="font-medium text-red-200">{item.worksheet.title} ({item.count})</div>
+                      <div className="text-xs text-red-400">Recent: {mostRecentFailure?.date || 'Unknown'}</div>
+                      <div className="text-xs text-red-400">By: {mostRecentFailure?.performedBy || 'Unknown'}</div>
                     </div>
-                    <div className="flex flex-col items-end space-y-2">
-                      <div className="text-sm text-red-300">{item.count} failure{item.count > 1 ? 's' : ''}</div>
-                      {mostRecentFailure && (
-                        <Link
-                          to={`/qc/view/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}?date=${mostRecentFailure.date}&viewOnly=true`}
-                          className="px-3 py-1 bg-red-500 text-white text-xs rounded-md hover:bg-red-600 transition-colors"
-                        >
-                          👁️ View Failure
-                        </Link>
-                      )}
-                    </div>
+                    {mostRecentFailure && (
+                      <Link
+                        to={`/qc/view/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}?date=${mostRecentFailure.date}&viewOnly=true`}
+                        className="px-3 py-1 bg-red-500 text-white text-xs rounded-md hover:bg-red-600 transition-colors"
+                      >
+                        👁️ View Failure
+                      </Link>
+                    )}
                   </div>
                 </div>
               );
@@ -381,9 +298,6 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
               <div className="flex justify-between items-center mb-2">
                 <div>
                   <div className="font-medium text-gray-100">{schedule.worksheet.title}</div>
-                  <div className="text-sm text-gray-400">
-                    {schedule.worksheet.frequency} QC | Started: {schedule.worksheet.startDate || 'Unknown'}
-                  </div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-gray-300">

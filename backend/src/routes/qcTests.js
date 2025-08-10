@@ -722,6 +722,26 @@ router.get('/due-tasks', async (req, res) => {
         worksheetTitle: 'ACR MR Daily QC Protocol'
       },
       {
+        machineId: 'MRI-ESS-001',
+        machineName: 'Siemens MAGNETOM Vida',
+        type: 'MRI',
+        location: 'Essen, Floor 2, MRI Suite 1',
+        frequency: 'daily',
+        startDate: '2025-07-31',
+        worksheetId: 'sample-mri-daily-001',
+        worksheetTitle: 'ACR MR Daily QC Protocol'
+      },
+      {
+        machineId: 'MRI-WOM-001',
+        machineName: 'Philips Ingenia 1.5T',
+        type: 'MRI',
+        location: 'Woman\'s, Floor 1, MRI Room 2',
+        frequency: 'daily',
+        startDate: '2025-07-31',
+        worksheetId: 'sample-mri-daily-001',
+        worksheetTitle: 'ACR MR Daily QC Protocol'
+      },
+      {
         machineId: 'MRI-GON-001',
         machineName: 'GE SIGNA Premier',
         type: 'MRI',
@@ -769,8 +789,8 @@ router.get('/due-tasks', async (req, res) => {
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
       
-      // Get completion history for this machine/frequency combination
-      const completedDates = getSimulatedQCHistory(assignment.machineId, assignment.frequency, assignment.startDate);
+      // Get completion history for this specific worksheet
+      const completedDates = getWorksheetCompletionHistory(assignment.machineId, assignment.frequency, assignment.worksheetId);
       
       // Generate all due dates from start to today
       const allDueDates = generateQCDueDates(assignment.frequency, assignment.startDate);
@@ -885,67 +905,35 @@ function isThisYear(dateStr) {
 }
 
 // Simulate QC history based on worksheet assignment
-function getSimulatedQCHistory(machineId, frequency, startDate) {
+function getWorksheetCompletionHistory(machineId, frequency, worksheetId) {
   const completedDates = [];
-  const today = new Date();
-  const start = new Date(startDate);
   
-  // Since all QC now starts on July 31, 2025, and today is August 3, 2025,
-  // we have only a few days of potential QC history
-  // Generate some realistic completion patterns showing overdue items
-  
-  if (frequency === 'daily') {
-    // For daily QC, simulate some completions but with gaps to show overdue items
-    let currentDate = new Date(start);
-    while (currentDate < today) {
-      // Skip weekends for daily QC
-      if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
-        // Different completion patterns for different machines
-        let shouldComplete = false;
-        
-        if (machineId === 'CT-GON-001') {
-          // CT machine - completed July 31 only, missing Aug 1, 2
-          if (currentDate.toISOString().split('T')[0] === '2025-07-31') {
-            shouldComplete = true;
-          }
-        } else if (machineId === 'MRI-GON-001') {
-          // MRI machine - no QCs completed yet (all overdue)
-          shouldComplete = false;
-        } else if (machineId === 'MAMMO-WOM-001') {
-          // Mammography - completed July 31 and Aug 1, missing Aug 2
-          if (currentDate.toISOString().split('T')[0] === '2025-07-31' || 
-              currentDate.toISOString().split('T')[0] === '2025-08-01') {
-            shouldComplete = true;
-          }
+  try {
+    // Read real completion data from qcCompletions.json
+    const fs = require('fs');
+    const path = require('path');
+    const completionsPath = path.join(__dirname, '../data/qcCompletions.json');
+    
+    if (fs.existsSync(completionsPath)) {
+      const completionsData = fs.readFileSync(completionsPath, 'utf8');
+      const completions = JSON.parse(completionsData);
+      
+      // Filter completions for this specific worksheet
+      const worksheetCompletions = completions.filter(qc => 
+        qc.machineId === machineId && 
+        qc.frequency === frequency &&
+        qc.worksheetId === worksheetId
+      );
+      
+      // Extract completion dates
+      worksheetCompletions.forEach(qc => {
+        if (qc.date) {
+          completedDates.push(qc.date);
         }
-        
-        if (shouldComplete) {
-          completedDates.push(currentDate.toISOString().split('T')[0]);
-        }
-      }
-      currentDate.setDate(currentDate.getDate() + 1);
+      });
     }
-  } else if (frequency === 'weekly') {
-    // For weekly QC starting July 31, first due date would be July 31
-    if (machineId === 'PET-WOM-001') {
-      // PET machine - no weekly QC completed yet
-      // (July 31 was due but not completed, so it's overdue)
-    }
-  } else if (frequency === 'monthly') {
-    // For monthly QC starting July 31, first due date would be July 31
-    if (machineId === 'CT-GON-001') {
-      // CT monthly - not completed yet (July 31 was due but missed)
-    }
-  } else if (frequency === 'quarterly') {
-    // For quarterly QC starting July 31, first due date would be July 31
-    if (machineId === 'MRI-GON-001') {
-      // MRI quarterly - not completed yet (July 31 was due but missed)
-    }
-  } else if (frequency === 'annual') {
-    // For annual QC starting July 31, first due date would be July 31
-    if (machineId === 'CT-GON-001') {
-      // CT annual - not completed yet (July 31 was due but missed)
-    }
+  } catch (error) {
+    console.error('Error reading QC completions:', error);
   }
   
   return completedDates.sort();

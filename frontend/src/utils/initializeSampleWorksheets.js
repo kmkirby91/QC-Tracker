@@ -3,12 +3,40 @@
 
 export const initializeSampleWorksheets = () => {
   try {
+    // Version check to force updates when worksheet assignments change
+    const WORKSHEET_VERSION = '1.1'; // Increment this to force re-initialization
+    const storedVersion = localStorage.getItem('qcWorksheetsVersion');
+    
+    if (storedVersion !== WORKSHEET_VERSION) {
+      console.log(`🔄 Worksheet version mismatch (stored: ${storedVersion}, current: ${WORKSHEET_VERSION}). Re-initializing...`);
+      localStorage.removeItem('qcWorksheets');
+      localStorage.setItem('qcWorksheetsVersion', WORKSHEET_VERSION);
+    }
+    
     const existingWorksheets = localStorage.getItem('qcWorksheets');
     
-    // Only initialize if no worksheets exist
+    // Check if we need to update existing worksheets for new MRI assignments
     if (existingWorksheets) {
       const worksheets = JSON.parse(existingWorksheets);
-      if (worksheets.length > 0) {
+      const mriDailyWorksheet = worksheets.find(w => w.id === 'sample-mri-daily-001');
+      
+      // If MRI daily worksheet exists but doesn't have all MRI machines assigned, update it
+      if (mriDailyWorksheet && mriDailyWorksheet.assignedMachines) {
+        const hasAllMRIMachines = ['MRI-GON-001', 'MRI-ESS-001', 'MRI-WOM-001'].every(
+          machineId => mriDailyWorksheet.assignedMachines.includes(machineId)
+        );
+        
+        if (!hasAllMRIMachines) {
+          console.log('🔄 Updating MRI daily worksheet assignments...');
+          console.log('Current assigned machines:', mriDailyWorksheet.assignedMachines);
+          console.log('Expected machines:', ['MRI-GON-001', 'MRI-ESS-001', 'MRI-WOM-001']);
+          // Force re-initialization to pick up new assignments
+          localStorage.removeItem('qcWorksheets');
+        } else if (worksheets.length > 0) {
+          console.log('Sample worksheets already exist and up to date');
+          return worksheets;
+        }
+      } else if (worksheets.length > 0) {
         console.log('Sample worksheets already exist, skipping initialization');
         return worksheets;
       }
@@ -117,7 +145,7 @@ export const initializeSampleWorksheets = () => {
         modality: 'MRI',
         frequency: 'daily',
         description: 'Daily quality control tests for MR scanners following ACR standards',
-        assignedMachines: ['MRI-GON-001'], // GE SIGNA Premier
+        assignedMachines: ['MRI-GON-001', 'MRI-ESS-001', 'MRI-WOM-001'], // All main MRI machines
         isWorksheet: true,
         startDate: '2025-07-31',
         tests: [

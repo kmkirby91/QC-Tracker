@@ -574,8 +574,73 @@ const Worksheets = () => {
     { value: 'daily', label: 'Daily QC', icon: '📅' },
     { value: 'weekly', label: 'Weekly QC', icon: '📆' },
     { value: 'monthly', label: 'Monthly QC', icon: '📊' },
+    { value: 'quarterly', label: 'Quarterly QC', icon: '📋' },
     { value: 'annual', label: 'Annual QC', icon: '🗓️' }
   ];
+
+  // Machine type to worksheet modality compatibility mapping
+  const getMachineWorksheetCompatibility = (machineType, worksheetModality) => {
+    // Define compatible combinations
+    const compatibilityMap = {
+      'CT': ['CT'],
+      'MRI': ['MRI'], 
+      'PET': ['PET', 'CT'], // PET/CT scanners can use CT protocols for the CT component
+      'Ultrasound': ['Ultrasound'],
+      'Mammography': ['Mammography'],
+      'Digital Radiography': [], // No specific worksheets defined yet
+      'Dose Calibrator': []  // No specific worksheets defined yet
+    };
+    
+    const compatibleModalities = compatibilityMap[machineType] || [];
+    const isCompatible = compatibleModalities.includes(worksheetModality);
+    
+    // Generate specific warning messages
+    let warningMessage = null;
+    let suggestions = null;
+    
+    if (!isCompatible) {
+      const commonMismatches = {
+        'CT-MRI': 'CT scanners and MRI scanners require completely different QC procedures due to different physics (X-rays vs magnetic fields).',
+        'MRI-CT': 'MRI scanners and CT scanners require completely different QC procedures due to different physics (magnetic fields vs X-rays).',
+        'PET-MRI': 'PET scanners and MRI scanners use different technologies and require different QC protocols.',
+        'MRI-PET': 'MRI scanners and PET scanners use different technologies and require different QC protocols.',
+        'CT-Ultrasound': 'CT scanners and Ultrasound systems use different imaging technologies requiring different QC approaches.',
+        'Ultrasound-CT': 'Ultrasound systems and CT scanners use different imaging technologies requiring different QC approaches.',
+        'Mammography-CT': 'Mammography systems have specialized QC requirements different from general CT scanners.',
+        'CT-Mammography': 'CT scanners have different QC requirements than specialized mammography systems.',
+        'MRI-Mammography': 'MRI scanners and mammography systems require completely different QC procedures.',
+        'Mammography-MRI': 'Mammography systems and MRI scanners require completely different QC procedures.'
+      };
+      
+      const mismatchKey = `${machineType}-${worksheetModality}`;
+      const specificReason = commonMismatches[mismatchKey] || 
+        `${machineType} machines and ${worksheetModality} worksheets typically use different QC procedures and standards.`;
+      
+      warningMessage = specificReason;
+      suggestions = `Consider creating or selecting a ${machineType}-specific worksheet instead.`;
+    }
+    
+    return {
+      isCompatible,
+      warning: warningMessage,
+      suggestions: suggestions,
+      severity: !isCompatible ? 'high' : null
+    };
+  };
+
+  // Get compatibility status for current selection
+  const getWorksheetCompatibilityStatus = () => {
+    if (!customWorksheetInfo.machineId || !customWorksheetInfo.modality) {
+      return { isCompatible: true, warning: null, severity: null };
+    }
+    
+    const selectedMachine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
+    if (!selectedMachine) {
+      return { isCompatible: true, warning: null, severity: null };
+    }
+    
+    return getMachineWorksheetCompatibility(selectedMachine.type, customWorksheetInfo.modality);
+  };
 
   const modalities = [
     { value: 'CT', label: 'CT', icon: '🏥' },
@@ -875,6 +940,48 @@ const Worksheets = () => {
       return;
     }
 
+    // Validate test type requirements
+    const validateTestRequirements = () => {
+      for (const test of customTests) {
+        if (!test.testName.trim()) continue; // Skip empty tests
+        
+        switch (test.testType) {
+          case 'value':
+            // Numerical values require threshold specification
+            if (!test.tolerance || test.tolerance.trim() === '') {
+              toast.error(`Test "${test.testName}": Numerical values require tolerance/threshold specification`);
+              return false;
+            }
+            break;
+          
+          case 'text':
+            // Text entry requires expected comparison text
+            if (!test.tolerance || test.tolerance.trim() === '') {
+              toast.error(`Test "${test.testName}": Text entry requires expected comparison text specification`);
+              return false;
+            }
+            break;
+          
+          case 'checkbox':
+            // Checkbox tests don't require tolerance - this is valid
+            break;
+          
+          case 'passfail':
+            // Pass/fail tests don't require tolerance - this is valid
+            break;
+          
+          default:
+            toast.error(`Test "${test.testName}": Unknown test type "${test.testType}"`);
+            return false;
+        }
+      }
+      return true;
+    };
+
+    if (!validateTestRequirements()) {
+      return;
+    }
+
     // Validate DICOM series selection for calculated tests
     const calculatedTestsWithoutSource = customTests.filter(test => 
       test.calculatedFromDicom && !test.dicomSeriesSource
@@ -1067,6 +1174,15 @@ const Worksheets = () => {
   };
 
   const createWorksheet = () => {
+    console.log('🔧 createWorksheet called with:', {
+      title: customWorksheetInfo.title,
+      machineId: customWorksheetInfo.machineId,
+      startDate: customWorksheetInfo.startDate,
+      saveAsTemplate: saveAsTemplateChecked,
+      worksheetData: worksheetData,
+      isEditingExisting: worksheetData && worksheetData.id
+    });
+    
     if (!customWorksheetInfo.title) {
       toast.error('Please provide a worksheet title');
       return;
@@ -1097,7 +1213,69 @@ const Worksheets = () => {
       return;
     }
 
+    // Validate test type requirements
+    const validateTestRequirements = () => {
+      for (const test of customTests) {
+        if (!test.testName.trim()) continue; // Already checked above
+        
+        switch (test.testType) {
+          case 'value':
+            // Numerical values require threshold specification
+            if (!test.tolerance || test.tolerance.trim() === '') {
+              toast.error(`Test "${test.testName}": Numerical values require tolerance/threshold specification`);
+              return false;
+            }
+            break;
+          
+          case 'text':
+            // Text entry requires expected comparison text
+            if (!test.tolerance || test.tolerance.trim() === '') {
+              toast.error(`Test "${test.testName}": Text entry requires expected comparison text specification`);
+              return false;
+            }
+            break;
+          
+          case 'checkbox':
+            // Checkbox tests don't require tolerance - this is valid
+            break;
+          
+          case 'passfail':
+            // Pass/fail tests don't require tolerance - this is valid
+            break;
+          
+          default:
+            toast.error(`Test "${test.testName}": Unknown test type "${test.testType}"`);
+            return false;
+        }
+      }
+      return true;
+    };
+
+    if (!validateTestRequirements()) {
+      return;
+    }
+
     const machine = machines.find(m => m.machineId === customWorksheetInfo.machineId);
+    
+    // Check machine-worksheet compatibility
+    const compatibilityStatus = getWorksheetCompatibilityStatus();
+    if (!compatibilityStatus.isCompatible) {
+      const confirmMessage = [
+        'MACHINE TYPE MISMATCH WARNING',
+        '',
+        compatibilityStatus.warning,
+        '',
+        compatibilityStatus.suggestions || 'Consider selecting a different worksheet modality or machine.',
+        '',
+        'Are you sure you want to proceed with this assignment?'
+      ].join('\n');
+      
+      const confirmed = window.confirm(confirmMessage);
+      if (!confirmed) {
+        toast.info('Worksheet assignment cancelled');
+        return;
+      }
+    }
     
     // Function to properly detect if worksheet is modified from template
     const detectActualModifications = () => {
@@ -1186,8 +1364,10 @@ const Worksheets = () => {
     };
 
     console.log('Creating worksheet:', uniqueWorksheetData);
+    console.log('isEditingExisting:', isEditingExisting);
 
     const savedWorksheet = saveWorksheet(uniqueWorksheetData);
+    console.log('Worksheet saved:', savedWorksheet);
     
     if (savedWorksheet) {
       setRefreshKey(prev => prev + 1);
@@ -1203,9 +1383,12 @@ const Worksheets = () => {
       
       // Save as template if checkbox is checked
       if (saveAsTemplateChecked) {
+        console.log('🔧 Attempting to save as template...');
         try {
           // Prepare template data similar to saveAsTemplate function
           const savedTemplates = getModalityTemplates();
+          console.log('🔧 Current templates:', savedTemplates.length);
+          
           const templateData = {
             id: Date.now(),
             title: customWorksheetInfo.title,
@@ -1219,15 +1402,19 @@ const Worksheets = () => {
             updatedAt: new Date().toISOString()
           };
           
+          console.log('🔧 Template data to save:', templateData);
+          
           savedTemplates.push(templateData);
           localStorage.setItem('qcModalityTemplates', JSON.stringify(savedTemplates));
           
+          console.log('🔧 Template saved successfully');
           toast.success(isEditingExisting ? 'Worksheet updated and saved as template!' : 'Worksheet created and saved as template!');
         } catch (error) {
-          console.error('Error saving template:', error);
+          console.error('🔧 Error saving template:', error);
           toast.error(isEditingExisting ? 'Worksheet updated but failed to save as template' : 'Worksheet created but failed to save as template');
         }
       } else {
+        console.log('🔧 Not saving as template');
         toast.success(isEditingExisting ? 'Worksheet updated successfully!' : 'Worksheet created successfully!');
       }
       
@@ -1426,38 +1613,89 @@ const Worksheets = () => {
     switch (test.testType) {
       case 'value':
         return (
-          <div className="flex space-x-2">
-            <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Min</label>
-              <input
-                type="text"
-                value={test.tolerance?.lowerLimit || ''}
-                onChange={(e) => updateTestTolerance(test.id, 'lowerLimit', e.target.value)}
-                placeholder="Min value"
-                readOnly={isViewingWorksheet}
-                className={baseClassName}
-              />
+          <div className="space-y-2">
+            <div className="text-xs text-blue-300 bg-blue-900/20 px-2 py-1 rounded">
+              ⚠️ Required: Numerical threshold must be specified
             </div>
-            <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Max</label>
-              <input
-                type="text"
-                value={test.tolerance?.upperLimit || ''}
-                onChange={(e) => updateTestTolerance(test.id, 'upperLimit', e.target.value)}
-                placeholder="Max value"
-                readOnly={isViewingWorksheet}
-                className={baseClassName}
-              />
+            <div className="flex space-x-2">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">Min Threshold *</label>
+                <input
+                  type="text"
+                  value={test.tolerance?.lowerLimit || ''}
+                  onChange={(e) => updateTestTolerance(test.id, 'lowerLimit', e.target.value)}
+                  placeholder="Min value (required)"
+                  readOnly={isViewingWorksheet}
+                  className={`${baseClassName} ${(!test.tolerance?.lowerLimit && !test.tolerance?.upperLimit) ? 'border-red-500' : ''}`}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">Max Threshold *</label>
+                <input
+                  type="text"
+                  value={test.tolerance?.upperLimit || ''}
+                  onChange={(e) => updateTestTolerance(test.id, 'upperLimit', e.target.value)}
+                  placeholder="Max value (required)"
+                  readOnly={isViewingWorksheet}
+                  className={`${baseClassName} ${(!test.tolerance?.lowerLimit && !test.tolerance?.upperLimit) ? 'border-red-500' : ''}`}
+                />
+              </div>
+            </div>
+            <div className="text-xs text-gray-400">
+              Alternative: Use single field format (±5, ≤10, ≥20, 5-15, etc.)
+            </div>
+            <input
+              type="text"
+              value={typeof test.tolerance === 'string' ? test.tolerance : ''}
+              onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
+              placeholder="e.g., ±5%, ≤100, ≥20, 5-15"
+              readOnly={isViewingWorksheet}
+              className={baseClassName}
+            />
+          </div>
+        );
+
+      case 'text':
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-blue-300 bg-blue-900/20 px-2 py-1 rounded">
+              ⚠️ Required: Expected text for comparison must be specified
+            </div>
+            <input
+              type="text"
+              value={typeof test.tolerance === 'string' ? test.tolerance : ''}
+              onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
+              placeholder="Expected text to compare against (required)"
+              readOnly={isViewingWorksheet}
+              className={`${baseClassName} ${!test.tolerance ? 'border-red-500' : ''}`}
+            />
+            <div className="text-xs text-gray-400">
+              Text will be compared case-insensitively. Use "pass" or "fail" for direct results.
             </div>
           </div>
         );
 
       case 'checkbox':
-      case 'text':
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-green-300 bg-green-900/20 px-2 py-1 rounded">
+              ✓ Simple checkbox - no threshold needed
+            </div>
+            <div className="text-sm text-gray-400 italic">
+              Checkbox can simply be clicked or not. Pass/fail will be auto-determined.
+            </div>
+          </div>
+        );
+
       case 'passfail':
         return (
-          <div className="text-sm text-gray-400 italic">
-            No tolerance needed
+          <div className="space-y-2">
+            <div className="text-xs text-green-300 bg-green-900/20 px-2 py-1 rounded">
+              ✓ Pass/Fail dropdown - no threshold needed
+            </div>
+            <div className="text-sm text-gray-400 italic">
+              User will select Pass or Fail from dropdown menu during QC.
+            </div>
           </div>
         );
 
@@ -2433,6 +2671,38 @@ const Worksheets = () => {
               </select>
             </div>
             
+            {/* Machine-Worksheet Compatibility Warning */}
+            {(() => {
+              const compatibilityStatus = getWorksheetCompatibilityStatus();
+              if (compatibilityStatus.warning) {
+                return (
+                  <div className="col-span-2">
+                    <div className={`border rounded-lg p-4 ${
+                      compatibilityStatus.severity === 'high' 
+                        ? 'bg-yellow-900/20 border-yellow-600 text-yellow-200' 
+                        : 'bg-blue-900/20 border-blue-600 text-blue-200'
+                    }`}>
+                      <div className="flex items-start space-x-3">
+                        <span className="text-2xl">⚠️</span>
+                        <div>
+                          <h4 className="font-medium text-sm mb-1">Machine Type Mismatch</h4>
+                          <p className="text-sm leading-relaxed">
+                            {compatibilityStatus.warning}
+                          </p>
+                          {compatibilityStatus.suggestions && (
+                            <p className="text-xs mt-2 opacity-80">
+                              💡 {compatibilityStatus.suggestions}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            
             {/* Start Date Field */}
             {customWorksheetInfo.machineId && (
               <div>
@@ -3027,22 +3297,83 @@ const Worksheets = () => {
                 <span>Cancel</span>
               </button>
               
-              <label className="flex items-center space-x-3 px-6 py-3 bg-blue-600/20 border border-blue-600 text-blue-200 font-medium rounded-md hover:bg-blue-600/30 transition-colors cursor-pointer">
+              <div className="flex items-center space-x-3 px-6 py-3 bg-blue-600/20 border border-blue-600 text-blue-200 font-medium rounded-md hover:bg-blue-600/30 transition-colors">
                 <input
                   type="checkbox"
                   checked={saveAsTemplateChecked}
-                  onChange={(e) => setSaveAsTemplateChecked(e.target.checked)}
+                  onChange={(e) => {
+                    console.log('🔧 Save as Template checkbox changed:', e.target.checked);
+                    e.stopPropagation();
+                    setSaveAsTemplateChecked(e.target.checked);
+                  }}
                   className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
                 />
                 <span>💾</span>
                 <span>Save as Template</span>
-              </label>
+              </div>
             </div>
             
             {!isViewingWorksheet && (
               <button
-                onClick={createWorksheet}
-                disabled={!customWorksheetInfo.title || !customWorksheetInfo.machineId || !customWorksheetInfo.startDate || (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) || customTests.some(test => !test.testName || (test.calculatedFromDicom && !test.dicomSeriesSource))}
+                onClick={(e) => {
+                  console.log('🔧 Button clicked! Save as template:', saveAsTemplateChecked);
+                  console.log('🔧 Button event:', e);
+                  console.log('🔧 Button disabled state:', e.target.disabled);
+                  console.log('🔧 Current form state:', {
+                    title: customWorksheetInfo.title,
+                    machineId: customWorksheetInfo.machineId,
+                    startDate: customWorksheetInfo.startDate,
+                    testsCount: customTests.length,
+                    saveAsTemplateChecked: saveAsTemplateChecked
+                  });
+                  
+                  if (e.target.disabled) {
+                    console.log('🔧 Button is disabled, not executing createWorksheet');
+                    return;
+                  }
+                  
+                  try {
+                    createWorksheet();
+                  } catch (error) {
+                    console.error('🔧 Error in createWorksheet:', error);
+                  }
+                }}
+                disabled={(() => {
+                  // Basic required field validation
+                  const missingTitle = !customWorksheetInfo.title;
+                  const missingMachine = !customWorksheetInfo.machineId;
+                  const missingStartDate = !customWorksheetInfo.startDate;
+                  
+                  if (missingTitle || missingMachine || missingStartDate) {
+                    console.log('🔧 Button disabled due to missing required fields:', {
+                      missingTitle,
+                      missingMachine, 
+                      missingStartDate
+                    });
+                    return true;
+                  }
+                  
+                  // End date validation if enabled
+                  if (customWorksheetInfo.hasEndDate && !customWorksheetInfo.endDate) {
+                    console.log('🔧 Button disabled due to missing end date');
+                    return true;
+                  }
+                  
+                  // Test validation - ensure all tests have names and required DICOM sources
+                  if (customTests.some(test => !test.testName.trim())) {
+                    console.log('🔧 Button disabled due to missing test names');
+                    return true;
+                  }
+                  
+                  // DICOM validation for tests that need it
+                  if (customTests.some(test => test.calculatedFromDicom && !test.dicomSeriesSource)) {
+                    console.log('🔧 Button disabled due to missing DICOM sources');
+                    return true;
+                  }
+                  
+                  console.log('🔧 Button is enabled');
+                  return false;
+                })()}
                 className="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 <span>📝</span>
@@ -3580,36 +3911,53 @@ const Worksheets = () => {
                               switch (test.testType) {
                                 case 'value':
                                   return (
-                                    <div className="flex space-x-2">
-                                      <div className="flex-1">
+                                    <div className="space-y-1">
+                                      <div className="flex space-x-1">
                                         <input
                                           type="text"
                                           value={test.tolerance?.lowerLimit || ''}
                                           onChange={(e) => updateTestTolerance(test.id, 'lowerLimit', e.target.value)}
-                                          placeholder="Min value"
+                                          placeholder="Min * (req)"
                                           readOnly={isViewingWorksheet}
-                                          className={baseClassName}
+                                          className={`${baseClassName} text-xs ${(!test.tolerance?.lowerLimit && !test.tolerance?.upperLimit) ? 'border-red-500' : ''}`}
                                         />
-                                      </div>
-                                      <div className="flex-1">
                                         <input
                                           type="text"
                                           value={test.tolerance?.upperLimit || ''}
                                           onChange={(e) => updateTestTolerance(test.id, 'upperLimit', e.target.value)}
-                                          placeholder="Max value"
+                                          placeholder="Max * (req)"
                                           readOnly={isViewingWorksheet}
-                                          className={baseClassName}
+                                          className={`${baseClassName} text-xs ${(!test.tolerance?.lowerLimit && !test.tolerance?.upperLimit) ? 'border-red-500' : ''}`}
                                         />
                                       </div>
+                                      <input
+                                        type="text"
+                                        value={typeof test.tolerance === 'string' ? test.tolerance : ''}
+                                        onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
+                                        placeholder="Or: ±5, ≤100, 5-15"
+                                        readOnly={isViewingWorksheet}
+                                        className={`${baseClassName} text-xs`}
+                                      />
                                     </div>
                                   );
 
-                                case 'checkbox':
                                 case 'text':
+                                  return (
+                                    <input
+                                      type="text"
+                                      value={typeof test.tolerance === 'string' ? test.tolerance : ''}
+                                      onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
+                                      placeholder="Expected text * (req)"
+                                      readOnly={isViewingWorksheet}
+                                      className={`${baseClassName} text-xs ${!test.tolerance ? 'border-red-500' : ''}`}
+                                    />
+                                  );
+
+                                case 'checkbox':
                                 case 'passfail':
                                   return (
-                                    <div className="text-xs text-gray-400 italic p-2">
-                                      No tolerance needed
+                                    <div className="text-xs text-gray-400 italic p-1 text-center">
+                                      None needed
                                     </div>
                                   );
 

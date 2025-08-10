@@ -1181,11 +1181,12 @@ const QCForm = ({ viewOnly = false }) => {
       // Add to localStorage QC completions
       const existingCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
       
-      // Remove any existing completion for the same machine/frequency/date to avoid duplicates
+      // Remove any existing completion for the same machine/frequency/date/worksheet to avoid duplicates
       const filteredCompletions = existingCompletions.filter(qc => 
         !(qc.machineId === completedQC.machineId && 
           qc.frequency === completedQC.frequency && 
-          qc.date === completedQC.date)
+          qc.date === completedQC.date &&
+          qc.worksheetId === completedQC.worksheetId)
       );
       
       filteredCompletions.push(completedQC);

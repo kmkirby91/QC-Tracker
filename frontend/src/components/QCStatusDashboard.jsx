@@ -192,11 +192,13 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
             return scheduleData.isDueToday;
           
           case 'weekly':
-            // Check if any due date falls within this week
+            // Check if any due date falls within this week OR is overdue from previous weeks
             const startOfWeek = new Date(today);
             startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
             const weekStart = startOfWeek.toISOString().split('T')[0];
-            return scheduleData.dueDates.some(date => date >= weekStart && date <= today);
+            
+            // Include any due date that is today or earlier (including overdue from previous weeks)
+            return scheduleData.dueDates.some(date => date <= today);
           
           case 'monthly':
             // Check if any due date falls within this month
@@ -235,10 +237,10 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
             return scheduleData.completedDates.includes(todayStr);
           
           case 'weekly':
-            const startOfWeek = new Date(today);
-            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-            const weekStart = startOfWeek.toISOString().split('T')[0];
-            return scheduleData.completedDates.some(date => date >= weekStart && date <= todayStr);
+            // For weekly QC, check if any completion exists for due dates up to today
+            // This handles both current week and overdue from previous weeks
+            const relevantDueDates = scheduleData.dueDates.filter(date => date <= todayStr);
+            return relevantDueDates.some(dueDate => scheduleData.completedDates.includes(dueDate));
           
           case 'monthly':
             const currentMonth = new Date(todayStr).getMonth();
@@ -325,7 +327,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-sm font-medium text-gray-300">{title}</h4>
-              <p className="text-xs text-gray-500">{timeframe}</p>
+              {timeframe && <p className="text-xs text-gray-500">{timeframe}</p>}
             </div>
             <div className="text-xs text-gray-400">No worksheets</div>
           </div>
@@ -339,7 +341,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-sm font-medium text-blue-200">{title}</h4>
-              <p className="text-xs text-blue-300">{timeframe}</p>
+              {timeframe && <p className="text-xs text-blue-300">{timeframe}</p>}
             </div>
             <div className="text-xs text-blue-300">🏖️ Weekend</div>
           </div>
@@ -369,7 +371,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
             }`}>
               {title}
             </h4>
-            <p className={`text-xs ${
+            {timeframe && <p className={`text-xs ${
               allComplete 
                 ? 'text-green-300' 
                 : hasIncomplete 
@@ -377,7 +379,7 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
                   : 'text-gray-500'
             }`}>
               {timeframe}
-            </p>
+            </p>}
           </div>
           <div className={`text-xs ${
             allComplete 
@@ -426,40 +428,40 @@ const QCStatusDashboard = ({ machine, qcHistory }) => {
         <QCWidget 
           frequency="daily"
           status={dailyStatus}
-          title="Daily QC"
-          timeframe={today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+          title="Daily"
+          timeframe=""
         />
 
         {/* Weekly QC */}
         <QCWidget 
           frequency="weekly"
           status={weeklyStatus}
-          title="Weekly QC"
-          timeframe="This week"
+          title="Weekly"
+          timeframe=""
         />
 
         {/* Monthly QC */}
         <QCWidget 
           frequency="monthly"
           status={monthlyStatus}
-          title="Monthly QC"
-          timeframe={today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          title="Monthly"
+          timeframe=""
         />
 
         {/* Quarterly QC */}
         <QCWidget 
           frequency="quarterly"
           status={quarterlyStatus}
-          title="Quarterly QC"
-          timeframe={`Q${Math.floor(currentMonth / 3) + 1} ${currentYear}`}
+          title="Quarterly"
+          timeframe=""
         />
 
         {/* Annual QC */}
         <QCWidget 
           frequency="annual"
           status={annualStatus}
-          title="Annual QC"
-          timeframe={currentYear.toString()}
+          title="Annual"
+          timeframe=""
         />
       </div>
 

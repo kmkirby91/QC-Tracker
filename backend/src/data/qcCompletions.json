@@ -1,194 +1,226 @@
 [
   {
-    "id": "1753671100144",
-    "machineId": "CT-WOM-001",
+    "id": "1754786794273",
+    "machineId": "CT-GON-001",
     "machineType": "CT",
-    "frequency": "daily",
-    "date": "2025-07-28",
+    "frequency": "annual",
+    "date": "2025-08-10",
     "tests": [
       {
-        "testName": "ffff",
-        "value": "",
-        "result": "",
+        "testName": "Full Dosimetry Calibration",
+        "value": "pass",
+        "result": "pass",
         "notes": "",
-        "tolerance": "±5 HU",
-        "performedBy": "kk"
+        "tolerance": "±10%",
+        "performedBy": "ss"
       },
       {
-        "testName": "Image Noise",
-        "value": "",
-        "result": "",
-        "notes": "",
-        "tolerance": "≤6.0 HU",
-        "performedBy": "kk"
-      },
-      {
-        "testName": "Uniformity",
-        "value": "",
-        "result": "",
-        "notes": "",
-        "tolerance": "±5 HU",
-        "performedBy": "kk"
-      },
-      {
-        "testName": "Artifact Evaluation",
-        "value": "",
-        "result": "",
+        "testName": "Radiation Safety Survey",
+        "value": "pass",
+        "result": "pass",
         "notes": "",
         "tolerance": "Pass",
-        "performedBy": "kk"
-      },
-      {
-        "testName": "Patient Positioning Laser Accuracy",
-        "value": "",
-        "result": "",
-        "notes": "",
-        "tolerance": "±2 mm",
-        "performedBy": "kk"
-      },
-      {
-        "testName": "Table Movement Accuracy",
-        "value": "",
-        "result": "",
-        "notes": "",
-        "tolerance": "±1 mm",
-        "performedBy": "kk"
+        "performedBy": "ss"
       }
     ],
-    "performedBy": "kk",
+    "performedBy": "ss",
     "comments": "",
     "overallResult": "pass",
-    "completedAt": "2025-07-28T02:51:40.144Z",
-    "worksheetId": "worksheet_1753029074933_CT-WOM-001_labb4rybo",
-    "worksheetTitle": "ACR CT Daily QC Protocol",
+    "completedAt": "2025-08-10T00:46:34.273Z",
+    "worksheetId": "sample-ct-annual-001",
+    "worksheetTitle": "ACR CT Annual QC Protocol",
     "isRealSubmission": true
   },
   {
-    "id": "1753400868194",
-    "machineId": "CT-WOM-001",
+    "id": "1754679758181",
+    "machineId": "CT-GON-001",
     "machineType": "CT",
     "frequency": "daily",
-    "date": "2025-07-24",
+    "date": "2025-08-08",
     "tests": [
       {
-        "testName": "CT Number Accuracy (Water)",
-        "value": "",
-        "result": "",
-        "notes": "",
-        "tolerance": "±5 HU",
-        "performedBy": "kk"
-      },
-      {
-        "testName": "Image Noise",
-        "value": "",
-        "result": "",
-        "notes": "",
-        "tolerance": "≤3.0 HU",
-        "performedBy": "kk"
-      },
-      {
-        "testName": "Uniformity",
-        "value": "",
-        "result": "",
-        "notes": "",
-        "tolerance": "±5 HU",
-        "performedBy": "kk"
-      },
-      {
-        "testName": "Artifact Evaluation",
-        "value": "",
-        "result": "",
+        "testName": "Radiation Safety Check",
+        "value": "pass",
+        "result": "pass",
         "notes": "",
         "tolerance": "Pass",
-        "performedBy": "kk"
+        "performedBy": "jj"
       },
       {
-        "testName": "Patient Positioning Laser Accuracy",
-        "value": "",
-        "result": "",
+        "testName": "Laser Alignment Check",
+        "value": "0",
+        "result": "pass",
         "notes": "",
         "tolerance": "±2 mm",
-        "performedBy": "kk"
+        "performedBy": "jj"
       },
       {
-        "testName": "Table Movement Accuracy",
-        "value": "",
-        "result": "",
+        "testName": "Table Movement Check",
+        "value": "pass",
+        "result": "pass",
         "notes": "",
-        "tolerance": "±1 mm",
-        "performedBy": "kk"
+        "tolerance": "Pass",
+        "performedBy": "jj"
       }
     ],
-    "performedBy": "kk",
+    "performedBy": "jj",
     "comments": "",
     "overallResult": "pass",
-    "completedAt": "2025-07-24T23:47:48.194Z",
-    "worksheetId": "1753399308133-CT-WOM-001",
-    "worksheetTitle": "ACR CT Daily QC Protocol",
+    "completedAt": "2025-08-08T19:02:38.181Z",
+    "worksheetId": "sample-ct-daily-002",
+    "worksheetTitle": "CT Safety & Calibration Daily QC",
     "isRealSubmission": true
   },
   {
-    "id": "1753400152915",
-    "machineId": "CT-WOM-001",
+    "id": "1754680000001",
+    "machineId": "CT-GON-001",
     "machineType": "CT",
     "frequency": "daily",
-    "date": "2025-07-23",
+    "date": "2025-08-08",
     "tests": [
       {
         "testName": "CT Number Accuracy (Water)",
-        "value": -2.3,
+        "value": "1",
         "result": "pass",
         "notes": "",
         "tolerance": "±5 HU",
-        "performedBy": "hh"
+        "performedBy": "jj"
+      },
+      {
+        "testName": "Image Noise",
+        "value": "4.2",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "≤6.0 HU",
+        "performedBy": "jj"
+      },
+      {
+        "testName": "Uniformity",
+        "value": "2",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "±5 HU",
+        "performedBy": "jj"
+      },
+      {
+        "testName": "Artifact Evaluation",
+        "value": "pass",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "Pass",
+        "performedBy": "jj"
+      }
+    ],
+    "performedBy": "jj",
+    "comments": "",
+    "overallResult": "pass",
+    "completedAt": "2025-08-08T19:05:00.001Z",
+    "worksheetId": "sample-ct-daily-001",
+    "worksheetTitle": "ACR CT Daily QC Protocol",
+    "isRealSubmission": true
+  },
+  {
+    "id": "1754680744531",
+    "machineId": "CT-ESS-001",
+    "machineType": "CT",
+    "frequency": "daily",
+    "date": "2025-08-08",
+    "tests": [
+      {
+        "testName": "ffff",
+        "value": "1",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "±5 HU",
+        "performedBy": "ww"
       },
       {
         "testName": "Image Noise",
         "value": 4.2,
         "result": "pass",
         "notes": "",
-        "tolerance": "≤3.0 HU",
-        "performedBy": "hh"
+        "tolerance": "≤6.0 HU",
+        "performedBy": "ww"
       },
       {
         "testName": "Uniformity",
-        "value": "7",
+        "value": 3.1,
         "result": "pass",
         "notes": "",
         "tolerance": "±5 HU",
-        "performedBy": "hh"
+        "performedBy": "ww"
       },
       {
         "testName": "Artifact Evaluation",
-        "value": "",
-        "result": "",
+        "value": "pass",
+        "result": "pass",
         "notes": "",
         "tolerance": "Pass",
-        "performedBy": "hh"
+        "performedBy": "ww"
       },
       {
         "testName": "Patient Positioning Laser Accuracy",
-        "value": "",
-        "result": "",
+        "value": "1",
+        "result": "pass",
         "notes": "",
         "tolerance": "±2 mm",
-        "performedBy": "hh"
+        "performedBy": "ww"
       },
       {
         "testName": "Table Movement Accuracy",
-        "value": "",
-        "result": "",
+        "value": "1",
+        "result": "pass",
         "notes": "",
         "tolerance": "±1 mm",
-        "performedBy": "hh"
+        "performedBy": "ww"
       }
     ],
-    "performedBy": "hh",
+    "performedBy": "ww",
     "comments": "",
     "overallResult": "pass",
-    "completedAt": "2025-07-24T23:35:52.915Z",
-    "worksheetId": "1753399308133-CT-WOM-001",
+    "completedAt": "2025-08-08T19:19:04.531Z",
+    "worksheetId": "1754680634256-CT-ESS-001",
     "worksheetTitle": "ACR CT Daily QC Protocol",
+    "isRealSubmission": true
+  },
+  {
+    "id": "1754336125923",
+    "machineId": "CT-GON-001",
+    "machineType": "CT",
+    "frequency": "monthly",
+    "date": "2025-08-04",
+    "tests": [
+      {
+        "testName": "CT Number Linearity",
+        "value": "2",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "±5 HU",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Spatial Resolution",
+        "value": "2222",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "≤0.75 mm",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Low Contrast Detectability",
+        "value": "1",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "≥6 mm",
+        "performedBy": "kk"
+      }
+    ],
+    "performedBy": "kk",
+    "comments": "",
+    "overallResult": "pass",
+    "completedAt": "2025-08-04T19:35:25.923Z",
+    "worksheetId": "sample-ct-monthly-001",
+    "worksheetTitle": "ACR CT Monthly QC Protocol",
     "isRealSubmission": true
   }
 ]

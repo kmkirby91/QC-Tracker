@@ -126,6 +126,13 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, selectedSeries = [
               status: 'pass',
               roi: { x: 256, y: 256, size: 50 }
             },
+            'CT Number Linearity': {
+              value: 2.1,
+              units: 'HU',
+              tolerance: '±5 HU',
+              status: 'pass',
+              roi: { x: 256, y: 256, size: 50 }
+            },
             'Image Noise': {
               value: 4.2,
               units: 'HU (SD)',
@@ -145,6 +152,20 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, selectedSeries = [
                 left: 1.2,
                 right: -1.8
               }
+            },
+            'Spatial Resolution': {
+              value: 0.5,
+              units: 'mm',
+              tolerance: '≤0.75 mm',
+              status: 'pass',
+              roi: { x: 300, y: 300, size: 25 }
+            },
+            'Low Contrast Detectability': {
+              value: 8,
+              units: 'mm',
+              tolerance: '≥6 mm',
+              status: 'pass',
+              roi: { x: 200, y: 200, size: 40 }
             }
           }
         };
@@ -291,18 +312,6 @@ const DICOMAnalysis = ({ machineId, frequency, worksheetData, selectedSeries = [
         </div>
       )}
 
-      <div className="mt-6 p-4 bg-gray-700 rounded-lg">
-        <h4 className="text-gray-100 font-medium mb-2">🚧 Future Capabilities</h4>
-        <ul className="text-sm text-gray-300 space-y-1">
-          <li>• Automatic ROI placement and measurement</li>
-          <li>• CT number accuracy calculation from water phantom</li>
-          <li>• Noise and uniformity analysis</li>
-          <li>• MRI SNR and frequency drift detection</li>
-          <li>• Spatial resolution measurements</li>
-          <li>• Integration with PACS/VNA systems</li>
-          <li>• Historical trending and baseline comparison</li>
-        </ul>
-      </div>
     </div>
   );
 };

@@ -114,7 +114,7 @@ const mockMachines = [
     nextQCDue: '2024-01-08',
     qcSchedule: {
       daily: true,
-      weekly: false,
+      weekly: true,
       monthly: false,
       quarterly: true,
       annual: true
@@ -173,9 +173,9 @@ const mockMachines = [
     qcSchedule: {
       daily: true,
       weekly: false,
-      monthly: false,
+      monthly: true,
       quarterly: false,
-      annual: false
+      annual: true
     }
   },
   {
@@ -200,11 +200,11 @@ const mockMachines = [
     },
     nextQCDue: '2024-01-09',
     qcSchedule: {
-      daily: false,
-      weekly: true,
-      monthly: true,
-      quarterly: false,
-      annual: true
+      daily: true,
+      weekly: false,
+      monthly: false,
+      quarterly: true,
+      annual: false
     }
   },
   {

@@ -251,15 +251,33 @@ const DICOMSeriesSelector = ({
     }
   };
 
-  const handlePreviewSeries = (series) => {
-    console.log('Opening DICOM viewer for series:', series.seriesDescription);
+  const handlePreviewSeries = (eventOrSeries, series) => {
+    // Handle backwards compatibility: if first parameter is series object, adjust parameters
+    let event, actualSeries;
+    if (eventOrSeries && typeof eventOrSeries === 'object' && eventOrSeries.seriesInstanceUID) {
+      // Old calling pattern: handlePreviewSeries(series)
+      event = null;
+      actualSeries = eventOrSeries;
+    } else {
+      // New calling pattern: handlePreviewSeries(event, series)
+      event = eventOrSeries;
+      actualSeries = series;
+    }
+    
+    // Prevent default behavior and stop propagation to avoid interfering with parent page
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    console.log('Opening DICOM viewer for series:', actualSeries.seriesDescription);
     
     try {
       // Open DICOM viewer in a new popup window with improved settings
       const windowFeatures = [
         'width=1400',
         'height=900', 
-        'left=100',
+        'left=200',
         'top=100',
         'scrollbars=yes',
         'resizable=yes',
@@ -267,19 +285,22 @@ const DICOMSeriesSelector = ({
         'toolbar=no',
         'menubar=no',
         'location=no',
-        'directories=no',
-        'copyhistory=no'
+        'directories=no'
       ].join(',');
       
       const viewerWindow = window.open(
-        'about:blank', 
+        '', 
         `dicomViewer_${Date.now()}`, // Unique window name to allow multiple viewers
         windowFeatures
       );
       
       if (viewerWindow && !viewerWindow.closed) {
+        // Prevent the popup from affecting the parent window
+        viewerWindow.opener = null;
+        
         // Create the HTML content for the viewer window
-        const viewerHTML = createViewerHTML(series);
+        const viewerHTML = createViewerHTML(actualSeries);
+        viewerWindow.document.open();
         viewerWindow.document.write(viewerHTML);
         viewerWindow.document.close();
         
@@ -287,35 +308,41 @@ const DICOMSeriesSelector = ({
         viewerWindow.focus();
         
         console.log('DICOM viewer opened successfully in popup window');
-        toast.success(`DICOM viewer opened for ${series.seriesDescription}`);
       } else {
-        // Popup was blocked
-        console.warn('Popup blocked or failed to open');
-        toast.error('Popup blocked! Please allow popups for this site and try again.', {
-          duration: 5000,
-          icon: '🚫'
-        });
-        
-        // Provide instructions
-        setTimeout(() => {
-          toast('💡 Tip: Look for popup blocker icon in address bar and click "Always allow"', {
-            duration: 8000,
-            icon: '💡'
-          });
-        }, 1000);
+        // Popup was blocked, fall back to new tab
+        handlePreviewSeriesNewTab(null, actualSeries);
       }
     } catch (error) {
       console.error('Error opening DICOM viewer:', error);
-      toast.error('Failed to open DICOM viewer. Please try again.');
+      // Fall back to new tab method
+      handlePreviewSeriesNewTab(null, actualSeries);
     }
   };
 
-  const handlePreviewSeriesNewTab = (series) => {
-    console.log('Opening DICOM viewer in new tab for series:', series.seriesDescription);
+  const handlePreviewSeriesNewTab = (eventOrSeries, series) => {
+    // Handle backwards compatibility: if first parameter is series object, adjust parameters
+    let event, actualSeries;
+    if (eventOrSeries && typeof eventOrSeries === 'object' && eventOrSeries.seriesInstanceUID) {
+      // Old calling pattern: handlePreviewSeriesNewTab(series)
+      event = null;
+      actualSeries = eventOrSeries;
+    } else {
+      // New calling pattern: handlePreviewSeriesNewTab(event, series)
+      event = eventOrSeries;
+      actualSeries = series;
+    }
+    
+    // Prevent default behavior and stop propagation
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    console.log('Opening DICOM viewer in new tab for series:', actualSeries.seriesDescription);
     
     try {
       // Create a blob URL with the HTML content
-      const viewerHTML = createViewerHTML(series);
+      const viewerHTML = createViewerHTML(actualSeries);
       const blob = new Blob([viewerHTML], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       
@@ -324,7 +351,7 @@ const DICOMSeriesSelector = ({
       
       if (newTab) {
         console.log('DICOM viewer opened successfully in new tab');
-        toast.success(`DICOM viewer opened in new tab for ${series.seriesDescription}`);
+        toast.success(`DICOM viewer opened in new tab for ${actualSeries.seriesDescription}`);
         
         // Clean up the blob URL after a delay
         setTimeout(() => {
@@ -1146,66 +1173,40 @@ Zoom: \${(zoom * 100).toFixed(0)}%
   }
 
   return (
-    <div className={templateMode ? "" : "bg-gray-800 rounded-lg p-6 mb-6"}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-100 flex items-center">
-          {templateMode ? "📋 Available DICOM Series" : "🖼️ DICOM Images"}
+    <div className={templateMode ? "" : "bg-gray-800 rounded-lg p-3 mb-4"}>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-gray-100">
+          🖼️ DICOM Images
         </h3>
-        <div className="flex items-center space-x-2">
-          {!templateMode && (
-            <>
-              <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                connectionStatus === 'connected' ? 'bg-green-900 text-green-200' :
-                'bg-red-900 text-red-200'
-              }`}>
-                {connectionStatus === 'connected' ? '🟢 Connected' : '🔴 Disconnected'}
-              </div>
-              {lastRefresh && (
-                <span className="text-xs text-gray-400">
-                  Last: {lastRefresh}
-                </span>
-              )}
-            </>
-          )}
-          {templateMode && (
-            <div className="text-sm text-gray-400">
-              {availableSeries.length} series types available for {modality}
-            </div>
+        <div className="flex items-center space-x-2 text-xs">
+          <div className={`px-2 py-1 rounded text-xs ${
+            connectionStatus === 'connected' ? 'bg-green-900 text-green-200' :
+            'bg-red-900 text-red-200'
+          }`}>
+            {connectionStatus === 'connected' ? '🟢' : '🔴'}
+          </div>
+          {selectedSeries.length > 0 && (
+            <span className="text-blue-400">{selectedSeries.length} selected</span>
           )}
         </div>
       </div>
 
       {templateMode && (
-        <div className="bg-green-900/20 border border-green-600 rounded-lg p-4 mb-4">
-          <div className="flex items-center text-green-300 text-sm">
-            <span className="mr-2">✨</span>
-            <span>
-              These DICOM series will be available for selection when technologists perform QC using this template. 
-              Each series enables automated calculation of specific QC measurements.
-            </span>
-          </div>
+        <div className="bg-green-900/20 border border-green-600 rounded p-2 mb-2 text-xs text-green-300">
+          ✨ {availableSeries.length} series types available for automated QC analysis
         </div>
       )}
 
       {connectionStatus === 'disconnected' && (
-        <div className="bg-red-900/20 border border-red-600 rounded-lg p-4 mb-4">
-          <div className="flex items-center">
-            <span className="text-red-400 text-2xl mr-3">⚠️</span>
-            <div>
-              <h4 className="text-red-400 font-medium">DICOM Connection Required</h4>
-              <p className="text-red-300 text-sm mt-1">
-                This feature requires DICOM connectivity to fetch QC phantom images for automated analysis.
-                Contact your IT administrator to configure DICOM services.
-              </p>
-            </div>
-          </div>
-          <div className="mt-3">
+        <div className="bg-red-900/20 border border-red-600 rounded p-2 mb-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-red-300">⚠️ DICOM connection required</span>
             <button
               onClick={fetchAvailableSeries}
               disabled={loading}
-              className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors disabled:opacity-50"
+              className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
             >
-              {loading ? '🔄 Checking...' : '🔄 Retry Connection'}
+              {loading ? 'Checking...' : 'Retry'}
             </button>
           </div>
         </div>
@@ -1213,129 +1214,90 @@ Zoom: \${(zoom * 100).toFixed(0)}%
 
       {connectionStatus === 'connected' && (
         <>
-          {/* Study Information */}
           {studyInfo && (
-            <div className="bg-blue-900/20 border border-blue-600 rounded-lg p-4 mb-4">
-              <h4 className="text-blue-300 font-medium mb-2">📋 Study Information</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div>
-                  <span className="text-blue-400">Patient ID:</span>
-                  <div className="text-blue-200">{studyInfo.patientId}</div>
-                </div>
-                <div>
-                  <span className="text-blue-400">Study Date:</span>
-                  <div className="text-blue-200">{studyInfo.studyDate}</div>
-                </div>
-                <div>
-                  <span className="text-blue-400">Study Time:</span>
-                  <div className="text-blue-200">{studyInfo.studyTime}</div>
-                </div>
-                <div>
-                  <span className="text-blue-400">Description:</span>
-                  <div className="text-blue-200">{studyInfo.studyDescription}</div>
-                </div>
-              </div>
+            <div className="bg-blue-900/20 border border-blue-600 rounded p-2 mb-2 text-xs text-blue-300">
+              📋 {studyInfo.patientId} • {studyInfo.studyDate} • {studyInfo.studyDescription}
             </div>
           )}
 
-          {/* Series Selection */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-gray-200 font-medium">Available Series for Analysis</h4>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={fetchAvailableSeries}
-                  disabled={loading}
-                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? '🔄 Loading...' : '🔄 Refresh'}
-                </button>
-                <span className="text-xs text-gray-400">
-                  {availableSeries.length} series found
-                </span>
-              </div>
-            </div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-300">{availableSeries.length} series found</span>
+            <button
+              onClick={fetchAvailableSeries}
+              disabled={loading}
+              className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
 
-            {loading ? (
-              <div className="bg-gray-700 rounded-lg p-8">
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mr-3"></div>
-                  <span className="text-gray-300">Querying DICOM database...</span>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {availableSeries.map((series) => (
-                  <div
-                    key={series.seriesInstanceUID}
-                    className={`border rounded-lg p-4 transition-colors ${
-                      selectedSeries.includes(series.seriesInstanceUID)
-                        ? 'border-blue-500 bg-blue-900/20'
-                        : 'border-gray-600 bg-gray-700/50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3">
-                        <div className="mt-1">
-                          <input
-                            type="checkbox"
-                            id={series.seriesInstanceUID}
-                            checked={selectedSeries.includes(series.seriesInstanceUID)}
-                            onChange={() => handleSeriesToggle(series.seriesInstanceUID)}
-                            className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <span className="text-lg">{getSeriesTypeIcon(series.analysisType)}</span>
-                            <span className="font-medium text-gray-200">
-                              Series {series.seriesNumber}: {series.seriesDescription}
-                            </span>
-                            {series.recommended && (
-                              <span className="px-2 py-1 bg-green-900 text-green-200 text-xs rounded-full">
-                                Recommended
-                              </span>
-                            )}
-                            <span className={`px-2 py-1 text-xs rounded-full ${getSeriesTypeColor(series.analysisType)}`}>
-                              {series.analysisType}
-                            </span>
-                          </div>
-                          
-                          <div className="text-sm text-gray-400 mb-2">
-                            {series.imageCount} images
-                            {series.sliceThickness > 0 && <> • {series.sliceThickness}mm slice thickness</>}
-                            {modality === 'CT' && (
-                              <> • {series.kvp}kVp • {series.mas}mAs • {series.reconstructionKernel}</>
-                            )}
-                            {modality === 'MRI' && series.tr && (
-                              <> • TR:{series.tr}ms • TE:{series.te}ms • FA:{series.flipAngle}°</>
-                            )}
-                            {modality === 'Mammography' && (
-                              <> • {series.kvp}kVp • {series.mas} • {series.compression}</>
-                            )}
-                          </div>
-                          
-                        </div>
+          {loading ? (
+            <div className="bg-gray-700 rounded p-2 text-center text-xs text-gray-300">
+              <div className="inline-block animate-spin rounded-full h-3 w-3 border-b border-blue-400 mr-2"></div>
+              Loading...
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {availableSeries.map((series) => (
+                <div
+                  key={series.seriesInstanceUID}
+                  className={`border rounded p-2 text-xs ${
+                    selectedSeries.includes(series.seriesInstanceUID)
+                      ? 'border-blue-500 bg-blue-900/20'
+                      : 'border-gray-600 bg-gray-700/50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <div className="mt-1">
+                        <input
+                          type="checkbox"
+                          id={series.seriesInstanceUID}
+                          checked={selectedSeries.includes(series.seriesInstanceUID)}
+                          onChange={() => handleSeriesToggle(series.seriesInstanceUID)}
+                          className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                        />
                       </div>
-                      
-                      <div className="ml-4 flex space-x-2">
-                        <button
-                          onClick={() => handlePreviewSeries(series)}
-                          className="px-3 py-1 bg-gray-600 text-gray-200 text-xs rounded hover:bg-gray-500 transition-colors"
-                          title="Preview Series in Popup Window"
-                        >
-                          👁️ Preview
-                        </button>
-                        <button
-                          onClick={() => handlePreviewSeriesNewTab(series)}
-                          className="px-2 py-1 bg-blue-600 text-blue-200 text-xs rounded hover:bg-blue-500 transition-colors"
-                          title="Open in New Tab (if popups blocked)"
-                        >
-                          🗗
-                        </button>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="text-lg">{getSeriesTypeIcon(series.analysisType)}</span>
+                          <span className="font-medium text-gray-200">
+                            Series {series.seriesNumber}: {series.seriesDescription}
+                          </span>
+                          {series.recommended && (
+                            <span className="px-2 py-1 bg-green-900 text-green-200 text-xs rounded-full">
+                              Recommended
+                            </span>
+                          )}
+                          <span className={`px-2 py-1 text-xs rounded-full ${getSeriesTypeColor(series.analysisType)}`}>
+                            {series.analysisType}
+                          </span>
+                        </div>
+                        
+                        <div className="text-sm text-gray-400 mb-2">
+                          {series.imageCount} images
+                        </div>
                       </div>
                     </div>
+                    
+                    <div className="ml-4 flex space-x-2">
+                      <button
+                        onClick={(e) => handlePreviewSeries(e, series)}
+                        className="px-3 py-1 bg-gray-600 text-gray-200 text-xs rounded hover:bg-gray-500 transition-colors"
+                        title="Preview Series in Popup Window"
+                      >
+                        👁️ Preview
+                      </button>
+                      <button
+                        onClick={(e) => handlePreviewSeriesNewTab(e, series)}
+                        className="px-2 py-1 bg-blue-600 text-blue-200 text-xs rounded hover:bg-blue-500 transition-colors"
+                        title="Open in New Tab (if popups blocked)"
+                      >
+                        🗗
+                      </button>
+                    </div>
                   </div>
+                </div>
                 ))}
 
                 {availableSeries.length === 0 && (
@@ -1357,67 +1319,10 @@ Zoom: \${(zoom * 100).toFixed(0)}%
               </div>
             )}
 
-            {/* Selection Summary */}
-            {selectedSeries.length > 0 && (
-              <div className="bg-green-900/20 border border-green-600 rounded-lg p-4 mt-4">
-                <h4 className="text-green-300 font-medium mb-2">Selected for Analysis</h4>
-                <div className="text-sm text-green-200">
-                  {selectedSeries.length} series selected for automated QC analysis.
-                  These images will be processed to automatically calculate measurement values.
-                </div>
-                <div className="mt-2 text-xs text-green-300">
-                  Selected Series: {availableSeries
-                    .filter(s => selectedSeries.includes(s.seriesInstanceUID))
-                    .map(s => `Series ${s.seriesNumber}`)
-                    .join(', ')}
-                </div>
-              </div>
-            )}
-          </div>
         </>
       )}
 
-      {/* DICOM Viewer Instructions */}
-      <div className="mt-6 p-4 bg-blue-900/20 border border-blue-600 rounded-lg">
-        <h4 className="text-blue-200 font-medium mb-2">🖼️ DICOM Viewer Instructions</h4>
-        <div className="text-sm text-blue-100 space-y-2">
-          <p>
-            <strong>👁️ Preview:</strong> Opens DICOM viewer in popup window (stays open while you continue QC)
-          </p>
-          <p>
-            <strong>🗗 New Tab:</strong> Opens in new tab if popups are blocked
-          </p>
-          <p className="text-blue-300 text-xs">
-            💡 If popups are blocked, look for the popup blocker icon in your address bar and click "Always allow"
-          </p>
-        </div>
-      </div>
 
-      {/* Future Enhancement Notice */}
-      <div className="mt-4 p-4 bg-gray-700 rounded-lg">
-        <h4 className="text-gray-100 font-medium mb-2">
-          {templateMode ? "🚧 Template Integration Features" : "🚧 Planned Enhancements"}
-        </h4>
-        <ul className="text-sm text-gray-300 space-y-1">
-          {templateMode ? (
-            <>
-              <li>• Template-based DICOM series pre-selection for consistent workflows</li>
-              <li>• Automatic test-to-series mapping based on QC requirements</li>
-              <li>• Series validation rules to ensure quality phantom compatibility</li>
-              <li>• Integration with QC test definitions for automated value calculation</li>
-              <li>• Template inheritance for institutional standardization</li>
-            </>
-          ) : (
-            <>
-              <li>• Real-time DICOM image preview and ROI visualization</li>
-              <li>• Automatic series recommendation based on QC protocol</li>
-              <li>• Multi-vendor DICOM format support</li>
-              <li>• Series quality validation before analysis</li>
-              <li>• Integration with PACS worklist and study routing</li>
-            </>
-          )}
-        </ul>
-      </div>
     </div>
     );
 };
