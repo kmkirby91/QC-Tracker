@@ -1,18 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DICOMSeriesSelector from './DICOMSeriesSelector';
+import QCCalendarDropdown from './QCCalendarDropdown';
+import { getAnalysisCodeById } from '../utils/qcAnalysisCodes';
 
 const QCForm = ({ viewOnly = false }) => {
   const { machineId, frequency, machineType, worksheetId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // Check for viewOnly in both props and URL parameters (dynamically calculated)
+  const isViewOnly = viewOnly || searchParams.get('viewOnly') === 'true';
   const [machine, setMachine] = useState(null);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [tests, setTests] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    // If we're in view-only mode and have a date in URL params, use that
+    if (isViewOnly && searchParams.get('date')) {
+      return searchParams.get('date');
+    }
+    // Otherwise use today's date
+    return new Date().toISOString().split('T')[0];
+  });
   const [existingQCDates, setExistingQCDates] = useState([]);
   const [showReplaceWarning, setShowReplaceWarning] = useState(false);
   const [loadingExistingData, setLoadingExistingData] = useState(false);
@@ -23,14 +36,14 @@ const QCForm = ({ viewOnly = false }) => {
 
   useEffect(() => {
     fetchMachineAndTests();
-  }, [machineId, frequency, machineType, worksheetId, viewOnly]);
+  }, [machineId, frequency, machineType, worksheetId, isViewOnly]);
 
-  // Fetch QC due dates when worksheet changes
+  // Fetch QC due dates when worksheet or machine changes
   useEffect(() => {
-    if (currentWorksheet && currentWorksheet.startDate) {
+    if (machine) {
       fetchQCDueDates();
     }
-  }, [currentWorksheet]);
+  }, [currentWorksheet, machine, frequency]);
 
   // Debug warning state changes
   useEffect(() => {
@@ -43,13 +56,33 @@ const QCForm = ({ viewOnly = false }) => {
 
   const fetchQCDueDates = async () => {
     try {
-      if (!currentWorksheet || !currentWorksheet.startDate) return;
+      let startDate, freq;
+      
+      if (currentWorksheet && currentWorksheet.startDate) {
+        // Use worksheet start date and frequency
+        startDate = currentWorksheet.startDate;
+        freq = currentWorksheet.frequency;
+      } else if (machine && machine.installationDate) {
+        // Fallback to machine installation date
+        startDate = machine.installationDate;
+        freq = frequency;
+      } else {
+        // Fallback to 90 days ago as start date
+        startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        freq = frequency;
+      }
+      
+      console.log(`Fetching QC due dates for ${freq} frequency from ${startDate}`);
       
       const response = await axios.get(
-        `/api/qc/schedule/generate?frequency=${currentWorksheet.frequency}&startDate=${currentWorksheet.startDate}`
+        `/api/qc/schedule/generate?frequency=${freq}&startDate=${startDate}`
       );
       
-      if (response.data && response.data.dueDates) {
+      if (response.data && Array.isArray(response.data)) {
+        setQcDueDates(response.data);
+        console.log('Fetched QC due dates:', response.data);
+      } else if (response.data && response.data.dueDates) {
+        // Fallback for wrapped response format
         setQcDueDates(response.data.dueDates);
         console.log('Fetched QC due dates:', response.data.dueDates);
       }
@@ -63,7 +96,7 @@ const QCForm = ({ viewOnly = false }) => {
     try {
       // Get machine details
       let foundMachine;
-      if (viewOnly && machineType) {
+      if (isViewOnly && machineType) {
         // For view-only mode, create a mock machine object
         foundMachine = {
           machineId: machineType,
@@ -114,7 +147,11 @@ const QCForm = ({ viewOnly = false }) => {
               description: test.description,
               templateSource: customWorksheet.templateSource,
               isCustomField: test.isCustomField || false,
-              customFieldType: test.customFieldType || 'template-default'
+              customFieldType: test.customFieldType || 'template-default',
+              calculatedFromDicom: test.calculatedFromDicom || false,
+              requiresDicom: test.requiresDicom || false,
+              qcAnalysisCode: test.qcAnalysisCode || '',
+              dicomSeriesSource: test.dicomSeriesSource || ''
             }));
             hasCustomWorksheet = true;
             setCurrentWorksheet(customWorksheet); // Store worksheet info for submission
@@ -131,9 +168,9 @@ const QCForm = ({ viewOnly = false }) => {
         const tempTemplate = localStorage.getItem('tempTemplateView');
         const tempWorksheet = localStorage.getItem('tempWorksheetView');
         
-        console.log('Checking temp data - tempTemplate:', !!tempTemplate, 'tempWorksheet:', !!tempWorksheet, 'viewOnly:', viewOnly);
+        console.log('Checking temp data - tempTemplate:', !!tempTemplate, 'tempWorksheet:', !!tempWorksheet, 'viewOnly:', isViewOnly);
         
-        if (viewOnly && tempTemplate) {
+        if (isViewOnly && tempTemplate) {
           console.log('Loading template from tempTemplateView');
           const templateData = JSON.parse(tempTemplate);
           testsData = templateData.tests.map(test => ({
@@ -143,11 +180,15 @@ const QCForm = ({ viewOnly = false }) => {
             units: test.units,
             notes: test.notes,
             description: test.description || '',
-            testType: test.testType
+            testType: test.testType,
+            calculatedFromDicom: test.calculatedFromDicom || false,
+            requiresDicom: test.requiresDicom || false,
+            qcAnalysisCode: test.qcAnalysisCode || '',
+            dicomSeriesSource: test.dicomSeriesSource || ''
           }));
           // Clear the temporary data
           localStorage.removeItem('tempTemplateView');
-        } else if (viewOnly && tempWorksheet) {
+        } else if (isViewOnly && tempWorksheet) {
           console.log('Loading worksheet from tempWorksheetView');
           const worksheetData = JSON.parse(tempWorksheet);
           testsData = worksheetData.tests.map(test => ({
@@ -157,11 +198,15 @@ const QCForm = ({ viewOnly = false }) => {
             units: test.units,
             notes: test.notes,
             description: test.description || '',
-            testType: test.testType
+            testType: test.testType,
+            calculatedFromDicom: test.calculatedFromDicom || false,
+            requiresDicom: test.requiresDicom || false,
+            qcAnalysisCode: test.qcAnalysisCode || '',
+            dicomSeriesSource: test.dicomSeriesSource || ''
           }));
           // Clear the temporary data
           localStorage.removeItem('tempWorksheetView');
-        } else if (!viewOnly) {
+        } else if (!isViewOnly) {
           // For performing QC (not view-only), no worksheet = no QC possible
           console.log('No worksheet assigned to machine for frequency:', frequency);
           throw new Error(`No QC worksheet assigned to this machine for ${frequency} frequency. Please assign a worksheet first.`);
@@ -175,8 +220,8 @@ const QCForm = ({ viewOnly = false }) => {
       
       setTests(testsData);
 
-      // Get existing QC dates (skip for view-only mode)
-      if (!viewOnly) {
+      // Get existing QC dates (load for both edit and view-only modes)
+      if (!isViewOnly || (isViewOnly && searchParams.get('date'))) {
         try {
           // Get QC completions from both localStorage and backend
           const rawLocalCompletions = JSON.parse(localStorage.getItem('qcCompletions') || '[]');
@@ -239,16 +284,16 @@ const QCForm = ({ viewOnly = false }) => {
       const initialData = {};
       testsData.forEach(test => {
         initialData[test.name || test.testName] = {
-          value: viewOnly ? (test.tolerance || '') : '',
-          result: viewOnly ? '' : '',
-          notes: viewOnly ? (test.notes || '') : ''
+          value: isViewOnly ? (test.tolerance || '') : '',
+          result: isViewOnly ? '' : '',
+          notes: isViewOnly ? (test.notes || '') : ''
         };
       });
-      initialData.performedBy = viewOnly ? '[Template - No User]' : '';
-      initialData.comments = viewOnly ? 'This is a read-only template view showing the structure and parameters for this QC worksheet.' : '';
+      initialData.performedBy = isViewOnly ? '[Template - No User]' : '';
+      initialData.comments = isViewOnly ? 'This is a read-only template view showing the structure and parameters for this QC worksheet.' : '';
       
       // Check for saved draft (only for non-view-only mode)
-      if (!viewOnly) {
+      if (!isViewOnly) {
         const draftKey = `qc_draft_${machineId}_${frequency}_${selectedDate}`;
         const savedDraft = localStorage.getItem(draftKey);
         
@@ -281,15 +326,25 @@ const QCForm = ({ viewOnly = false }) => {
         }
       }
       
-      setFormData(initialData);
+      // Auto-check for existing QC data FIRST before setting initial form data
+      let hasExistingData = false;
       
-      // Auto-check for existing QC data on initial load (including period-based matching)
-      if (!viewOnly) {
+      if (!isViewOnly) {
         console.log('📋 Auto-checking for existing QC data on form load for date:', selectedDate);
-        // Use setTimeout to avoid state update during render and ensure all data is loaded
-        setTimeout(() => {
-          handleDateChange(selectedDate, window.currentExistingDates);
-        }, 100);
+        // Check for existing data and get result
+        hasExistingData = await handleDateChangeWithResult(selectedDate, window.currentExistingDates);
+      } else if (isViewOnly && searchParams.get('date')) {
+        // In view-only mode with specific date, load that QC data
+        console.log('📋 View-only mode: loading existing QC data for date:', selectedDate);
+        hasExistingData = await fetchExistingQCDataWithResult(selectedDate);
+      }
+      
+      // Only set initial data if no existing data was found
+      if (!hasExistingData) {
+        console.log('📋 No existing data found, setting initial form data');
+        setFormData(initialData);
+      } else {
+        console.log('📋 Existing data found and loaded, skipping initial form data');
       }
       
     } catch (error) {
@@ -394,6 +449,65 @@ const QCForm = ({ viewOnly = false }) => {
       // Reset form to blank if no existing data
       resetFormToBlank();
       setShowReplaceWarning(false);
+    }
+  };
+
+  // Version that returns boolean indicating if data was found (for initialization)
+  const fetchExistingQCDataWithResult = async (date) => {
+    console.log(`🔄 fetchExistingQCDataWithResult called for date: ${date}`);
+    const result = await fetchExistingQCData(date);
+    return result; // Return whether data was found
+  };
+
+  // Version that returns boolean indicating if data was found (for date changes)
+  const handleDateChangeWithResult = async (date, currentExistingDates = null) => {
+    // Reuse the logic from handleDateChange but return the result
+    const datesToCheck = currentExistingDates || existingQCDates;
+    console.log(`🔍 handleDateChangeWithResult called with date: ${date}, using dates:`, datesToCheck);
+    
+    // Check for existing data using period-based logic for monthly/quarterly/annual QC
+    let hasExistingData = false;
+    
+    if (frequency === 'daily' || frequency === 'weekly') {
+      // For daily/weekly, use exact date matching
+      hasExistingData = datesToCheck.includes(date);
+    } else {
+      // For monthly/quarterly/annual, use period-based matching
+      // Use date string parsing to avoid timezone issues
+      const selectedParts = date.split('-'); // date is in YYYY-MM-DD format
+      const selectedYear = parseInt(selectedParts[0]);
+      const selectedMonth = parseInt(selectedParts[1]) - 1; // Convert to 0-based month
+      
+      hasExistingData = datesToCheck.some(dateStr => {
+        const existingParts = dateStr.split('-'); // dateStr is in YYYY-MM-DD format
+        const existingYear = parseInt(existingParts[0]);
+        const existingMonth = parseInt(existingParts[1]) - 1; // Convert to 0-based month
+        
+        if (frequency === 'monthly') {
+          const matches = selectedMonth === existingMonth && selectedYear === existingYear;
+          return matches;
+        } else if (frequency === 'quarterly') {
+          const selectedQuarter = Math.floor(selectedMonth / 3);
+          const existingQuarter = Math.floor(existingMonth / 3);
+          const matches = selectedQuarter === existingQuarter && selectedYear === existingYear;
+          return matches;
+        } else if (frequency === 'annual') {
+          const matches = selectedYear === existingYear;
+          return matches;
+        }
+        
+        return false;
+      });
+    }
+    
+    if (hasExistingData) {
+      await fetchExistingQCData(date);
+      return true;
+    } else {
+      // Reset form to blank if no existing data
+      resetFormToBlank();
+      setShowReplaceWarning(false);
+      return false;
     }
   };
 
@@ -541,15 +655,18 @@ const QCForm = ({ viewOnly = false }) => {
         console.log('🚨 About to set warning state:', warningState);
         setShowReplaceWarning(warningState);
         console.log('🚨 Warning state set, should show warning now');
+        return true; // Data was found and loaded
       } else {
         console.log('❌ No existing QC found for this period');
         setShowReplaceWarning(false);
+        return false; // No data found
       }
     } catch (error) {
       console.error('💥 Error fetching existing QC data:', error);
       // If error, reset to blank form
       resetFormToBlank();
       setShowReplaceWarning(false);
+      return false; // Error occurred, treat as no data found
     } finally {
       console.log('🏁 Finished loading existing data, setting loadingExistingData to false');
       setLoadingExistingData(false);
@@ -590,8 +707,24 @@ const QCForm = ({ viewOnly = false }) => {
         return false;
       }
 
+      // Auto-detect test type using same logic as rendering
+      let effectiveTestType = test.testType;
+      
+      if (!effectiveTestType) {
+        if (test.units === 'pass/fail' || 
+            test.units === 'passfail' ||
+            (test.tolerance && test.tolerance.toLowerCase() === 'pass') ||
+            (test.testName && test.testName.toLowerCase().includes('safety')) ||
+            (test.testName && test.testName.toLowerCase().includes('certification')) ||
+            (test.testName && test.testName.toLowerCase().includes('calibration'))) {
+          effectiveTestType = 'passfail';
+        } else {
+          effectiveTestType = 'value';
+        }
+      }
+
       // For different test types, check appropriate fields
-      switch (test.testType) {
+      switch (effectiveTestType) {
         case 'checkbox':
           // For checkbox, just check if there's a value (true/false)
           if (testData.value === undefined || testData.value === '') {
@@ -664,7 +797,7 @@ const QCForm = ({ viewOnly = false }) => {
                   const result = determineResult(testName, value, test);
                   handleTestChange(testName, 'result', result);
                 }}
-                disabled={viewOnly}
+                disabled={isViewOnly}
                 className="w-5 h-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
               />
               <label className="text-sm text-gray-300">
@@ -687,7 +820,7 @@ const QCForm = ({ viewOnly = false }) => {
                   handleTestChange(testName, 'result', e.target.value);
                   handleTestChange(testName, 'value', e.target.value);
                 }}
-                disabled={viewOnly}
+                disabled={isViewOnly}
                 className={`${baseClassName} ${errorClassName}`}
               >
                 <option value="">Select Result</option>
@@ -717,10 +850,10 @@ const QCForm = ({ viewOnly = false }) => {
                 }}
                 className={`${baseClassName} ${errorClassName} pr-12`}
                 placeholder="Enter text observation"
-                readOnly={viewOnly}
+                readOnly={isViewOnly}
                 rows={1}
               />
-              {!viewOnly && (
+              {!isViewOnly && (
                 <div className="absolute right-2 top-1 text-gray-400 text-xs bg-gray-600/50 px-1.5 py-0.5 rounded border border-gray-500/30">
                   📝
                 </div>
@@ -753,8 +886,8 @@ const QCForm = ({ viewOnly = false }) => {
             <div className="flex items-center space-x-2">
               <div className="relative flex-1">
                 <input
-                  type={shouldApplyNumericValidation ? "number" : "text"}
-                  step={shouldApplyNumericValidation ? "any" : undefined}
+                  type="text"
+                  inputMode={shouldApplyNumericValidation ? "decimal" : "text"}
                   value={testData?.value || ''}
                   onKeyDown={shouldApplyNumericValidation ? (e) => {
                     // Allow: backspace, delete, tab, escape, enter, home, end, left, right, up, down
@@ -788,7 +921,7 @@ const QCForm = ({ viewOnly = false }) => {
                       : 'bg-blue-900/30 text-blue-200 border-blue-600'
                   }`}
                   placeholder={testData?.valueSource === 'manual' ? "Manual override" : "Auto-calculated"}
-                  readOnly={viewOnly}
+                  readOnly={isViewOnly}
                 />
                 <div className={`absolute right-1 top-1/2 transform -translate-y-1/2 text-xs px-1 py-0.5 rounded ${
                   testData?.valueSource === 'manual'
@@ -808,8 +941,8 @@ const QCForm = ({ viewOnly = false }) => {
             <div className="flex items-center space-x-2">
               <div className="relative flex-1">
                 <input
-                  type={shouldApplyNumericValidation ? "number" : "text"}
-                  step={shouldApplyNumericValidation ? "any" : undefined}
+                  type="text"
+                  inputMode={shouldApplyNumericValidation ? "decimal" : "text"}
                   value={testData?.value || ''}
                   onKeyDown={shouldApplyNumericValidation ? (e) => {
                     // Allow: backspace, delete, tab, escape, enter, home, end, left, right, up, down
@@ -839,7 +972,7 @@ const QCForm = ({ viewOnly = false }) => {
                   }}
                   className={`${baseClassName} ${errorClassName}`}
                   placeholder={test.placeholder || "Enter numerical value"}
-                  readOnly={viewOnly}
+                  readOnly={isViewOnly}
                 />
               </div>
               {(test.units || testData?.automatedUnits) && (
@@ -849,6 +982,90 @@ const QCForm = ({ viewOnly = false }) => {
           );
         }
     }
+  };
+
+  // Function to set all pass/fail tests to "pass"
+  const setAllPassFailToPassing = () => {
+    console.log('🎯 setAllPassFailToPassing called in QC Form');
+    console.log('🎯 Available tests:', tests);
+    
+    // Identify pass/fail tests using the same logic as the form rendering
+    const passFailTests = tests.filter(test => {
+      const effectiveTestType = test.testType || 
+        (test.units === 'pass/fail' || test.units === 'passfail' ? 'passfail' : 
+         (test.tolerance && (test.tolerance.toLowerCase() === 'pass' || test.tolerance.toLowerCase() === 'fail') ? 'passfail' : 
+          (test.testName && (test.testName.toLowerCase().includes('safety') || 
+                             test.testName.toLowerCase().includes('certification') || 
+                             test.testName.toLowerCase().includes('calibration')) ? 'passfail' : null)));
+      
+      console.log(`🎯 Test "${test.name || test.testName}" - Type: ${test.testType}, Units: ${test.units}, Tolerance: ${test.tolerance}, Effective: ${effectiveTestType}`);
+      return effectiveTestType === 'passfail';
+    });
+
+    console.log('🎯 Found pass/fail tests:', passFailTests);
+
+    if (passFailTests.length === 0) {
+      toast.info('No pass/fail tests found to update');
+      return;
+    }
+
+    const newFormData = { ...formData };
+    let updatedCount = 0;
+
+    passFailTests.forEach(test => {
+      const testName = test.name || test.testName;
+      if (!newFormData[testName]) {
+        newFormData[testName] = {};
+      }
+      newFormData[testName] = {
+        ...newFormData[testName],
+        value: 'pass',
+        result: 'pass'
+      };
+      console.log(`🎯 Set test "${testName}" value and result to "pass"`);
+      updatedCount++;
+    });
+
+    setFormData(newFormData);
+    toast.success(`✅ Set ${updatedCount} pass/fail test(s) to passing`);
+    console.log('🎯 All pass/fail tests set to passing:', passFailTests.map(t => t.name || t.testName));
+  };
+
+  // Function to simulate running a specific QC analysis code
+  const handleRunAnalysisCode = (analysisCode, testName, test) => {
+    console.log(`🔬 Simulating QC Analysis Code execution:`);
+    console.log(`- Analysis ID: ${analysisCode.id}`);
+    console.log(`- Analysis Name: ${analysisCode.name}`);
+    console.log(`- Target Test: ${testName}`);
+    console.log(`- DICOM Series Source: ${test.dicomSeriesSource || 'Auto-selected'}`);
+    console.log(`- Expected Output Metrics:`, analysisCode.outputMetrics);
+    console.log(`- Analysis Parameters:`, analysisCode.parameters);
+    
+    // Show detailed toast notification
+    const seriesSource = test.dicomSeriesSource || 'Selected DICOM series';
+    const metricsList = analysisCode.outputMetrics.slice(0, 3).join(', ');
+    const hasMoreMetrics = analysisCode.outputMetrics.length > 3;
+    
+    toast.success(
+      `🔬 Analysis "${analysisCode.name}" would execute:\n\n` +
+      `📊 Input: ${seriesSource}\n` +
+      `📈 Outputs: ${metricsList}${hasMoreMetrics ? ` (+${analysisCode.outputMetrics.length - 3} more)` : ''}\n` +
+      `🎯 Target: "${testName}"\n\n` +
+      `⚡ In production, this would:\n` +
+      `• Load DICOM images from selected series\n` +
+      `• Execute ${analysisCode.name} algorithm\n` +
+      `• Auto-populate calculated results\n` +
+      `• Update test status and validation`,
+      { 
+        duration: 6000,
+        style: {
+          maxWidth: '500px',
+        }
+      }
+    );
+
+    // Simulate processing time with a brief loading indication
+    toast.loading('Processing DICOM analysis...', { duration: 1500 });
   };
 
   // Function to automatically analyze DICOM series and populate QC tests
@@ -1282,7 +1499,7 @@ const QCForm = ({ viewOnly = false }) => {
       <div className="bg-gray-800 rounded-lg shadow-lg p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-100 mb-2">
-            {viewOnly ? 'View ' : ''}{frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC {viewOnly ? (tests.length > 0 && tests[0].templateSource ? 'Worksheet' : 'Template') : ''} - {machine.name}
+            {isViewOnly ? 'View ' : ''}{frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC {isViewOnly ? (tests.length > 0 && tests[0].templateSource ? 'Worksheet' : 'Template') : ''} - {machine.name}
           </h1>
           <div className="text-sm text-gray-400">
             <p>Machine ID: {machine.machineId}</p>
@@ -1291,7 +1508,7 @@ const QCForm = ({ viewOnly = false }) => {
           </div>
           
           {/* Period Display - Show prominently for monthly/quarterly/annual */}
-          {!viewOnly && (frequency === 'monthly' || frequency === 'quarterly' || frequency === 'annual') && selectedDate && (() => {
+          {!isViewOnly && (frequency === 'monthly' || frequency === 'quarterly' || frequency === 'annual') && selectedDate && (() => {
             // Calculate period status once and reuse it
             const selectedParts = selectedDate.split('-');
             const selectedYear = parseInt(selectedParts[0]);
@@ -1319,8 +1536,8 @@ const QCForm = ({ viewOnly = false }) => {
             const today = new Date();
             const isOverdue = (() => {
               if (frequency === 'monthly') {
-                const selectedMonth = new Date(selectedYear, selectedMonth);
-                return selectedMonth < new Date(today.getFullYear(), today.getMonth());
+                const selectedMonthDate = new Date(selectedYear, selectedMonth);
+                return selectedMonthDate < new Date(today.getFullYear(), today.getMonth());
               } else if (frequency === 'quarterly') {
                 const selectedQuarter = Math.floor(selectedMonth / 3);
                 const currentQuarter = Math.floor(today.getMonth() / 3);
@@ -1380,40 +1597,56 @@ const QCForm = ({ viewOnly = false }) => {
             );
           })()}
 
+          {/* Date Display for view-only mode */}
+          {isViewOnly && (
+            <div className="mt-4 p-3 bg-gray-800 border border-gray-600 rounded-lg">
+              <h3 className="text-sm font-semibold text-gray-300 mb-2">QC Performed On</h3>
+              <div className="text-lg font-medium text-gray-100">
+                {(() => {
+                  const [year, month, day] = selectedDate.split('-');
+                  const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                  return dateObj.toLocaleDateString('en-US', { 
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long', 
+                    day: 'numeric' 
+                  });
+                })()}
+              </div>
+              <div className="text-sm text-gray-400 mt-1">
+                {frequency.charAt(0).toUpperCase() + frequency.slice(1)} QC Review
+              </div>
+            </div>
+          )}
+
           {/* Date Selection - Hide in view-only mode */}
-          {!viewOnly && (
+          {!isViewOnly && (
             <div className="mt-4 p-3 bg-blue-900 rounded-lg">
               <h3 className="text-sm font-semibold text-blue-200 mb-2">QC Date</h3>
               <div className="flex items-center space-x-4">
                 <div className="flex-1">
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => handleDateChange(e.target.value)}
-                    max={new Date().toISOString().split('T')[0]} // Prevent future dates
-                    min={(() => {
-                      // Use worksheet start date if available, otherwise use reasonable defaults
+                  <QCCalendarDropdown
+                    selectedDate={selectedDate}
+                    onDateChange={handleDateChange}
+                    existingQCDates={existingQCDates}
+                    qcDueDates={qcDueDates}
+                    frequency={frequency}
+                    maxDate={new Date().toISOString().split('T')[0]}
+                    minDate={(() => {
                       if (currentWorksheet && currentWorksheet.startDate) {
                         return currentWorksheet.startDate;
                       }
                       
-                      // Fallback to frequency-based limits
                       if (frequency === 'annual') {
-                        // For annual QC, allow selection from 3 years back
                         return new Date(Date.now() - 3 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                       } else if (frequency === 'quarterly') {
-                        // For quarterly QC, allow selection from 1 year back
                         return new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                       } else if (frequency === 'monthly') {
-                        // For monthly QC, allow selection from 6 months back
                         return new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                       } else {
-                        // For daily/weekly QC, keep the 90-day limit
                         return new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                       }
-                    })()} // Dynamic minimum based on worksheet start date or frequency
-                    className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
-                    required
+                    })()}
                   />
                 </div>
                 <div className="flex items-center space-x-2 text-xs text-gray-400">
@@ -1510,7 +1743,7 @@ const QCForm = ({ viewOnly = false }) => {
           )}
           
           {/* View-only info */}
-          {viewOnly && (
+          {isViewOnly && (
             <div className="mt-4 p-4 bg-purple-900 rounded-lg">
               <h3 className="text-sm font-semibold text-purple-200 mb-2">
                 {tests.length > 0 && tests[0].templateSource ? 'Custom Worksheet View' : 'Template View'}
@@ -1544,7 +1777,7 @@ const QCForm = ({ viewOnly = false }) => {
                   className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
                   placeholder="Enter your name"
                   required
-                  readOnly={viewOnly}
+                  readOnly={isViewOnly}
                 />
               </div>
               <div>
@@ -1554,8 +1787,8 @@ const QCForm = ({ viewOnly = false }) => {
                 <input
                   type="time"
                   className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
-                  defaultValue={viewOnly ? '08:00' : new Date().toTimeString().slice(0,5)}
-                  readOnly={viewOnly}
+                  defaultValue={isViewOnly ? '08:00' : new Date().toTimeString().slice(0,5)}
+                  readOnly={isViewOnly}
                 />
               </div>
             </div>
@@ -1572,20 +1805,32 @@ const QCForm = ({ viewOnly = false }) => {
                 setSelectedDICOMSeries(series);
                 console.log('Selected DICOM series for analysis:', series);
                 // Automatically run analysis when series are selected
-                if (!viewOnly && series.length > 0 && (machine.type === 'CT' || machine.type === 'MRI')) {
+                if (!isViewOnly && series.length > 0 && (machine.type === 'CT' || machine.type === 'MRI')) {
                   setTimeout(() => {
                     handleAutomaticAnalysis(series);
                   }, 500); // Small delay to let the selection UI update
                 }
               }}
-              viewOnly={viewOnly}
+              viewOnly={isViewOnly}
             />
           )}
 
 
           {/* QC Tests */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-100 mb-3">QC Tests ({tests.length})</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-100">QC Tests ({tests.length})</h3>
+              {!isViewOnly && (
+                <button
+                  type="button"
+                  onClick={setAllPassFailToPassing}
+                  className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
+                  title="Set all pass/fail tests to pass"
+                >
+                  ✅ All Passing
+                </button>
+              )}
+            </div>
             
             {tests.length > 0 && tests[0].templateSource && (
               <div className="mb-2 p-2 bg-blue-900/30 border border-blue-700/50 rounded text-xs text-blue-300">
@@ -1614,6 +1859,29 @@ const QCForm = ({ viewOnly = false }) => {
                           ({typeof test.tolerance === 'string' ? test.tolerance : 'See spec'})
                         </span>
                       )}
+                      {/* Show QC Analysis Code if present */}
+                      {test.qcAnalysisCode && (() => {
+                        const analysisCode = getAnalysisCodeById(test.qcAnalysisCode);
+                        return analysisCode && (
+                          <div className="text-xs text-blue-400 mt-0.5 flex items-center">
+                            <span className="mr-1">🔬</span>
+                            <span className="font-medium">{analysisCode.name}</span>
+                            {!isViewOnly && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const testName = test.name || test.testName;
+                                  handleRunAnalysisCode(analysisCode, testName, test);
+                                }}
+                                className="ml-2 px-2 py-0.5 bg-blue-700 hover:bg-blue-600 text-blue-200 rounded text-xs transition-colors"
+                                title={`Execute ${analysisCode.name} analysis on DICOM images`}
+                              >
+                                Run Analysis
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     
                     {/* Value Input - 3 cols */}
@@ -1670,7 +1938,7 @@ const QCForm = ({ viewOnly = false }) => {
                         onChange={(e) => handleTestChange(test.name || test.testName, 'notes', e.target.value)}
                         className="w-full border border-gray-600 rounded px-2 py-1 text-xs bg-gray-700 text-gray-100"
                         placeholder="Notes"
-                        readOnly={viewOnly}
+                        readOnly={isViewOnly}
                       />
                     </div>
                   </div>
@@ -1688,7 +1956,7 @@ const QCForm = ({ viewOnly = false }) => {
               rows={4}
               className="w-full border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-gray-100"
               placeholder="Enter any general observations, issues, or notes about the QC session..."
-              readOnly={viewOnly}
+              readOnly={isViewOnly}
             />
           </div>
 
@@ -1699,10 +1967,10 @@ const QCForm = ({ viewOnly = false }) => {
               onClick={() => navigate(-1)}
               className="px-4 py-2 text-gray-300 bg-gray-900 rounded-md hover:bg-gray-700 transition-colors"
             >
-              {viewOnly ? (machineId && tests.length > 0 && tests[0].templateSource ? 'Back to Machine' : 'Back to Worksheets') : 'Cancel'}
+              {isViewOnly ? (machineId && tests.length > 0 && tests[0].templateSource ? 'Back to Machine' : 'Back to Worksheets') : 'Cancel'}
             </button>
             
-            {viewOnly && (
+            {isViewOnly && (
               <div className="flex space-x-3">
                 {/* Show Perform QC button if this is a custom worksheet for a specific machine */}
                 {machineId && tests.length > 0 && tests[0].templateSource && (
@@ -1718,11 +1986,25 @@ const QCForm = ({ viewOnly = false }) => {
                 
                 <button
                   type="button"
-                  onClick={() => navigate(`/worksheets?mode=edit&templateSource=${encodeURIComponent(tests[0].templateSource)}&machineId=${machineId}&frequency=${frequency}`)}
+                  onClick={() => {
+                    // Navigate to the same QC form but in edit mode (remove viewOnly)
+                    const currentPath = window.location.pathname;
+                    const urlParams = new URLSearchParams(window.location.search);
+                    
+                    // Remove viewOnly parameter to enable editing
+                    urlParams.delete('viewOnly');
+                    
+                    // Build the new URL - keep the date parameter if it exists
+                    const queryString = urlParams.toString();
+                    const newUrl = `${currentPath}${queryString ? `?${queryString}` : ''}`;
+                    
+                    // Use window.location.href for reliable navigation that forces component re-render
+                    window.location.href = newUrl;
+                  }}
                   className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center space-x-2"
                 >
                   <span>✏️</span>
-                  <span>Edit Worksheet</span>
+                  <span>Edit QC Data</span>
                 </button>
 
                 {/* Show Delete button only for actual worksheets (not templates) */}
@@ -1739,7 +2021,7 @@ const QCForm = ({ viewOnly = false }) => {
               </div>
             )}
             
-            {!viewOnly && (
+            {!isViewOnly && (
               <div className="flex space-x-3">
                 <button
                   type="button"

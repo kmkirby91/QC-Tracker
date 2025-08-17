@@ -634,14 +634,82 @@ router.get('/machines/:machineId/qc-history/:date', (req, res) => {
   const history = generateQCHistory(machineType, req.params.machineId);
   const { date } = req.params;
   
-  // Find the specific date in daily or monthly
-  const dailyQC = history.daily.find(qc => qc.date === date);
-  const monthlyQC = history.monthly.find(qc => qc.date.startsWith(date.slice(0,7)));
+  // Handle different date/period formats for different frequencies
+  let dailyQC = null;
+  let weeklyQC = null;
+  let monthlyQC = null;
+  let quarterlyQC = null;
+  let annualQC = null;
   
-  if (dailyQC || monthlyQC) {
-    res.json({ daily: dailyQC, monthly: monthlyQC });
+  // Daily QC - exact date match
+  dailyQC = history.daily.find(qc => qc.date === date);
+  
+  // Weekly QC - exact date match
+  weeklyQC = history.weekly.find(qc => qc.date === date);
+  
+  // Monthly QC - check if date falls within the same month
+  if (date.includes('-')) {
+    const dateMonth = date.slice(0, 7); // Extract YYYY-MM
+    monthlyQC = history.monthly.find(qc => qc.date.startsWith(dateMonth));
+  }
+  
+  // Quarterly QC - check if date falls within the same quarter
+  if (date.includes('-')) {
+    const dateObj = new Date(date);
+    const dateQuarter = Math.floor(dateObj.getMonth() / 3);
+    const dateYear = dateObj.getFullYear();
+    
+    quarterlyQC = history.quarterly.find(qc => {
+      const qcDate = new Date(qc.date);
+      const qcQuarter = Math.floor(qcDate.getMonth() / 3);
+      const qcYear = qcDate.getFullYear();
+      return qcYear === dateYear && qcQuarter === dateQuarter;
+    });
+  } else if (date.includes('Q')) {
+    // Handle quarter format like "2025-Q1"
+    const [yearStr, quarterStr] = date.split('-Q');
+    const targetYear = parseInt(yearStr);
+    const targetQuarter = parseInt(quarterStr) - 1; // Convert to 0-based
+    
+    quarterlyQC = history.quarterly.find(qc => {
+      const qcDate = new Date(qc.date);
+      const qcQuarter = Math.floor(qcDate.getMonth() / 3);
+      const qcYear = qcDate.getFullYear();
+      return qcYear === targetYear && qcQuarter === targetQuarter;
+    });
+  }
+  
+  // Annual QC - check if date falls within the same year
+  let targetYear = null;
+  if (date.length === 4 && !isNaN(date)) {
+    // Handle year format like "2025"
+    targetYear = parseInt(date);
+  } else if (date.includes('-')) {
+    // Handle date format like "2025-01-15"
+    targetYear = new Date(date).getFullYear();
+  }
+  
+  if (targetYear) {
+    annualQC = history.annual.find(qc => {
+      const qcYear = new Date(qc.date).getFullYear();
+      return qcYear === targetYear;
+    });
+  }
+  
+  // Return any found QC data
+  const foundQC = dailyQC || weeklyQC || monthlyQC || quarterlyQC || annualQC;
+  
+  if (foundQC) {
+    const response = {};
+    if (dailyQC) response.daily = dailyQC;
+    if (weeklyQC) response.weekly = weeklyQC;
+    if (monthlyQC) response.monthly = monthlyQC;
+    if (quarterlyQC) response.quarterly = quarterlyQC;
+    if (annualQC) response.annual = annualQC;
+    
+    res.json(response);
   } else {
-    res.status(404).json({ error: 'QC data not found for this date' });
+    res.status(404).json({ error: `QC data not found for date/period: ${date}` });
   }
 });
 

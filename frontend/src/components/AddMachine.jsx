@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -26,12 +26,30 @@ const AddMachine = () => {
       monthly: false,
       quarterly: false,
       annual: false
+    },
+    acrAccreditation: {
+      enabled: false,
+      status: 'not-accredited', // 'not-accredited', 'current', 'expired', 'pending'
+      grantedDate: '',
+      expirationDate: '',
+      renewalDueDate: '',
+      accreditationNumber: '',
+      notes: ''
     }
   });
 
   const machineTypes = ['MRI', 'CT', 'PET', 'PET-CT', 'X-Ray', 'Ultrasound', 'Mammography'];
   const buildings = ['Essen', "Woman's", 'Gonzales'];
   const statuses = ['operational', 'maintenance', 'offline', 'critical'];
+  
+  // ACR requires renewal 8 months before expiration (most common)
+  const calculateRenewalDueDate = (expirationDate) => {
+    if (!expirationDate) return '';
+    const expDate = new Date(expirationDate);
+    const renewalDate = new Date(expDate);
+    renewalDate.setMonth(expDate.getMonth() - 8);
+    return renewalDate.toISOString().split('T')[0];
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -52,6 +70,15 @@ const AddMachine = () => {
         qcSchedule: {
           ...prev.qcSchedule,
           [scheduleField]: checked
+        }
+      }));
+    } else if (name.startsWith('acrAccreditation.')) {
+      const acrField = name.split('.')[1];
+      setFormData(prev => ({
+        ...prev,
+        acrAccreditation: {
+          ...prev.acrAccreditation,
+          [acrField]: type === 'checkbox' ? checked : value
         }
       }));
     } else {
@@ -142,6 +169,9 @@ const AddMachine = () => {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
+        <Link to="/machines" className="text-blue-400 hover:underline text-sm mb-4 inline-block">
+          ← Back to Machines
+        </Link>
         <h1 className="text-2xl font-bold text-gray-100">Add New Machine</h1>
         <p className="text-gray-400 mt-2">Add a new imaging machine to the QC tracking system</p>
       </div>
@@ -393,6 +423,132 @@ const AddMachine = () => {
             </div>
           </div>
         </div>
+
+        {/* ACR Accreditation Section */}
+        {(formData.type === 'MRI' || formData.type === 'CT' || formData.type === 'Mammography') && (
+          <div className="mt-6 bg-gray-700 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-gray-100 border-b border-gray-600 pb-2 mb-4">
+              ACR Accreditation Tracking
+            </h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="acrAccreditation.enabled"
+                    checked={formData.acrAccreditation.enabled}
+                    onChange={handleInputChange}
+                    className="mr-2 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-300">Track ACR accreditation for this machine</span>
+                </label>
+              </div>
+
+              {formData.acrAccreditation.enabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-600">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Accreditation Status
+                    </label>
+                    <select
+                      name="acrAccreditation.status"
+                      value={formData.acrAccreditation.status}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="not-accredited">Not Accredited</option>
+                      <option value="current">Current</option>
+                      <option value="expired">Expired</option>
+                      <option value="pending">Pending</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Accreditation Number
+                    </label>
+                    <input
+                      type="text"
+                      name="acrAccreditation.accreditationNumber"
+                      value={formData.acrAccreditation.accreditationNumber}
+                      onChange={handleInputChange}
+                      placeholder="e.g., ACR-2024-001"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Granted Date
+                    </label>
+                    <input
+                      type="date"
+                      name="acrAccreditation.grantedDate"
+                      value={formData.acrAccreditation.grantedDate}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Expiration Date
+                    </label>
+                    <input
+                      type="date"
+                      name="acrAccreditation.expirationDate"
+                      value={formData.acrAccreditation.expirationDate}
+                      onChange={(e) => {
+                        handleInputChange(e);
+                        // Auto-calculate renewal due date when expiration changes
+                        const renewalDue = calculateRenewalDueDate(e.target.value);
+                        setFormData(prev => ({
+                          ...prev,
+                          acrAccreditation: {
+                            ...prev.acrAccreditation,
+                            renewalDueDate: renewalDue
+                          }
+                        }));
+                      }}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Renewal Due Date
+                    </label>
+                    <input
+                      type="date"
+                      name="acrAccreditation.renewalDueDate"
+                      value={formData.acrAccreditation.renewalDueDate}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Typically 8 months before expiration
+                    </p>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Notes
+                    </label>
+                    <textarea
+                      name="acrAccreditation.notes"
+                      value={formData.acrAccreditation.notes}
+                      onChange={handleInputChange}
+                      placeholder="Additional notes about ACR accreditation status..."
+                      rows={3}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Form Actions */}
         <div className="flex justify-end space-x-4 mt-8 pt-6 border-t border-gray-700">
