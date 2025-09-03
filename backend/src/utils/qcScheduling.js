@@ -11,9 +11,10 @@
  */
 const generateQCDueDates = (frequency, startDate, endDate = null) => {
   const dueDates = [];
-  const start = new Date(startDate);
+  // Create date objects in local timezone to avoid UTC/timezone issues
+  const start = new Date(startDate + 'T12:00:00');
   // If no end date specified, generate up to 30 days in the future to include today and upcoming QC
-  const end = endDate ? new Date(endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const end = endDate ? new Date(endDate + 'T12:00:00') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   
   let currentDue = new Date(start);
   
@@ -21,10 +22,8 @@ const generateQCDueDates = (frequency, startDate, endDate = null) => {
     switch (frequency) {
       case 'daily':
         // Daily QC is due on weekdays only (skip weekends)
-        // Use UTC to avoid timezone issues
         const dateStr = currentDue.toISOString().split('T')[0];
-        const utcDate = new Date(dateStr + 'T12:00:00.000Z'); // Force noon UTC to avoid timezone edge cases
-        const dayOfWeek = utcDate.getUTCDay();
+        const dayOfWeek = currentDue.getDay();
         
         if (dayOfWeek !== 0 && dayOfWeek !== 6) {
           dueDates.push(dateStr);
@@ -91,12 +90,13 @@ const generateQCDueDates = (frequency, startDate, endDate = null) => {
  */
 const calculateNextDueDate = (frequency, startDate, lastCompletedDate = null) => {
   const today = new Date();
-  const start = new Date(startDate);
-  let nextDue = new Date(startDate);
+  // Create date objects in local timezone to avoid UTC/timezone issues
+  const start = new Date(startDate + 'T12:00:00');
+  let nextDue = new Date(startDate + 'T12:00:00');
   
   // If we have a last completed date, calculate from that instead
   if (lastCompletedDate) {
-    nextDue = new Date(lastCompletedDate);
+    nextDue = new Date(lastCompletedDate + 'T12:00:00');
   }
   
   let nextDueStr = '';
@@ -253,7 +253,8 @@ const calculateNextDueDate = (frequency, startDate, lastCompletedDate = null) =>
  */
 const getMissedQCDates = (frequency, startDate, completedDates = []) => {
   const today = new Date();
-  const start = new Date(startDate);
+  // Create date objects in local timezone to avoid UTC/timezone issues
+  const start = new Date(startDate + 'T12:00:00');
   const completed = completedDates.map(date => {
     // Normalize completed dates based on frequency
     if (frequency === 'monthly') {

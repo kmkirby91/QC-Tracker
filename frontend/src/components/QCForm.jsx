@@ -628,16 +628,19 @@ const QCForm = ({ viewOnly = false }) => {
         // Enhanced warning message for period-based QC
         let warningMessage;
         if (frequency === 'monthly') {
-          const completedDate = new Date(existingQC.date);
+          // Create date at noon to avoid timezone issues
+          const completedDate = new Date(existingQC.date + 'T12:00:00');
           const monthName = completedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
           warningMessage = `Monthly QC already completed for ${monthName}. Performed on ${completedDate.toLocaleDateString()} by ${existingQC.performedBy || 'Unknown'}. You can edit the existing data or perform additional QC if needed.`;
         } else if (frequency === 'quarterly') {
-          const completedDate = new Date(existingQC.date);
+          // Create date at noon to avoid timezone issues
+          const completedDate = new Date(existingQC.date + 'T12:00:00');
           const quarter = Math.floor(completedDate.getMonth() / 3) + 1;
           const year = completedDate.getFullYear();
           warningMessage = `Quarterly QC already completed for Q${quarter} ${year}. Performed on ${completedDate.toLocaleDateString()} by ${existingQC.performedBy || 'Unknown'}. You can edit the existing data or perform additional QC if needed.`;
         } else if (frequency === 'annual') {
-          const completedDate = new Date(existingQC.date);
+          // Create date at noon to avoid timezone issues
+          const completedDate = new Date(existingQC.date + 'T12:00:00');
           const year = completedDate.getFullYear();
           warningMessage = `Annual QC already completed for ${year}. Performed on ${completedDate.toLocaleDateString()} by ${existingQC.performedBy || 'Unknown'}. You can edit the existing data or perform additional QC if needed.`;
         } else {
@@ -1574,7 +1577,8 @@ const QCForm = ({ viewOnly = false }) => {
                   <h2 className={`text-2xl font-bold mb-1 ${textColor}`}>
                     {(() => {
                       const [year, month, day] = selectedDate.split('-');
-                      const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                      // Create date at noon to avoid timezone issues
+                      const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12);
                       
                       if (frequency === 'monthly') {
                         return dateObj.toLocaleDateString('en-US', { 
@@ -1604,7 +1608,8 @@ const QCForm = ({ viewOnly = false }) => {
               <div className="text-lg font-medium text-gray-100">
                 {(() => {
                   const [year, month, day] = selectedDate.split('-');
-                  const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                  // Create date at noon to avoid timezone issues
+                  const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12);
                   return dateObj.toLocaleDateString('en-US', { 
                     weekday: 'long',
                     year: 'numeric',
@@ -1671,7 +1676,8 @@ const QCForm = ({ viewOnly = false }) => {
                   <div className="text-yellow-300 font-medium">
                     📅 Fulfilling {frequency} QC due date: {(() => {
                       const [year, month, day] = selectedDate.split('-');
-                      const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                      // Create date at noon to avoid timezone issues
+                      const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12);
                       
                       if (frequency === 'daily') {
                         return dateObj.toLocaleDateString('en-US', { 
@@ -1847,7 +1853,7 @@ const QCForm = ({ viewOnly = false }) => {
                       <span className="font-medium text-gray-100">
                         {test.name || test.testName}
                         {test.required !== false && <span className="text-red-400 ml-1">*</span>}
-                        {test.isCustomField && <span className="ml-1 text-blue-400">🔧</span>}
+                        {test.isCustomField && !(currentWorksheet?.disableTemplateTracking === true) && <span className="ml-1 text-blue-400">🔧</span>}
                         {formData[test.name || test.testName]?.valueSource === 'automated' && (
                           <span className="ml-2 text-xs bg-blue-800/50 text-blue-300 px-1.5 py-0.5 rounded border border-blue-600/30">
                             🤖 AUTO

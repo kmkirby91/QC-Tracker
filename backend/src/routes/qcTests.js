@@ -745,7 +745,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'CT',
         location: 'Gonzales, Floor 1, Emergency CT',
         frequency: 'daily',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-ct-daily-001',
         worksheetTitle: 'ACR CT Daily QC Protocol'
       },
@@ -755,7 +755,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'CT',
         location: 'Gonzales, Floor 1, Emergency CT',
         frequency: 'daily',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-ct-daily-002',
         worksheetTitle: 'CT Safety & Calibration Daily QC'
       },
@@ -765,7 +765,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'CT',
         location: 'Gonzales, Floor 1, Emergency CT',
         frequency: 'monthly',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-ct-monthly-001',
         worksheetTitle: 'ACR CT Monthly QC Protocol'
       },
@@ -775,7 +775,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'CT',
         location: 'Gonzales, Floor 1, Emergency CT',
         frequency: 'annual',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-ct-annual-001',
         worksheetTitle: 'ACR CT Annual QC Protocol'
       },
@@ -785,7 +785,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'MRI',
         location: 'Gonzales, Floor 2, MRI Suite A',
         frequency: 'daily',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-mri-daily-001',
         worksheetTitle: 'ACR MR Daily QC Protocol'
       },
@@ -795,7 +795,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'MRI',
         location: 'Essen, Floor 2, MRI Suite 1',
         frequency: 'daily',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-mri-daily-001',
         worksheetTitle: 'ACR MR Daily QC Protocol'
       },
@@ -805,7 +805,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'MRI',
         location: 'Woman\'s, Floor 1, MRI Room 2',
         frequency: 'daily',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-mri-daily-001',
         worksheetTitle: 'ACR MR Daily QC Protocol'
       },
@@ -815,7 +815,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'MRI',
         location: 'Gonzales, Floor 2, MRI Suite A',
         frequency: 'quarterly',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-mri-quarterly-001',
         worksheetTitle: 'MRI Quarterly QC Protocol'
       },
@@ -825,7 +825,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'Mammography',
         location: "Woman's, Floor 1, Mammography Suite",
         frequency: 'daily',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-mammo-daily-001',
         worksheetTitle: 'ACR Mammography Daily QC Protocol'
       },
@@ -835,7 +835,7 @@ router.get('/due-tasks', async (req, res) => {
         type: 'PET',
         location: "Woman's, Floor 1, Nuclear Medicine Suite",
         frequency: 'weekly',
-        startDate: '2025-07-31',
+        startDate: '2025-09-01',
         worksheetId: 'sample-pet-weekly-001',
         worksheetTitle: 'PET Weekly QC Protocol'
       },
@@ -853,7 +853,8 @@ router.get('/due-tasks', async (req, res) => {
 
     // Process each worksheet assignment to determine due tasks
     for (const assignment of worksheetAssignments) {
-      const startDate = new Date(assignment.startDate);
+      // Create date objects in local timezone to avoid UTC/timezone issues
+      const startDate = new Date(assignment.startDate + 'T12:00:00');
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
       
@@ -865,7 +866,8 @@ router.get('/due-tasks', async (req, res) => {
       
       // Find overdue and due dates
       for (const dueDate of allDueDates) {
-        const dueDateObj = new Date(dueDate);
+        // Create date objects in local timezone to avoid UTC/timezone issues
+        const dueDateObj = new Date(dueDate + 'T12:00:00');
         dueDateObj.setHours(0, 0, 0, 0);
         
         // Skip future dates
@@ -953,13 +955,15 @@ router.get('/due-tasks', async (req, res) => {
 
 // Helper functions for date checking
 function isThisMonth(dateStr) {
-  const date = new Date(dateStr);
+  // Create date objects in local timezone to avoid UTC/timezone issues
+  const date = new Date(dateStr + 'T12:00:00');
   const today = new Date();
   return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
 }
 
 function isThisQuarter(dateStr) {
-  const date = new Date(dateStr);
+  // Create date objects in local timezone to avoid UTC/timezone issues
+  const date = new Date(dateStr + 'T12:00:00');
   const today = new Date();
   const dateQuarter = Math.floor(date.getMonth() / 3);
   const todayQuarter = Math.floor(today.getMonth() / 3);
@@ -967,7 +971,8 @@ function isThisQuarter(dateStr) {
 }
 
 function isThisYear(dateStr) {
-  const date = new Date(dateStr);
+  // Create date objects in local timezone to avoid UTC/timezone issues
+  const date = new Date(dateStr + 'T12:00:00');
   const today = new Date();
   return date.getFullYear() === today.getFullYear();
 }

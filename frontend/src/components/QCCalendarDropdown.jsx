@@ -13,7 +13,8 @@ const QCCalendarDropdown = ({
   const [currentMonth, setCurrentMonth] = useState(() => {
     // Always start with the month containing the selected date, or current month if none selected
     if (selectedDate) {
-      return new Date(selectedDate);
+      // Create date at noon to avoid timezone issues
+      return new Date(selectedDate + 'T12:00:00');
     }
     // Default to current month to show today
     return new Date();
@@ -49,9 +50,10 @@ const QCCalendarDropdown = ({
   // Get date styling
   const getDateStyle = (dateStr, isCurrentMonth = true) => {
     const { hasData, isDueDate, isToday, isYesterday, isSelected } = getDateStatus(dateStr);
-    const dateObj = new Date(dateStr);
-    const minDateObj = minDate ? new Date(minDate) : null;
-    const maxDateObj = maxDate ? new Date(maxDate) : null;
+    // Create date at noon to avoid timezone issues
+    const dateObj = new Date(dateStr + 'T12:00:00');
+    const minDateObj = minDate ? new Date(minDate + 'T12:00:00') : null;
+    const maxDateObj = maxDate ? new Date(maxDate + 'T12:00:00') : null;
     
     const isDisabled = !isCurrentMonth || 
       (minDateObj && dateObj < minDateObj) || 
@@ -151,9 +153,10 @@ const QCCalendarDropdown = ({
   };
 
   const handleDateClick = (dateStr) => {
-    const dateObj = new Date(dateStr);
-    const minDateObj = minDate ? new Date(minDate) : null;
-    const maxDateObj = maxDate ? new Date(maxDate) : null;
+    // Create date at noon to avoid timezone issues
+    const dateObj = new Date(dateStr + 'T12:00:00');
+    const minDateObj = minDate ? new Date(minDate + 'T12:00:00') : null;
+    const maxDateObj = maxDate ? new Date(maxDate + 'T12:00:00') : null;
     
     // Check if date is disabled
     if ((minDateObj && dateObj < minDateObj) || (maxDateObj && dateObj > maxDateObj)) {
@@ -168,7 +171,8 @@ const QCCalendarDropdown = ({
     if (!date) return 'Select date';
     
     const { isToday, isYesterday } = getDateStatus(date);
-    const dateObj = new Date(date);
+    // Create date at noon to avoid timezone issues
+    const dateObj = new Date(date + 'T12:00:00');
     
     let formattedDate = dateObj.toLocaleDateString('en-US', { 
       weekday: 'short',
