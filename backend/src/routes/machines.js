@@ -822,47 +822,27 @@ const mockMachines = [
   }
 ];
 
-// Get machines that should have worksheet assignments 
-// TODO: This should read from actual database/worksheet service
-const getMachinesWithWorksheetAssignments = () => {
-  // For now, include ALL machines that have worksheets based on sample data
-  // The key issue is that the application should check for BOTH 7/31 AND any custom start dates
-  
-  const assignments = {
-    'CT-GON-001': { 
-      hasWorksheets: true, 
-      frequencies: ['daily', 'monthly', 'annual'],
-      startDate: '2025-07-31'
-    },
-    'MRI-GON-001': { 
-      hasWorksheets: true, 
-      frequencies: ['daily', 'quarterly'],
-      startDate: '2025-07-31'
-    },
-    'MAMMO-WOM-001': { 
-      hasWorksheets: true, 
-      frequencies: ['daily'],
-      startDate: '2025-07-31'
-    },
-    'PET-WOM-001': { 
-      hasWorksheets: true, 
-      frequencies: ['weekly'],
-      startDate: '2025-07-31'
-    }
-  };
-
-  // CRITICAL: If there are custom worksheets with different start dates (like 7/19),
-  // they should be added here. The system must check for ALL assigned worksheets,
-  // regardless of where they were created.
-  
-  // Add the Canon Aquilion ONE (CT-WOM-001) with 7/19 start date to test the consistency
-  assignments['CT-WOM-001'] = {
-    hasWorksheets: true,
-    frequencies: ['daily'],
-    startDate: '2025-07-19'  // Earlier start date should show many more overdue items
-  };
-
-  return assignments;
+// Get worksheet assignments from frontend worksheet data
+// This would normally query a database, but for development we'll read from request context
+const getMachinesWithWorksheetAssignments = (req = null) => {
+  try {
+    // In a real system, this would query the database for worksheet assignments
+    // For development, we return empty assignments by default since QC should only be due 
+    // if there are actual worksheet assignments
+    
+    // The frontend will provide worksheet data via API calls or we could check
+    // a shared data store, but for now we return no assignments to ensure
+    // machines only have QC due dates when they actually have worksheets assigned
+    
+    console.log('getMachinesWithWorksheetAssignments: No worksheet assignments found in backend - machines will show no QC due dates');
+    console.log('Note: Worksheet assignments should be managed through the Worksheets interface');
+    
+    return {};
+    
+  } catch (error) {
+    console.error('Error fetching worksheet assignments:', error);
+    return {};
+  }
 };
 
 // Calculate next QC due date based on frequency and start date
@@ -965,11 +945,152 @@ const normalizeMachineQCData = (machines) => {
   });
 };
 
+// Get worksheet assignments (expects frontend to send worksheet data)
+router.post('/worksheet-assignments', (req, res) => {
+  try {
+    const { worksheets } = req.body;
+    
+    if (!worksheets || !Array.isArray(worksheets)) {
+      return res.status(400).json({ error: 'Invalid worksheet data' });
+    }
+    
+    // Process worksheets to extract machine assignments
+    const assignments = {};
+    
+    worksheets.forEach(worksheet => {
+      if (worksheet.isWorksheet && worksheet.assignedMachines && worksheet.assignedMachines.length > 0) {
+        worksheet.assignedMachines.forEach(machineId => {
+          if (!assignments[machineId]) {
+            assignments[machineId] = {
+              hasWorksheets: true,
+              frequencies: [],
+              worksheets: []
+            };
+          }
+          
+          if (!assignments[machineId].frequencies.includes(worksheet.frequency)) {
+            assignments[machineId].frequencies.push(worksheet.frequency);
+          }
+          
+          assignments[machineId].worksheets.push({
+            id: worksheet.id,
+            frequency: worksheet.frequency,
+            startDate: worksheet.startDate,
+            title: worksheet.title
+          });
+        });
+      }
+    });
+    
+    res.json({ assignments });
+  } catch (error) {
+    console.error('Error processing worksheet assignments:', error);
+    res.status(500).json({ error: 'Failed to process worksheet assignments' });
+  }
+});
+
 // Get all machines
 router.get('/', (req, res) => {
-  // Return normalized machine data that's consistent with worksheet assignments
+  // Return normalized machine data - no worksheet assignments by default
+  // Frontend should call POST /machines/update-from-worksheets to set QC data
   const normalizedMachines = normalizeMachineQCData(mockMachines);
   res.json(normalizedMachines);
+});
+
+// Update machines with worksheet assignment data
+router.post('/update-from-worksheets', (req, res) => {
+  try {
+    const { worksheets } = req.body;
+    
+    if (!worksheets || !Array.isArray(worksheets)) {
+      return res.status(400).json({ error: 'Invalid worksheet data' });
+    }
+    
+    // Process worksheets to get assignments
+    const assignments = {};
+    
+    worksheets.forEach(worksheet => {
+      if (worksheet.isWorksheet && worksheet.assignedMachines && worksheet.assignedMachines.length > 0) {
+        worksheet.assignedMachines.forEach(machineId => {
+          if (!assignments[machineId]) {
+            assignments[machineId] = {
+              hasWorksheets: true,
+              frequencies: [],
+              worksheets: []
+            };
+          }
+          
+          if (!assignments[machineId].frequencies.includes(worksheet.frequency)) {
+            assignments[machineId].frequencies.push(worksheet.frequency);
+          }
+          
+          assignments[machineId].worksheets.push({
+            id: worksheet.id,
+            frequency: worksheet.frequency,
+            startDate: worksheet.startDate,
+            title: worksheet.title
+          });
+        });
+      }
+    });
+    
+    // Update machine data with worksheet assignments
+    const updatedMachines = mockMachines.map(machine => {
+      const worksheetInfo = assignments[machine.machineId];
+      
+      if (worksheetInfo && worksheetInfo.hasWorksheets) {
+        // Find earliest start date among all assigned worksheets for this machine
+        const earliestStartDate = worksheetInfo.worksheets.reduce((earliest, worksheet) => {
+          return !earliest || worksheet.startDate < earliest ? worksheet.startDate : earliest;
+        }, null);
+        
+        // Calculate next QC due date based on earliest start date and all frequencies
+        const nextQCDue = calculateNextQCDue(earliestStartDate, worksheetInfo.frequencies);
+        
+        return {
+          ...machine,
+          lastQC: {
+            date: null,
+            result: null,
+            performedBy: null,
+            notes: `QC worksheets assigned (${worksheetInfo.worksheets.length} worksheets) - ready for QC testing`
+          },
+          nextQCDue: nextQCDue,
+          qcSchedule: {
+            daily: worksheetInfo.frequencies.includes('daily'),
+            weekly: worksheetInfo.frequencies.includes('weekly'),
+            monthly: worksheetInfo.frequencies.includes('monthly'),
+            quarterly: worksheetInfo.frequencies.includes('quarterly'),
+            annual: worksheetInfo.frequencies.includes('annual')
+          }
+        };
+      } else {
+        // No worksheets assigned - null QC data
+        return {
+          ...machine,
+          lastQC: {
+            date: null,
+            result: null,
+            performedBy: null,
+            notes: 'No QC worksheets assigned - QC program not active'
+          },
+          nextQCDue: null,
+          qcSchedule: {
+            daily: false,
+            weekly: false,
+            monthly: false,
+            quarterly: false,
+            annual: false
+          }
+        };
+      }
+    });
+    
+    res.json(updatedMachines);
+  } catch (error) {
+    console.error('Error updating machines from worksheets:', error);
+    res.status(500).json({ error: 'Failed to update machines from worksheets' });
+  }
 });
 
 // Get machine by ID
@@ -1030,6 +1151,31 @@ router.post('/', (req, res) => {
   } catch (error) {
     console.error('Error creating machine:', error);
     res.status(500).json({ error: 'Failed to create machine' });
+  }
+});
+
+// Update machine (full update)
+router.put('/:id', (req, res) => {
+  try {
+    const machineIndex = mockMachines.findIndex(m => m.machineId === req.params.id);
+    if (machineIndex === -1) {
+      return res.status(404).json({ error: 'Machine not found' });
+    }
+
+    const updatedMachine = {
+      ...mockMachines[machineIndex],
+      ...req.body,
+      machineId: req.params.id, // Ensure machineId cannot be changed
+      updatedAt: new Date().toISOString()
+    };
+
+    // Update the machine in the array
+    mockMachines[machineIndex] = updatedMachine;
+    
+    res.json(updatedMachine);
+  } catch (error) {
+    console.error('Error updating machine:', error);
+    res.status(500).json({ error: 'Failed to update machine' });
   }
 });
 

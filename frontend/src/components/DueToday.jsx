@@ -23,8 +23,30 @@ const DueToday = () => {
   const fetchDueTasks = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/qc/due-tasks');
-      setDueTasks(response.data);
+      
+      // Get worksheet assignments from localStorage
+      const worksheetsData = localStorage.getItem('qcWorksheets');
+      const worksheets = worksheetsData ? JSON.parse(worksheetsData) : [];
+      
+      if (worksheets.length > 0) {
+        // Send worksheets to backend to get due tasks based on actual assignments
+        const response = await axios.post('/api/qc/due-tasks-from-worksheets', {
+          worksheets: worksheets
+        });
+        setDueTasks(response.data);
+      } else {
+        // No worksheets - return empty structure
+        setDueTasks({
+          dailyOverdue: [],
+          dailyDueToday: [],
+          monthlyOverdue: [],
+          monthlyDueThisMonth: [],
+          quarterlyOverdue: [],
+          quarterlyDueThisQuarter: [],
+          annualOverdue: [],
+          annualDueThisYear: []
+        });
+      }
     } catch (err) {
       setError('Failed to load due tasks: ' + err.message);
     } finally {

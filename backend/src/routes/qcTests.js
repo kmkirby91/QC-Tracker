@@ -713,9 +713,40 @@ router.get('/machines/:machineId/qc-history/:date', (req, res) => {
   }
 });
 
-// Get QC tasks due today or this month
+// Get QC tasks due today or this month (deprecated - use POST version)
 router.get('/due-tasks', async (req, res) => {
   try {
+    // Return empty structure for now - frontend should use POST /due-tasks-from-worksheets
+    const dueTasks = {
+      dailyOverdue: [],
+      dailyDueToday: [],
+      weeklyOverdue: [],
+      weeklyDueToday: [],
+      monthlyOverdue: [],
+      monthlyDueThisMonth: [],
+      quarterlyOverdue: [],
+      quarterlyDueThisQuarter: [],
+      annualOverdue: [],
+      annualDueThisYear: []
+    };
+    
+    console.log('GET /due-tasks called - this endpoint is deprecated. Use POST /due-tasks-from-worksheets instead.');
+    res.json(dueTasks);
+  } catch (error) {
+    console.error('Error in due-tasks endpoint:', error);
+    res.status(500).json({ error: 'Failed to fetch due tasks' });
+  }
+});
+
+// Get QC tasks due today or this month based on worksheet assignments
+router.post('/due-tasks-from-worksheets', async (req, res) => {
+  try {
+    const { worksheets } = req.body;
+    
+    if (!worksheets || !Array.isArray(worksheets)) {
+      return res.status(400).json({ error: 'Invalid worksheet data' });
+    }
+    
     const today = new Date();
     
     // Initialize due tasks structure
@@ -736,120 +767,38 @@ router.get('/due-tasks', async (req, res) => {
     const machinesModule = require('./machines');
     const allMachines = machinesModule.getAllMachines ? machinesModule.getAllMachines() : [];
     
-    // Get worksheet assignments from the sample worksheet data
-    // This matches the worksheets created in frontend/src/utils/initializeSampleWorksheets.js
-    const worksheetAssignments = [
-      {
-        machineId: 'CT-GON-001',
-        machineName: 'Siemens SOMATOM Force',
-        type: 'CT',
-        location: 'Gonzales, Floor 1, Emergency CT',
-        frequency: 'daily',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-ct-daily-001',
-        worksheetTitle: 'ACR CT Daily QC Protocol'
-      },
-      {
-        machineId: 'CT-GON-001',
-        machineName: 'Siemens SOMATOM Force',
-        type: 'CT',
-        location: 'Gonzales, Floor 1, Emergency CT',
-        frequency: 'daily',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-ct-daily-002',
-        worksheetTitle: 'CT Safety & Calibration Daily QC'
-      },
-      {
-        machineId: 'CT-GON-001',
-        machineName: 'Siemens SOMATOM Force',
-        type: 'CT',
-        location: 'Gonzales, Floor 1, Emergency CT',
-        frequency: 'monthly',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-ct-monthly-001',
-        worksheetTitle: 'ACR CT Monthly QC Protocol'
-      },
-      {
-        machineId: 'CT-GON-001',
-        machineName: 'Siemens SOMATOM Force',
-        type: 'CT',
-        location: 'Gonzales, Floor 1, Emergency CT',
-        frequency: 'annual',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-ct-annual-001',
-        worksheetTitle: 'ACR CT Annual QC Protocol'
-      },
-      {
-        machineId: 'MRI-GON-001',
-        machineName: 'GE SIGNA Premier',
-        type: 'MRI',
-        location: 'Gonzales, Floor 2, MRI Suite A',
-        frequency: 'daily',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-mri-daily-001',
-        worksheetTitle: 'ACR MR Daily QC Protocol'
-      },
-      {
-        machineId: 'MRI-ESS-001',
-        machineName: 'Siemens MAGNETOM Vida',
-        type: 'MRI',
-        location: 'Essen, Floor 2, MRI Suite 1',
-        frequency: 'daily',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-mri-daily-001',
-        worksheetTitle: 'ACR MR Daily QC Protocol'
-      },
-      {
-        machineId: 'MRI-WOM-001',
-        machineName: 'Philips Ingenia 1.5T',
-        type: 'MRI',
-        location: 'Woman\'s, Floor 1, MRI Room 2',
-        frequency: 'daily',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-mri-daily-001',
-        worksheetTitle: 'ACR MR Daily QC Protocol'
-      },
-      {
-        machineId: 'MRI-GON-001',
-        machineName: 'GE SIGNA Premier',
-        type: 'MRI',
-        location: 'Gonzales, Floor 2, MRI Suite A',
-        frequency: 'quarterly',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-mri-quarterly-001',
-        worksheetTitle: 'MRI Quarterly QC Protocol'
-      },
-      {
-        machineId: 'MAMMO-WOM-001',
-        machineName: 'Hologic Selenia Dimensions',
-        type: 'Mammography',
-        location: "Woman's, Floor 1, Mammography Suite",
-        frequency: 'daily',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-mammo-daily-001',
-        worksheetTitle: 'ACR Mammography Daily QC Protocol'
-      },
-      {
-        machineId: 'PET-WOM-001',
-        machineName: 'Philips Vereos PET/CT',
-        type: 'PET',
-        location: "Woman's, Floor 1, Nuclear Medicine Suite",
-        frequency: 'weekly',
-        startDate: '2025-09-01',
-        worksheetId: 'sample-pet-weekly-001',
-        worksheetTitle: 'PET Weekly QC Protocol'
-      },
-      {
-        machineId: 'CT-WOM-001',
-        machineName: 'Canon Aquilion ONE',
-        type: 'CT',
-        location: "Woman's, Floor 2, CT Suite B",
-        frequency: 'daily',
-        startDate: '2025-07-19',  // Earlier start date to demonstrate the consistency issue
-        worksheetId: 'custom-ct-wom-daily-001',
-        worksheetTitle: 'Canon CT Daily QC Protocol'
+    // Create machine lookup for names and locations
+    const machineMap = {};
+    allMachines.forEach(machine => {
+      machineMap[machine.machineId] = {
+        name: machine.name,
+        type: machine.type,
+        location: `${machine.location.building}, Floor ${machine.location.floor}, ${machine.location.room}`
+      };
+    });
+    
+    // Process worksheets to create assignments
+    const worksheetAssignments = [];
+    
+    worksheets.forEach(worksheet => {
+      if (worksheet.isWorksheet && worksheet.assignedMachines && worksheet.assignedMachines.length > 0) {
+        worksheet.assignedMachines.forEach(machineId => {
+          const machine = machineMap[machineId];
+          if (machine) {
+            worksheetAssignments.push({
+              machineId: machineId,
+              machineName: machine.name,
+              type: machine.type,
+              location: machine.location,
+              frequency: worksheet.frequency,
+              startDate: worksheet.startDate,
+              worksheetId: worksheet.id,
+              worksheetTitle: worksheet.title
+            });
+          }
+        });
       }
-    ];
+    });
 
     // Process each worksheet assignment to determine due tasks
     for (const assignment of worksheetAssignments) {

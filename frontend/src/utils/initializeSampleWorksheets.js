@@ -4,7 +4,7 @@
 export const initializeSampleWorksheets = () => {
   try {
     // Version check to force updates when worksheet assignments change
-    const WORKSHEET_VERSION = '1.1'; // Increment this to force re-initialization
+    const WORKSHEET_VERSION = '1.2'; // Increment this to force re-initialization
     const storedVersion = localStorage.getItem('qcWorksheetsVersion');
     
     if (storedVersion !== WORKSHEET_VERSION) {
@@ -145,7 +145,7 @@ export const initializeSampleWorksheets = () => {
         modality: 'MRI',
         frequency: 'daily',
         description: 'Daily quality control tests for MR scanners following ACR standards',
-        assignedMachines: ['MRI-GON-001', 'MRI-ESS-001', 'MRI-WOM-001'], // All main MRI machines
+        assignedMachines: ['MRI-GON-001', 'MRI-ESS-001', 'MRI-WOM-001'], // All MRI machines
         isWorksheet: true,
         startDate: '2025-07-31',
         tests: [
@@ -317,7 +317,7 @@ export const initializeSampleWorksheets = () => {
         modality: 'MRI',
         frequency: 'quarterly',
         description: 'Quarterly quality control tests for MR scanners',
-        assignedMachines: ['MRI-GON-001'], // GE SIGNA Premier
+        assignedMachines: ['MRI-GON-001', 'MRI-ESS-001', 'MRI-WOM-001'], // All MRI machines
         isWorksheet: true,
         startDate: '2025-07-31',
         tests: [

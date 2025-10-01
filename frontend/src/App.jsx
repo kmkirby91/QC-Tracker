@@ -3,8 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import axios from 'axios'
-import { checkAndInitializeSampleData } from './utils/sampleWorksheets'
+import { ensureSampleWorksheets } from './utils/initializeSampleWorksheets'
 import { checkSomatumForceStatus, quickFixSomatumForce } from './utils/diagnostics'
+import { fetchMachinesWithWorksheets } from './utils/machineAPI'
 import MachineCard from './components/MachineCard'
 import StatusSummary from './components/StatusSummary'
 import FilterBar from './components/FilterBar'
@@ -15,11 +16,14 @@ import DueTasksWidget from './components/DueTasksWidget'
 import QCForm from './components/QCForm'
 import OpenFailures from './components/OpenFailures'
 import AddMachine from './components/AddMachine'
+import EditMachine from './components/EditMachine'
+import Machines from './components/Machines'
 import Worksheets from './components/Worksheets'
 import Locations from './components/Locations'
 import TechDashboard from './components/TechDashboard'
 import QCCalendar from './components/QCCalendar'
 import Admin from './components/Admin'
+import ACRStatus from './components/ACRStatus'
 import Research from './components/Research'
 import './App.css'
 
@@ -33,7 +37,8 @@ function NavigationDropdown() {
   const navigationItems = [
     { label: 'Dashboard', path: '/', icon: '🏠' },
     { label: 'Tech Dashboard', path: '/tech-dashboard', icon: '⚙️' },
-    { label: 'Machines', path: '/locations', icon: '🏥' },
+    { label: 'Machines', path: '/machines', icon: '🏥' },
+    { label: 'Locations', path: '/locations', icon: '📍' },
     { label: 'Calendar', path: '/calendar', icon: '📅' },
     { label: 'Worksheets', path: '/worksheets', icon: '📋' },
     { label: 'Admin', path: '/admin', icon: '🔧' },
@@ -123,10 +128,13 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/tech-dashboard" element={<TechDashboard />} />
+              <Route path="/machines" element={<Machines />} />
               <Route path="/machines/add" element={<AddMachine />} />
+              <Route path="/machines/:machineId/edit" element={<EditMachine />} />
               <Route path="/locations" element={<Locations />} />
               <Route path="/worksheets" element={<Worksheets />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/acr-status" element={<ACRStatus />} />
               <Route path="/research" element={<Research />} />
               <Route path="/reporting" element={<Reporting />} />
               <Route path="/calendar" element={<QCCalendar showOverview={true} />} />
@@ -160,9 +168,14 @@ function Dashboard() {
   })
 
   useEffect(() => {
-    fetchMachines()
-    // Initialize sample worksheets on app load
-    checkAndInitializeSampleData()
+    const initializeAndFetch = async () => {
+      // Initialize sample worksheets first (disabled for now - enable manually if needed)
+      // ensureSampleWorksheets()
+      // Then fetch machines with worksheet data
+      await fetchMachines()
+    }
+    
+    initializeAndFetch()
     
     // Add diagnostic functions to global scope for debugging
     window.checkSomatumForceStatus = checkSomatumForceStatus
@@ -176,8 +189,8 @@ function Dashboard() {
   const fetchMachines = async () => {
     try {
       setLoading(true)
-      const response = await axios.get('/api/machines')
-      setMachines(response.data)
+      const machines = await fetchMachinesWithWorksheets()
+      setMachines(machines)
       setError(null)
     } catch (err) {
       setError('Failed to load machines: ' + err.message)

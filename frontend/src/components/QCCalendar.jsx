@@ -312,7 +312,7 @@ const QCCalendar = ({ qcHistory, type, showOverview = false }) => {
           
           {qcStatus && qcStatus.isOverdue && qcStatus.daysPastDue > 0 && (
             <div className="absolute bottom-0 right-0 bg-red-600 text-white text-xs px-1 rounded-tl">
-              {qcStatus.daysPastDue}d
+              Overdue
             </div>
           )}
           
@@ -477,7 +477,7 @@ const QCCalendar = ({ qcHistory, type, showOverview = false }) => {
           
           {weekQCStatus && weekQCStatus.isOverdue && weekQCStatus.daysPastDue > 0 && (
             <div className="absolute bottom-2 right-2 bg-red-600 text-white text-xs px-1 rounded">
-              {weekQCStatus.daysPastDue}d overdue
+              Overdue
             </div>
           )}
           
@@ -564,7 +564,7 @@ const QCCalendar = ({ qcHistory, type, showOverview = false }) => {
           
           {qcStatus && qcStatus.isOverdue && qcStatus.daysPastDue > 0 && (
             <div className="absolute bottom-1 right-1 bg-red-600 text-white text-xs px-1 rounded">
-              {qcStatus.daysPastDue}d overdue
+              Overdue
             </div>
           )}
         </div>
@@ -668,7 +668,7 @@ const QCCalendar = ({ qcHistory, type, showOverview = false }) => {
           
           {quarterQCStatus && quarterQCStatus.isOverdue && quarterQCStatus.daysPastDue > 0 && (
             <div className="absolute bottom-2 right-2 bg-red-600 text-white text-xs px-1 rounded">
-              {quarterQCStatus.daysPastDue}d overdue
+              Overdue
             </div>
           )}
           
@@ -763,7 +763,7 @@ const QCCalendar = ({ qcHistory, type, showOverview = false }) => {
           
           {yearQCStatus && yearQCStatus.isOverdue && yearQCStatus.daysPastDue > 0 && (
             <div className="absolute bottom-2 right-2 bg-red-600 text-white text-xs px-1 rounded">
-              {yearQCStatus.daysPastDue}d overdue
+              Overdue
             </div>
           )}
           

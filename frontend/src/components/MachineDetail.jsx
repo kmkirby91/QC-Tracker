@@ -7,6 +7,7 @@ import QCStatusDashboard from './QCStatusDashboard';
 import QCReportWidget from './QCReportWidget';
 import QCScheduleStatus from './QCScheduleStatus';
 import { ensureSampleWorksheets } from '../utils/initializeSampleWorksheets';
+import { fetchMachineWithWorksheets } from '../utils/machineAPI';
 
 const MachineDetail = () => {
   const { machineId } = useParams();
@@ -21,8 +22,8 @@ const MachineDetail = () => {
   useEffect(() => {
     fetchMachineData();
     loadCustomWorksheets();
-    // Initialize sample worksheets if they don't exist
-    ensureSampleWorksheets();
+    // Initialize sample worksheets if they don't exist (disabled)
+    // ensureSampleWorksheets();
   }, [machineId, forceRefresh]);
 
   // Listen for localStorage changes to update custom worksheets
@@ -62,14 +63,15 @@ const MachineDetail = () => {
   const fetchMachineData = async () => {
     try {
       setLoading(true);
-      const machineRes = await axios.get(`/api/machines/${machineId}`);
-      setMachine(machineRes.data);
       
-      const qcRes = await axios.get(`/api/qc/machines/${machineId}/qc-history?type=${machineRes.data.type}`);
+      const machineData = await fetchMachineWithWorksheets(machineId);
+      setMachine(machineData);
+      
+      const qcRes = await axios.get(`/api/qc/machines/${machineId}/qc-history?type=${machineData.type}`);
       setQCHistory(qcRes.data);
       
       // Set the first available QC frequency as the default active tab
-      const schedule = machineRes.data.qcSchedule;
+      const schedule = machineData.qcSchedule;
       if (schedule.daily) setActiveTab('daily');
       else if (schedule.weekly) setActiveTab('weekly');
       else if (schedule.monthly) setActiveTab('monthly');
@@ -333,29 +335,6 @@ const MachineDetail = () => {
             </dl>
           </div>
 
-          <div>
-            <h3 className="font-semibold text-gray-300 mb-2">Last QC</h3>
-            <dl className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Date:</dt>
-                <dd className="font-medium">{machine.lastQC?.date ? new Date(machine.lastQC.date).toLocaleDateString() : 'N/A'}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Result:</dt>
-                <dd className={`font-medium ${machine.lastQC?.result === 'pass' ? 'text-green-400' : machine.lastQC?.result === 'fail' ? 'text-red-400' : 'text-gray-400'}`}>
-                  {machine.lastQC?.result ? machine.lastQC.result.toUpperCase() : 'N/A'}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-400">Performed By:</dt>
-                <dd className="font-medium">{machine.lastQC?.performedBy || 'N/A'}</dd>
-              </div>
-              <div className="flex flex-col">
-                <dt className="text-gray-400">Notes:</dt>
-                <dd className="font-medium text-xs mt-1">{machine.lastQC?.notes || 'N/A'}</dd>
-              </div>
-            </dl>
-          </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -424,13 +403,7 @@ const MachineDetail = () => {
                 ws.isWorksheet === true
               ).length === 0 && (
                 <div className="text-center py-4">
-                  <div className="text-sm text-gray-400 mb-2">No QC worksheets assigned</div>
-                  <Link
-                    to="/worksheets"
-                    className="px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-500 transition-colors"
-                  >
-                    📋 Create Worksheets
-                  </Link>
+                  <div className="text-sm text-gray-400">No QC worksheets assigned</div>
                 </div>
               )}
             </div>
@@ -440,11 +413,11 @@ const MachineDetail = () => {
 
       {/* Today's QC Dashboard */}
       {qcHistory && (
-        <QCStatusDashboard machine={machine} qcHistory={qcHistory} />
+        <QCStatusDashboard machine={machine} qcHistory={qcHistory} customWorksheets={customWorksheets} />
       )}
 
-      {/* QC Schedule Status */}
-      {machine && (
+      {/* QC Schedule Status - Only show if machine has QC schedules assigned */}
+      {machine && machine.qcSchedule && Object.values(machine.qcSchedule).some(schedule => schedule === true) && (
         <QCScheduleStatus 
           machine={machine} 
           worksheets={customWorksheets.filter(ws => 
@@ -467,7 +440,7 @@ const MachineDetail = () => {
             <h3 className="text-lg font-medium text-gray-300 mb-2">No QC worksheets assigned</h3>
             <p className="text-gray-400 mb-4">Create and assign worksheets to enable QC tracking for this machine.</p>
             <Link
-              to="/worksheets"
+              to={`/worksheets?mode=custom&machineId=${machine.machineId}`}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               Create Worksheets
@@ -589,6 +562,17 @@ const MachineDetail = () => {
                 </div>
               );
             })}
+            
+            {/* Add Worksheet Button */}
+            <div className="mt-4 pt-4 border-t border-gray-600">
+              <Link
+                to={`/worksheets?mode=custom&machineId=${machine.machineId}`}
+                className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+              >
+                <span className="mr-2">➕</span>
+                Create Worksheet for this Machine
+              </Link>
+            </div>
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@ import { checkAndInitializeSampleData } from '../utils/sampleWorksheets';
 import DICOMSeriesSelector from './DICOMSeriesSelector';
 import DICOMTemplateConfig from './DICOMTemplateConfig';
 import api from '../config/api';
+import { getAnalysisCodeOptions, getAnalysisCodeById, isValidAnalysisCode } from '../utils/qcAnalysisCodes';
 
 const Worksheets = () => {
   const navigate = useNavigate();
@@ -45,6 +46,8 @@ const Worksheets = () => {
       notes: '', 
       calculatedFromDicom: false, 
       dicomSeriesSource: '', 
+      qcAnalysisCode: '',
+      requiresDicom: false,
       required: true 
     }
   ]);
@@ -72,6 +75,88 @@ const Worksheets = () => {
     description: ''
   });
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Expose debugging functions globally
+  useEffect(() => {
+    window.debugWorksheets = {
+      analyzeIds: analyzeWorksheetIds,
+      getWorksheets: getWorksheets,
+      clearAll: () => {
+        localStorage.removeItem('qcWorksheets');
+        setRefreshKey(prev => prev + 1);
+      },
+      clearWorksheets: () => {
+        // Get current data
+        const currentData = localStorage.getItem('qcWorksheets');
+        if (!currentData) {
+          console.log('No data to clear');
+          return;
+        }
+        
+        try {
+          const allItems = JSON.parse(currentData);
+          // Keep only templates (isWorksheet !== true)
+          const templatesOnly = allItems.filter(item => item.isWorksheet !== true);
+          
+          console.log(`Clearing ${allItems.length - templatesOnly.length} worksheets, keeping ${templatesOnly.length} templates`);
+          
+          localStorage.setItem('qcWorksheets', JSON.stringify(templatesOnly));
+          // Also remove the version flag to prevent re-initialization
+          localStorage.removeItem('qcWorksheetsVersion');
+          localStorage.removeItem('qcStatusRefresh');
+          
+          setRefreshKey(prev => prev + 1);
+          
+          return {
+            cleared: allItems.length - templatesOnly.length,
+            kept: templatesOnly.length
+          };
+        } catch (error) {
+          console.error('Error clearing worksheets:', error);
+          return { error: error.message };
+        }
+      },
+      forceRefresh: () => {
+        setRefreshKey(prev => prev + 1);
+        window.dispatchEvent(new Event('storage'));
+        console.log('Forced UI refresh');
+      },
+      nukeAllData: () => {
+        // Nuclear option - clear ALL worksheet-related data
+        const keysToRemove = [
+          'qcWorksheets',
+          'qcWorksheetsVersion', 
+          'qcStatusRefresh',
+          'qcCompletions',
+          'qcWorksheets_backup',
+          'tempWorksheetView',
+          'tempTemplateView'
+        ];
+        
+        keysToRemove.forEach(key => {
+          localStorage.removeItem(key);
+          console.log(`Removed: ${key}`);
+        });
+        
+        // Force multiple refreshes
+        setRefreshKey(prev => prev + 1);
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('worksheetChanged'));
+        
+        // Reload the page to ensure everything is cleared
+        setTimeout(() => {
+          console.log('Reloading page to ensure complete reset...');
+          window.location.reload();
+        }, 1000);
+        
+        return { message: 'All worksheet data cleared, page will reload' };
+      }
+    };
+    console.log('🛠️ Debug functions available: window.debugWorksheets.analyzeIds(), window.debugWorksheets.getWorksheets(), window.debugWorksheets.clearWorksheets(), window.debugWorksheets.nukeAllData()');
+    return () => {
+      delete window.debugWorksheets;
+    };
+  }, []);
   const [filterMachine, setFilterMachine] = useState('');
   const [filterFrequency, setFilterFrequency] = useState('');
   const [filterModality, setFilterModality] = useState('');
@@ -87,6 +172,7 @@ const Worksheets = () => {
   const [templateJustLoadedFlag, setTemplateJustLoadedFlag] = useState(false);
   const [isViewingWorksheet, setIsViewingWorksheet] = useState(false);
   const [saveAsTemplateChecked, setSaveAsTemplateChecked] = useState(false);
+  const [disableTemplateTracking, setDisableTemplateTracking] = useState(false);
 
   // Machine-specific DICOM configuration storage
   const getMachineSpecificDicomConfig = (machineId, modality, frequency) => {
@@ -124,6 +210,11 @@ const Worksheets = () => {
 
   // Helper function to detect if a worksheet is actually modified from its template
   const isWorksheetModifiedFromTemplate = (worksheet) => {
+    // If template tracking is disabled for this worksheet, don't compare
+    if (worksheet.disableTemplateTracking === true) {
+      return false;
+    }
+    
     // If no template source, not a template-based worksheet
     if (!worksheet.templateSource && !worksheet.sourceTemplateName) {
       return false;
@@ -166,7 +257,9 @@ const Worksheets = () => {
           worksheetTest.units !== templateTest.units ||
           worksheetTest.notes !== templateTest.notes ||
           worksheetTest.calculatedFromDicom !== templateTest.calculatedFromDicom ||
-          worksheetTest.dicomSeriesSource !== templateTest.dicomSeriesSource) {
+          worksheetTest.dicomSeriesSource !== templateTest.dicomSeriesSource ||
+          worksheetTest.qcAnalysisCode !== templateTest.qcAnalysisCode ||
+          worksheetTest.requiresDicom !== templateTest.requiresDicom) {
         console.log('Worksheet modified: test differs', worksheetTest.testName);
         return true;
       }
@@ -228,7 +321,9 @@ const Worksheets = () => {
         test.units !== templateTest.units ||
         test.notes !== templateTest.notes ||
         test.calculatedFromDicom !== templateTest.calculatedFromDicom ||
-        test.dicomSeriesSource !== templateTest.dicomSeriesSource) {
+        test.dicomSeriesSource !== templateTest.dicomSeriesSource ||
+        test.qcAnalysisCode !== templateTest.qcAnalysisCode ||
+        test.requiresDicom !== templateTest.requiresDicom) {
       return 'modified';
     }
     
@@ -244,8 +339,26 @@ const Worksheets = () => {
       units: false,
       notes: false,
       calculatedFromDicom: false,
-      dicomSeriesSource: false
+      dicomSeriesSource: false,
+      qcAnalysisCode: false,
+      requiresDicom: false
     };
+
+    // If template tracking is disabled for this worksheet, don't show modifications
+    if (worksheet.disableTemplateTracking === true) {
+      return {
+        testName: false,
+        testType: false,
+        tolerance: false,
+        units: false,
+        notes: false,
+        calculatedFromDicom: false,
+        dicomSeriesSource: false,
+        qcAnalysisCode: false,
+        requiresDicom: false,
+        isCustomTest: false
+      };
+    }
 
     // If no template source, this is a custom worksheet with no modifications to show
     if (!worksheet.templateSource && !worksheet.sourceTemplateName) {
@@ -257,6 +370,8 @@ const Worksheets = () => {
         notes: false,
         calculatedFromDicom: false,
         dicomSeriesSource: false,
+        qcAnalysisCode: false,
+        requiresDicom: false,
         isCustomTest: false
       };
     }
@@ -290,6 +405,8 @@ const Worksheets = () => {
         notes: false,
         calculatedFromDicom: false,
         dicomSeriesSource: false,
+        qcAnalysisCode: false,
+        requiresDicom: false,
         isCustomTest: false
       };
     }
@@ -332,6 +449,8 @@ const Worksheets = () => {
       notes: safeCompare(test.notes, templateTest.notes),
       calculatedFromDicom: safeCompare(test.calculatedFromDicom, templateTest.calculatedFromDicom, false),
       dicomSeriesSource: safeCompare(test.dicomSeriesSource, templateTest.dicomSeriesSource),
+      qcAnalysisCode: safeCompare(test.qcAnalysisCode, templateTest.qcAnalysisCode),
+      requiresDicom: safeCompare(test.requiresDicom, templateTest.requiresDicom, false),
       isCustomTest: false
     };
     
@@ -355,6 +474,24 @@ const Worksheets = () => {
     } catch (error) {
       console.error('Error loading worksheets:', error);
       return [];
+    }
+  };
+
+  // EMERGENCY RECOVERY: Restore from backup
+  const restoreFromBackup = () => {
+    try {
+      const backup = localStorage.getItem('qcWorksheets_backup');
+      if (backup) {
+        localStorage.setItem('qcWorksheets', backup);
+        setRefreshKey(prev => prev + 1);
+        alert('✅ Worksheets restored from backup!');
+        console.log('✅ Restored worksheets from backup');
+      } else {
+        alert('❌ No backup found');
+      }
+    } catch (error) {
+      console.error('Error restoring backup:', error);
+      alert('❌ Error restoring backup');
     }
   };
 
@@ -402,25 +539,195 @@ const Worksheets = () => {
     return colors[freq] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  const deleteWorksheet = (worksheetId) => {
-    console.log('DEBUG: deleteWorksheet called with ID:', worksheetId);
+  // Helper function to analyze worksheet IDs - also expose globally for debugging
+  const analyzeWorksheetIds = () => {
+    const worksheets = getWorksheets();
+    const idCounts = {};
+    const duplicateGroups = {};
+    
+    worksheets.forEach((worksheet, index) => {
+      const id = worksheet.id;
+      if (!idCounts[id]) {
+        idCounts[id] = [];
+      }
+      idCounts[id].push({ index, title: worksheet.title, id: id });
+    });
+    
+    Object.entries(idCounts).forEach(([id, worksheetList]) => {
+      if (worksheetList.length > 1) {
+        duplicateGroups[id] = worksheetList;
+      }
+    });
+    
+    console.log('📊 WORKSHEET ID ANALYSIS:');
+    console.log('Total worksheets:', worksheets.length);
+    console.log('Unique IDs:', Object.keys(idCounts).length);
+    console.log('Duplicate IDs found:', Object.keys(duplicateGroups).length);
+    
+    if (Object.keys(duplicateGroups).length > 0) {
+      console.error('🚨 DUPLICATE ID GROUPS:', duplicateGroups);
+    }
+    
+    return { idCounts, duplicateGroups, totalWorksheets: worksheets.length };
+  };
+
+  const deleteWorksheet = async (worksheetId) => {
+    console.log('🚨 DEBUG: deleteWorksheet called with ID:', worksheetId, 'Type:', typeof worksheetId);
+    
+    if (!worksheetId) {
+      console.error('🚨 ERROR: No worksheetId provided to deleteWorksheet');
+      alert('Error: No worksheet ID provided. Cannot delete worksheet.');
+      return;
+    }
+    
+    // Analyze worksheet IDs before deletion
+    const analysis = analyzeWorksheetIds();
+    
+    // Check for duplicate IDs first
+    const worksheets = getWorksheets();
+    const duplicateIds = worksheets.filter(w => w.id === worksheetId);
+    if (duplicateIds.length > 1) {
+      console.error('🚨 CRITICAL: Found', duplicateIds.length, 'worksheets with the same ID!', duplicateIds.map(w => w.title));
+      alert(`CRITICAL ERROR: Found ${duplicateIds.length} worksheets with the same ID "${worksheetId}". This will cause bulk deletion. Please contact support.`);
+      return;
+    }
+    
+    // Check if there are ANY duplicate IDs in the system
+    if (Object.keys(analysis.duplicateGroups).length > 0) {
+      console.error('🚨 WARNING: System has duplicate IDs that could cause issues:', analysis.duplicateGroups);
+      const shouldContinue = window.confirm(
+        `WARNING: The system has worksheets with duplicate IDs. This could cause unexpected deletions. ` +
+        `Continue with deletion of "${duplicateIds[0]?.title}" anyway?`
+      );
+      if (!shouldContinue) {
+        return;
+      }
+    }
+    
+    // Check for worksheets with similar titles that might cause confusion
+    const targetWorksheet = worksheets.find(w => w.id === worksheetId);
+    const similarTitleWorksheets = worksheets.filter(w => 
+      w.id !== worksheetId && 
+      w.title.toLowerCase().includes(targetWorksheet.title.toLowerCase().substring(0, 10))
+    );
+    
+    if (similarTitleWorksheets.length > 0) {
+      console.warn('🚨 Similar titled worksheets found:', similarTitleWorksheets.map(w => ({id: w.id, title: w.title})));
+      const shouldContinue = window.confirm(
+        `WARNING: Found ${similarTitleWorksheets.length} other worksheets with similar titles:\n\n` +
+        similarTitleWorksheets.map(w => `"${w.title}" (ID: ${w.id})`).join('\n') + 
+        `\n\nYou are deleting: "${targetWorksheet.title}" (ID: ${worksheetId})\n\nContinue with deletion?`
+      );
+      if (!shouldContinue) {
+        return;
+      }
+    }
     
     if (window.confirm('Are you sure you want to delete this worksheet? This action cannot be undone.')) {
       const worksheets = getWorksheets();
-      console.log('DEBUG: Worksheets before deletion:', worksheets.length);
-      console.log('DEBUG: Worksheet to delete:', worksheets.find(w => w.id === worksheetId)?.title);
       
-      const updatedWorksheets = worksheets.filter(w => w.id !== worksheetId);
-      console.log('DEBUG: Worksheets after deletion:', updatedWorksheets.length);
+      // BACKUP: Save current worksheets before any deletion
+      localStorage.setItem('qcWorksheets_backup', JSON.stringify(worksheets));
+      console.log('🚨 BACKUP: Saved current worksheets to qcWorksheets_backup');
+      console.log('🚨 DEBUG: Worksheets before deletion:', worksheets.length);
+      console.log('🚨 DEBUG: All worksheet IDs:', worksheets.map(w => ({ id: w.id, title: w.title })));
+      
+      const targetWorksheet = worksheets.find(w => w.id === worksheetId);
+      console.log('🚨 DEBUG: Target worksheet to delete:', targetWorksheet?.title || 'NOT FOUND');
+      
+      if (!targetWorksheet) {
+        console.error('🚨 ERROR: Worksheet with ID', worksheetId, 'not found');
+        alert(`Error: Worksheet with ID ${worksheetId} not found. Cannot delete.`);
+        return;
+      }
+      
+      console.log('🚨 DEBUG: Comparing IDs with strict equality:');
+      console.log('🚨 DEBUG: Target ID type and value:', typeof worksheetId, JSON.stringify(worksheetId));
+      
+      const keepList = [];
+      const deleteList = [];
+      
+      worksheets.forEach((w, index) => {
+        const strictEquals = w.id === worksheetId;
+        const looseEquals = w.id == worksheetId;
+        const stringComparison = String(w.id) === String(worksheetId);
+        console.log(`🚨   [${index}] ID: ${JSON.stringify(w.id)} (${typeof w.id}), Title: ${w.title}`);
+        console.log(`🚨       Strict (===): ${strictEquals}, Loose (==): ${looseEquals}, String: ${stringComparison}`);
+        
+        if (strictEquals) {
+          deleteList.push(w);
+          console.log(`🚨       ❌ WILL DELETE: ${w.title}`);
+        } else {
+          keepList.push(w);
+          console.log(`🚨       ✅ WILL KEEP: ${w.title}`);
+        }
+      });
+      
+      console.log('🚨 FINAL DELETION SUMMARY:');
+      console.log(`🚨   Worksheets to DELETE (${deleteList.length}):`, deleteList.map(w => ({ id: w.id, title: w.title })));
+      console.log(`🚨   Worksheets to KEEP (${keepList.length}):`, keepList.map(w => ({ id: w.id, title: w.title })));
+      
+      if (deleteList.length > 1) {
+        console.error('🚨 EMERGENCY STOP: Multiple worksheets would be deleted!');
+        alert(`EMERGENCY STOP: ${deleteList.length} worksheets would be deleted instead of 1:\n` + 
+              deleteList.map(w => `- ${w.title} (ID: ${w.id})`).join('\n') + 
+              '\n\nDeletion cancelled for safety.');
+        return;
+      }
+      
+      if (deleteList.length === 0) {
+        console.error('🚨 ERROR: No worksheets match for deletion');
+        alert('Error: No worksheet found with the specified ID. Deletion cancelled.');
+        return;
+      }
+      
+      const updatedWorksheets = keepList;
+      
+      // EMERGENCY SAFEGUARD: If we're about to delete more than 1 worksheet, abort
+      const deletedCount = worksheets.length - updatedWorksheets.length;
+      console.log(`🚨 DEBUG: Delete calculation: ${worksheets.length} - ${updatedWorksheets.length} = ${deletedCount}`);
+      
+      if (deletedCount > 1) {
+        console.error('🚨 EMERGENCY ABORT: Deletion would remove', deletedCount, 'worksheets instead of 1');
+        alert(`EMERGENCY ABORT: This operation would delete ${deletedCount} worksheets instead of 1. Operation cancelled.`);
+        return;
+      }
+      
+      if (deletedCount === 0) {
+        console.error('🚨 WARNING: No worksheets were deleted');
+        alert('Warning: No worksheets were deleted. The worksheet may not exist.');
+        return;
+      }
       
       localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
-      console.log('DEBUG: Updated localStorage with', updatedWorksheets.length, 'worksheets');
+      console.log('🚨 DEBUG: Successfully saved', updatedWorksheets.length, 'worksheets to localStorage');
       
       // Success notification removed
       
+      // Add a small delay to ensure localStorage is fully written
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Force refresh
       setRefreshKey(prev => prev + 1);
+      
+      // Dispatch multiple events to ensure all components are notified
       window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('worksheetChanged', { detail: { action: 'delete', worksheetId } }));
+      
+      // Also trigger a QC status refresh
+      localStorage.setItem('qcStatusRefresh', Date.now().toString());
+      setTimeout(() => localStorage.removeItem('qcStatusRefresh'), 100);
+      
+      // Force machine data refresh after worksheet deletion to prevent "failed to load machines" error
+      try {
+        console.log('🔄 Forcing machine data refresh after worksheet deletion...');
+        const { fetchMachinesWithWorksheets } = await import('../utils/machineAPI');
+        await fetchMachinesWithWorksheets();
+        console.log('✅ Machine data refresh completed successfully');
+      } catch (machineRefreshError) {
+        console.error('⚠️ Machine data refresh failed (non-critical):', machineRefreshError);
+        // Don't throw this error as it's non-critical for worksheet deletion
+      }
     }
   };
 
@@ -472,6 +779,15 @@ const Worksheets = () => {
       worksheet.assignedMachines = worksheet.assignedMachines.filter(id => id !== machineId);
       worksheet.updatedAt = new Date().toISOString();
       localStorage.setItem('qcWorksheets', JSON.stringify(worksheets));
+      
+      // Dispatch events to notify other components
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('worksheetChanged', { detail: { action: 'unassign', worksheetId, machineId } }));
+      
+      // Also trigger a QC status refresh
+      localStorage.setItem('qcStatusRefresh', Date.now().toString());
+      setTimeout(() => localStorage.removeItem('qcStatusRefresh'), 100);
+      
       // Success notification removed
       setRefreshKey(prev => prev + 1);
       return true;
@@ -501,6 +817,9 @@ const Worksheets = () => {
     
     // Load the tests from the worksheet
     setCustomTests(worksheet.tests || []);
+    
+    // Load template tracking setting
+    setDisableTemplateTracking(worksheet.disableTemplateTracking || false);
     
     // Load DICOM series configuration if it exists
     console.log('Setting DICOM config:', worksheet.dicomSeriesConfig);
@@ -584,10 +903,12 @@ const Worksheets = () => {
     const compatibilityMap = {
       'CT': ['CT'],
       'MRI': ['MRI'], 
-      'PET': ['PET', 'CT'], // PET/CT scanners can use CT protocols for the CT component
+      'PET': ['PET', 'CT'], // PET scanners can use CT protocols for the CT component
+      'PET-CT': ['PET', 'CT'], // PET-CT scanners can use both PET and CT protocols
       'Ultrasound': ['Ultrasound'],
       'Mammography': ['Mammography'],
-      'Digital Radiography': [], // No specific worksheets defined yet
+      'X-Ray': ['X-Ray'],
+      'Digital Radiography': ['X-Ray'], // Digital radiography can use X-Ray protocols
       'Dose Calibrator': []  // No specific worksheets defined yet
     };
     
@@ -603,11 +924,17 @@ const Worksheets = () => {
         'CT-MRI': 'CT scanners and MRI scanners require completely different QC procedures due to different physics (X-rays vs magnetic fields).',
         'MRI-CT': 'MRI scanners and CT scanners require completely different QC procedures due to different physics (magnetic fields vs X-rays).',
         'PET-MRI': 'PET scanners and MRI scanners use different technologies and require different QC protocols.',
+        'PET-CT-MRI': 'PET-CT scanners and MRI scanners use different technologies and require different QC protocols.',
         'MRI-PET': 'MRI scanners and PET scanners use different technologies and require different QC protocols.',
+        'MRI-PET-CT': 'MRI scanners and PET-CT scanners use different technologies and require different QC protocols.',
         'CT-Ultrasound': 'CT scanners and Ultrasound systems use different imaging technologies requiring different QC approaches.',
+        'PET-CT-Ultrasound': 'PET-CT scanners and Ultrasound systems use different imaging technologies requiring different QC approaches.',
         'Ultrasound-CT': 'Ultrasound systems and CT scanners use different imaging technologies requiring different QC approaches.',
+        'Ultrasound-PET-CT': 'Ultrasound systems and PET-CT scanners use different imaging technologies requiring different QC approaches.',
         'Mammography-CT': 'Mammography systems have specialized QC requirements different from general CT scanners.',
+        'Mammography-PET-CT': 'Mammography systems have specialized QC requirements different from PET-CT scanners.',
         'CT-Mammography': 'CT scanners have different QC requirements than specialized mammography systems.',
+        'PET-CT-Mammography': 'PET-CT scanners have different QC requirements than specialized mammography systems.',
         'MRI-Mammography': 'MRI scanners and mammography systems require completely different QC procedures.',
         'Mammography-MRI': 'Mammography systems and MRI scanners require completely different QC procedures.'
       };
@@ -648,6 +975,7 @@ const Worksheets = () => {
     { value: 'MRI', label: 'MRI', icon: '🧲' },
     { value: 'Ultrasound', label: 'Ultrasound', icon: '🔊' },
     { value: 'Mammography', label: 'Mammography', icon: '🎗️' },
+    { value: 'X-Ray', label: 'X-Ray', icon: '📷' },
     { value: 'Other', label: 'Other', icon: '⚙️' }
   ];
 
@@ -661,8 +989,8 @@ const Worksheets = () => {
   useEffect(() => {
     const initializeSampleData = async () => {
       try {
-        await checkAndInitializeSampleData();
-        console.log('Sample data initialized successfully');
+        // await checkAndInitializeSampleData(); // Disabled
+        console.log('Sample data initialization disabled');
       } catch (error) {
         console.error('Error initializing sample data:', error);
       }
@@ -775,6 +1103,20 @@ const Worksheets = () => {
       generateWorksheet(machineId, frequency);
     } else if (mode === 'edit' && templateSource) {
       loadWorksheetForEditing(templateSource, machineId, frequency);
+    } else if (mode === 'custom' && machineId) {
+      // Handle custom worksheet creation with pre-selected machine
+      setViewMode('custom');
+      setSelectedMachine(machineId);
+      // Find the machine to set the modality
+      const machine = machines.find(m => m.machineId === machineId);
+      if (machine) {
+        // Machine object uses 'type' property for modality
+        setCustomWorksheetInfo(prev => ({
+          ...prev,
+          machineId: machineId,
+          modality: machine.type
+        }));
+      }
     } else if (mode) {
       setViewMode(mode);
     }
@@ -838,6 +1180,9 @@ const Worksheets = () => {
       
       // Load the tests from the worksheet
       setCustomTests(worksheet.tests || []);
+      
+      // Load template tracking setting
+      setDisableTemplateTracking(worksheet.disableTemplateTracking || false);
       
       // Load DICOM series configuration if it exists
       if (worksheet.dicomSeriesConfig && worksheet.dicomSeriesConfig.length > 0) {
@@ -925,6 +1270,10 @@ const Worksheets = () => {
   };
 
   const saveAsTemplate = () => {
+    console.log('🔧 saveAsTemplate function called!');
+    console.log('🔧 Current customWorksheetInfo:', customWorksheetInfo);
+    console.log('🔧 Current customTests:', customTests);
+    
     if (!customWorksheetInfo.title.trim()) {
       toast.error('Please enter a template title');
       return;
@@ -947,10 +1296,31 @@ const Worksheets = () => {
         
         switch (test.testType) {
           case 'value':
-            // Numerical values require threshold specification
-            if (!test.tolerance || test.tolerance.trim() === '') {
-              toast.error(`Test "${test.testName}": Numerical values require tolerance/threshold specification`);
+            // Numerical values require either min/max thresholds OR target±tolerance format
+            const hasMinMaxValues = test.tolerance && typeof test.tolerance === 'object' && 
+                                   (test.tolerance.lowerLimit?.trim() || test.tolerance.upperLimit?.trim());
+            const hasStringTolerance = test.tolerance && typeof test.tolerance === 'string' && 
+                                      test.tolerance.trim() !== '';
+            
+            if (!hasMinMaxValues && !hasStringTolerance) {
+              toast.error(`Test "${test.testName}": Value tests require either Min/Max thresholds OR target±tolerance format (e.g., "±5", "≤100", "5-15")`);
               return false;
+            }
+            
+            // If using min/max, at least one should be specified
+            if (hasMinMaxValues && !test.tolerance.lowerLimit?.trim() && !test.tolerance.upperLimit?.trim()) {
+              toast.error(`Test "${test.testName}": When using Min/Max thresholds, at least one value must be specified`);
+              return false;
+            }
+            
+            // Validate that min < max if both are provided
+            if (hasMinMaxValues && test.tolerance.lowerLimit?.trim() && test.tolerance.upperLimit?.trim()) {
+              const min = parseFloat(test.tolerance.lowerLimit);
+              const max = parseFloat(test.tolerance.upperLimit);
+              if (!isNaN(min) && !isNaN(max) && min >= max) {
+                toast.error(`Test "${test.testName}": Min threshold (${min}) must be less than Max threshold (${max})`);
+                return false;
+              }
             }
             break;
           
@@ -984,7 +1354,7 @@ const Worksheets = () => {
 
     // Validate DICOM series selection for calculated tests
     const calculatedTestsWithoutSource = customTests.filter(test => 
-      test.calculatedFromDicom && !test.dicomSeriesSource
+      (test.calculatedFromDicom || test.requiresDicom) && !test.dicomSeriesSource
     );
     if (calculatedTestsWithoutSource.length > 0) {
       toast.error('Please select a DICOM series source for all calculated tests');
@@ -1029,11 +1399,31 @@ const Worksheets = () => {
   };
 
   const loadTemplateForEditing = (template) => {
+    // Preserve pre-selected machine if it exists
+    const currentMachineId = customWorksheetInfo.machineId;
+    const currentModality = customWorksheetInfo.modality;
+    
+    // Check for modality mismatch warning
+    const hasExistingTemplate = selectedTemplate;
+    const machinePreselected = currentMachineId && !selectedTemplate && !customWorksheetInfo.title;
+    
+    if (currentModality && template.modality && currentModality !== template.modality) {
+      if (hasExistingTemplate) {
+        toast.error(`⚠️ Modality Mismatch: Loading ${template.modality} template for ${currentModality} worksheet. Please verify compatibility.`, {
+          duration: 6000
+        });
+      } else if (machinePreselected) {
+        toast.warn(`💡 Notice: Loading ${template.modality} template for ${currentModality} machine. This may work if tests are compatible.`, {
+          duration: 4000
+        });
+      }
+    }
+    
     setCustomWorksheetInfo({
       title: template.title,
       frequency: template.frequency,
-      machineId: '',
-      modality: template.modality || '',
+      machineId: currentMachineId || '',
+      modality: currentModality || template.modality || '',
       description: template.description || ''
     });
     setCustomTests(template.tests.map(test => ({
@@ -1129,6 +1519,8 @@ const Worksheets = () => {
         notes: '', 
         calculatedFromDicom: false, 
         dicomSeriesSource: '', 
+        qcAnalysisCode: '',
+        requiresDicom: false,
         required: true 
       }
     ]);
@@ -1220,10 +1612,31 @@ const Worksheets = () => {
         
         switch (test.testType) {
           case 'value':
-            // Numerical values require threshold specification
-            if (!test.tolerance || test.tolerance.trim() === '') {
-              toast.error(`Test "${test.testName}": Numerical values require tolerance/threshold specification`);
+            // Numerical values require either min/max thresholds OR target±tolerance format
+            const hasMinMaxValues = test.tolerance && typeof test.tolerance === 'object' && 
+                                   (test.tolerance.lowerLimit?.trim() || test.tolerance.upperLimit?.trim());
+            const hasStringTolerance = test.tolerance && typeof test.tolerance === 'string' && 
+                                      test.tolerance.trim() !== '';
+            
+            if (!hasMinMaxValues && !hasStringTolerance) {
+              toast.error(`Test "${test.testName}": Value tests require either Min/Max thresholds OR target±tolerance format (e.g., "±5", "≤100", "5-15")`);
               return false;
+            }
+            
+            // If using min/max, at least one should be specified
+            if (hasMinMaxValues && !test.tolerance.lowerLimit?.trim() && !test.tolerance.upperLimit?.trim()) {
+              toast.error(`Test "${test.testName}": When using Min/Max thresholds, at least one value must be specified`);
+              return false;
+            }
+            
+            // Validate that min < max if both are provided
+            if (hasMinMaxValues && test.tolerance.lowerLimit?.trim() && test.tolerance.upperLimit?.trim()) {
+              const min = parseFloat(test.tolerance.lowerLimit);
+              const max = parseFloat(test.tolerance.upperLimit);
+              if (!isNaN(min) && !isNaN(max) && min >= max) {
+                toast.error(`Test "${test.testName}": Min threshold (${min}) must be less than Max threshold (${max})`);
+                return false;
+              }
             }
             break;
           
@@ -1306,7 +1719,9 @@ const Worksheets = () => {
             currentTest.units !== templateTest.units ||
             currentTest.notes !== templateTest.notes ||
             currentTest.calculatedFromDicom !== templateTest.calculatedFromDicom ||
-            currentTest.dicomSeriesSource !== templateTest.dicomSeriesSource) {
+            currentTest.dicomSeriesSource !== templateTest.dicomSeriesSource ||
+            currentTest.qcAnalysisCode !== templateTest.qcAnalysisCode ||
+            currentTest.requiresDicom !== templateTest.requiresDicom) {
           console.log('Modification detected: test differs', currentTest.testName, 'vs', templateTest.testName);
           return true;
         }
@@ -1360,14 +1775,35 @@ const Worksheets = () => {
       otherModalitySpecification: otherModalitySpecification,
       startDate: customWorksheetInfo.startDate,
       hasEndDate: customWorksheetInfo.hasEndDate,
-      endDate: customWorksheetInfo.hasEndDate ? customWorksheetInfo.endDate : null
+      endDate: customWorksheetInfo.hasEndDate ? customWorksheetInfo.endDate : null,
+      disableTemplateTracking: disableTemplateTracking
     };
 
-    console.log('Creating worksheet:', uniqueWorksheetData);
-    console.log('isEditingExisting:', isEditingExisting);
+    console.log('🔧 Creating worksheet with details:', {
+      title: uniqueWorksheetData.title,
+      machineId: uniqueWorksheetData.machineId,
+      assignedMachines: uniqueWorksheetData.assignedMachines,
+      id: uniqueWorksheetData.id,
+      isEditingExisting: isEditingExisting,
+      selectedTemplate: selectedTemplate?.title || 'none'
+    });
+    
+    // Check current worksheets before saving
+    const currentWorksheets = getWorksheets();
+    console.log('🔧 Current worksheets before save:', currentWorksheets.length);
+    currentWorksheets.forEach((ws, index) => {
+      console.log(`🔧   [${index}] ${ws.title} -> ${ws.assignedMachines?.join(', ') || 'no machines'}`);
+    });
 
     const savedWorksheet = saveWorksheet(uniqueWorksheetData);
-    console.log('Worksheet saved:', savedWorksheet);
+    console.log('🔧 Worksheet saved:', savedWorksheet?.title);
+    
+    // Check worksheets after saving
+    const afterSaveWorksheets = getWorksheets();
+    console.log('🔧 Worksheets after save:', afterSaveWorksheets.length);
+    afterSaveWorksheets.forEach((ws, index) => {
+      console.log(`🔧   [${index}] ${ws.title} -> ${ws.assignedMachines?.join(', ') || 'no machines'}`);
+    });
     
     if (savedWorksheet) {
       setRefreshKey(prev => prev + 1);
@@ -1479,6 +1915,15 @@ const Worksheets = () => {
         // If only assigned to one machine (or no specific machine), delete the entire worksheet
         const updatedWorksheets = worksheets.filter(w => w.id !== worksheetId);
         localStorage.setItem('qcWorksheets', JSON.stringify(updatedWorksheets));
+        
+        // Dispatch events to notify other components
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('worksheetChanged', { detail: { action: 'delete', worksheetId } }));
+        
+        // Also trigger a QC status refresh
+        localStorage.setItem('qcStatusRefresh', Date.now().toString());
+        setTimeout(() => localStorage.removeItem('qcStatusRefresh'), 100);
+        
         // Success notification removed
       }
       
@@ -1504,6 +1949,8 @@ const Worksheets = () => {
           notes: '', 
           calculatedFromDicom: false, 
           dicomSeriesSource: '', 
+          qcAnalysisCode: '',
+          requiresDicom: false,
           required: true 
         }
       ]);
@@ -1534,6 +1981,8 @@ const Worksheets = () => {
       notes: '',
       calculatedFromDicom: false,
       dicomSeriesSource: '',
+      qcAnalysisCode: '',
+      requiresDicom: false,
       required: true
     };
     setCustomTests([...customTests, newTest]);
@@ -1552,6 +2001,7 @@ const Worksheets = () => {
     // Clear the "just loaded" flag when user makes modifications
     setTemplateJustLoadedFlag(false);
   };
+
 
   const updateTestTolerance = (id, toleranceField, value) => {
     setCustomTests(customTests.map(test => 
@@ -1613,45 +2063,62 @@ const Worksheets = () => {
     switch (test.testType) {
       case 'value':
         return (
-          <div className="space-y-2">
-            <div className="text-xs text-blue-300 bg-blue-900/20 px-2 py-1 rounded">
-              ⚠️ Required: Numerical threshold must be specified
-            </div>
-            <div className="flex space-x-2">
-              <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">Min Threshold *</label>
-                <input
-                  type="text"
-                  value={test.tolerance?.lowerLimit || ''}
-                  onChange={(e) => updateTestTolerance(test.id, 'lowerLimit', e.target.value)}
-                  placeholder="Min value (required)"
-                  readOnly={isViewingWorksheet}
-                  className={`${baseClassName} ${(!test.tolerance?.lowerLimit && !test.tolerance?.upperLimit) ? 'border-red-500' : ''}`}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">Max Threshold *</label>
-                <input
-                  type="text"
-                  value={test.tolerance?.upperLimit || ''}
-                  onChange={(e) => updateTestTolerance(test.id, 'upperLimit', e.target.value)}
-                  placeholder="Max value (required)"
-                  readOnly={isViewingWorksheet}
-                  className={`${baseClassName} ${(!test.tolerance?.lowerLimit && !test.tolerance?.upperLimit) ? 'border-red-500' : ''}`}
-                />
+          <div className="space-y-3">
+            <div className="text-xs text-blue-300 bg-blue-900/20 px-3 py-2 rounded border border-blue-800">
+              <div className="font-semibold mb-1">⚠️ Required: Choose ONE approach below</div>
+              <div className="space-y-1">
+                <div>• <strong>Option 1:</strong> Set Min/Max thresholds (at least one required)</div>
+                <div>• <strong>Option 2:</strong> Use target±tolerance format (e.g., "±5", "≤100", "5-15")</div>
               </div>
             </div>
-            <div className="text-xs text-gray-400">
-              Alternative: Use single field format (±5, ≤10, ≥20, 5-15, etc.)
+            
+            {/* Option 1: Min/Max Thresholds */}
+            <div className="border border-gray-600 rounded-lg p-3 bg-gray-800/50">
+              <div className="text-sm font-medium text-gray-300 mb-2">Option 1: Min/Max Thresholds</div>
+              <div className="flex space-x-2">
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-400 mb-1">Min Threshold</label>
+                  <input
+                    type="text"
+                    value={test.tolerance?.lowerLimit || ''}
+                    onChange={(e) => updateTestTolerance(test.id, 'lowerLimit', e.target.value)}
+                    placeholder="e.g., 95"
+                    readOnly={isViewingWorksheet}
+                    className={baseClassName}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-400 mb-1">Max Threshold</label>
+                  <input
+                    type="text"
+                    value={test.tolerance?.upperLimit || ''}
+                    onChange={(e) => updateTestTolerance(test.id, 'upperLimit', e.target.value)}
+                    placeholder="e.g., 105"
+                    readOnly={isViewingWorksheet}
+                    className={baseClassName}
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Specify acceptable range (at least one value required)
+              </div>
             </div>
-            <input
-              type="text"
-              value={typeof test.tolerance === 'string' ? test.tolerance : ''}
-              onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
-              placeholder="e.g., ±5%, ≤100, ≥20, 5-15"
-              readOnly={isViewingWorksheet}
-              className={baseClassName}
-            />
+            
+            {/* Option 2: Target±Tolerance Format */}
+            <div className="border border-gray-600 rounded-lg p-3 bg-gray-800/50">
+              <div className="text-sm font-medium text-gray-300 mb-2">Option 2: Target±Tolerance Format</div>
+              <input
+                type="text"
+                value={typeof test.tolerance === 'string' ? test.tolerance : ''}
+                onChange={(e) => updateCustomTest(test.id, 'tolerance', e.target.value)}
+                placeholder="e.g., ±5%, ≤100, ≥20, 5-15, 100±3"
+                readOnly={isViewingWorksheet}
+                className={baseClassName}
+              />
+              <div className="text-xs text-gray-500 mt-1">
+                Examples: ±5 (plus/minus), ≤100 (maximum), ≥20 (minimum), 5-15 (range), 100±3 (target±tolerance)
+              </div>
+            </div>
           </div>
         );
 
@@ -1727,7 +2194,11 @@ const Worksheets = () => {
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     setWorksheetData(null);
-    setSelectedTemplate(null);
+    // Don't reset template creation state when switching away from templates
+    if (mode !== 'templates') {
+      setSelectedTemplate(null);
+      setIsCreatingTemplate(false);
+    }
     setSelectedMachine('');
     setSelectedFrequency('');
     setMatchedToTemplate(false);
@@ -1848,11 +2319,39 @@ const Worksheets = () => {
               </div>
               <div className="flex space-x-2">
                 <button
-                  onClick={clearAllWorksheets}
-                  className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
-                  title="Delete all worksheets (keeps templates)"
+                  onClick={() => {
+                    const confirmDelete = window.confirm(
+                      '⚠️ WARNING: This will delete ALL WORKSHEETS!\n\n' +
+                      'This action will:\n' +
+                      '• Remove all worksheet assignments\n' +
+                      '• Keep templates but remove worksheets\n' +
+                      '• Cannot be undone\n\n' +
+                      'Are you absolutely sure you want to continue?'
+                    );
+                    if (confirmDelete) {
+                      const doubleConfirm = window.confirm(
+                        '🚨 FINAL CONFIRMATION\n\n' +
+                        'You are about to delete ALL worksheets.\n' +
+                        'This will affect all machines and QC schedules.\n\n' +
+                        'Type YES in your mind and click OK to proceed, or Cancel to stop.'
+                      );
+                      if (doubleConfirm) {
+                        clearAllWorksheets();
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-700 text-white text-sm rounded-md hover:bg-red-800 transition-colors border-2 border-red-500"
+                  title="⚠️ DANGER: Delete ALL worksheets (keeps templates)"
                 >
-                  🗑️ Clear All Worksheets
+                  🚨 Clear All Worksheets
+                </button>
+                
+                <button
+                  onClick={restoreFromBackup}
+                  className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+                  title="🔄 Restore worksheets from backup"
+                >
+                  🔄 Restore Backup
                 </button>
               </div>
             </div>
@@ -2074,6 +2573,56 @@ const Worksheets = () => {
                                       className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
                                     >
                                       ✏️ Edit
+                                    </button>
+                                    
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        
+                                        // Capture worksheet data at click time to avoid closure issues
+                                        const worksheetToDelete = {
+                                          id: worksheet.id,
+                                          title: worksheet.title,
+                                          idType: typeof worksheet.id
+                                        };
+                                        
+                                        console.log('🚨 DELETE BUTTON CLICKED for worksheet:', worksheetToDelete);
+                                        
+                                        // Double-check the worksheet exists in current data
+                                        const currentWorksheets = getWorksheets();
+                                        const existsInCurrent = currentWorksheets.find(w => w.id === worksheet.id);
+                                        
+                                        if (!existsInCurrent) {
+                                          console.error('🚨 ERROR: Worksheet no longer exists in current data!');
+                                          alert('Error: This worksheet no longer exists. Please refresh the page.');
+                                          return;
+                                        }
+                                        
+                                        console.log('🚨 Confirmed worksheet exists in current data:', existsInCurrent.title);
+                                        
+                                        const confirmMessage = [
+                                          `Are you sure you want to delete this worksheet?`,
+                                          ``,
+                                          `Title: "${worksheet.title}"`,
+                                          `ID: ${worksheet.id}`,
+                                          `Assigned to: ${worksheet.assignedMachines?.join(', ') || 'No machines'}`,
+                                          ``,
+                                          `This will remove the worksheet from all assigned machines.`,
+                                          `This action cannot be undone.`
+                                        ].join('\n');
+                                        
+                                        if (window.confirm(confirmMessage)) {
+                                          deleteWorksheet(worksheet.id).catch(error => {
+                                            console.error('Error deleting worksheet:', error);
+                                            alert('Error deleting worksheet: ' + error.message);
+                                          });
+                                        }
+                                      }}
+                                      className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
+                                      title="Delete this worksheet"
+                                    >
+                                      🗑️ Delete
                                     </button>
                                   </div>
                                 </div>
@@ -2476,6 +3025,7 @@ const Worksheets = () => {
               <div>
                 <h2 className="text-xl font-semibold text-blue-200">Load from Template</h2>
                 <p className="text-sm text-blue-300">Optional: Start with an existing template as a foundation</p>
+                <p className="text-xs text-blue-400 mt-1">✓ = Compatible modality • ⚠️ = Different modality (warning will be shown)</p>
               </div>
             </div>
             
@@ -2483,6 +3033,7 @@ const Worksheets = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Select Template
+                  <span className="block text-xs text-gray-400 mt-1">✓ = Compatible modality • ⚠️ = Different modality</span>
                 </label>
                 <select
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
@@ -2493,11 +3044,32 @@ const Worksheets = () => {
                     const template = getModalityTemplates().find(t => t.id === templateId);
                     
                     if (template) {
+                      // Preserve pre-selected machine if it exists
+                      const currentMachineId = customWorksheetInfo.machineId;
+                      const currentModality = customWorksheetInfo.modality;
+                      
+                      // Check for modality mismatch warning
+                      // Warn if: 1) there's already a template loaded OR 2) machine pre-selected but choosing different modality
+                      const hasExistingTemplate = selectedTemplate;
+                      const machinePreselected = currentMachineId && !selectedTemplate && !customWorksheetInfo.title;
+                      
+                      if (currentModality && template.modality && currentModality !== template.modality) {
+                        if (hasExistingTemplate) {
+                          toast.error(`⚠️ Modality Mismatch: Loading ${template.modality} template for ${currentModality} worksheet. Please verify compatibility.`, {
+                            duration: 6000
+                          });
+                        } else if (machinePreselected) {
+                          toast.warn(`💡 Notice: Loading ${template.modality} template for ${currentModality} machine. This may work if tests are compatible.`, {
+                            duration: 4000
+                          });
+                        }
+                      }
+                      
                       setCustomWorksheetInfo({
                         title: template.title,
                         frequency: template.frequency,
-                        machineId: '',
-                        modality: template.modality,
+                        machineId: currentMachineId || '',
+                        modality: currentModality || template.modality,
                         description: template.description || ''
                       });
                       setCustomTests(template.tests.map(test => ({
@@ -2532,11 +3104,18 @@ const Worksheets = () => {
                 >
                   <option value="">Choose a template to load...</option>
                   
-                  {getModalityTemplates().map(template => (
-                    <option key={template.id} value={template.id}>
-                      {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
-                    </option>
-                  ))}
+                  {getModalityTemplates().map(template => {
+                    // Show modality indicators if there's a machine pre-selected OR template context established
+                    const hasContext = customWorksheetInfo.modality || selectedTemplate;
+                    const isModalityMatch = customWorksheetInfo.modality === template.modality;
+                    const modalityIndicator = hasContext ? (isModalityMatch ? '✓' : '⚠️') : '';
+                    
+                    return (
+                      <option key={template.id} value={template.id}>
+                        {modalityIndicator ? `${modalityIndicator} ` : ''}{template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               
@@ -2582,6 +3161,8 @@ const Worksheets = () => {
                 checked={matchedToTemplate}
                 onChange={(e) => {
                   setMatchedToTemplate(e.target.checked);
+                  // Update disableTemplateTracking to be inverse of matchedToTemplate
+                  setDisableTemplateTracking(!e.target.checked);
                   // Clear modifications when unchecked
                   if (!e.target.checked) {
                     setRealTimeModifications([]);
@@ -2954,11 +3535,11 @@ const Worksheets = () => {
                   : templateJustLoadedFlag || (isCreatingTemplate && !selectedTemplate)
                     ? {
                         testName: false, testType: false, tolerance: false, units: false, notes: false, 
-                        calculatedFromDicom: false, dicomSeriesSource: false, isCustomTest: false
+                        calculatedFromDicom: false, dicomSeriesSource: false, qcAnalysisCode: false, isCustomTest: false
                       }
                     : {
                         testName: true, testType: true, tolerance: true, units: true, notes: true, 
-                        calculatedFromDicom: true, dicomSeriesSource: true, isCustomTest: true
+                        calculatedFromDicom: true, dicomSeriesSource: true, qcAnalysisCode: true, requiresDicom: true, isCustomTest: true
                       };
               return (
                 <div key={test.id} className="bg-gray-700 rounded-lg p-4">
@@ -3133,22 +3714,35 @@ const Worksheets = () => {
                       <div className="flex items-center space-x-2">
                         <input
                           type="checkbox"
-                          id={`calculated-${test.id}`}
-                          checked={test.calculatedFromDicom || false}
+                          id={`uses-dicom-${test.id}`}
+                          checked={test.calculatedFromDicom || test.requiresDicom || false}
                           disabled={isViewingWorksheet}
-                          onChange={(e) => updateCustomTest(test.id, 'calculatedFromDicom', e.target.checked)}
+                          onChange={(e) => {
+                            const usesDicom = e.target.checked;
+                            // If enabling DICOM, set calculatedFromDicom to true by default
+                            // If disabling, clear both flags and related fields
+                            if (usesDicom) {
+                              updateCustomTest(test.id, 'calculatedFromDicom', true);
+                              updateCustomTest(test.id, 'requiresDicom', true);
+                            } else {
+                              updateCustomTest(test.id, 'calculatedFromDicom', false);
+                              updateCustomTest(test.id, 'requiresDicom', false);
+                              updateCustomTest(test.id, 'dicomSeriesSource', '');
+                              updateCustomTest(test.id, 'qcAnalysisCode', '');
+                            }
+                          }}
                           className={`w-4 h-4 text-blue-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2 ${
                             isViewingWorksheet 
                               ? 'bg-gray-700 cursor-not-allowed' 
                               : 'bg-gray-600'
                           }`}
                         />
-                        <label htmlFor={`calculated-${test.id}`} className="text-sm text-blue-300">
-                          📊 Calculate from DICOM data
+                        <label htmlFor={`uses-dicom-${test.id}`} className="text-sm text-blue-300">
+                          🏥 Uses DICOM images
                         </label>
                       </div>
                       
-                      {test.calculatedFromDicom && (
+                      {(test.calculatedFromDicom || test.requiresDicom) && (
                         <div className="ml-6 space-y-2">
                           <label className="block text-xs font-medium text-gray-400 flex items-center">
                             <span>Source DICOM Series *</span>
@@ -3170,7 +3764,7 @@ const Worksheets = () => {
                             className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 text-sm ${
                               isViewingWorksheet 
                                 ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
-                                : test.calculatedFromDicom && !test.dicomSeriesSource 
+                                : (test.calculatedFromDicom || test.requiresDicom) && !test.dicomSeriesSource 
                                   ? 'bg-gray-600 border-red-500 focus:ring-red-500' 
                                   : 'bg-gray-600 border-gray-500 focus:ring-blue-500'
                             }`}
@@ -3187,20 +3781,73 @@ const Worksheets = () => {
                             ))}
                           </select>
                           <p className={`text-xs mt-1 ${
-                            test.calculatedFromDicom && !test.dicomSeriesSource 
+                            (test.calculatedFromDicom || test.requiresDicom) && !test.dicomSeriesSource 
                               ? 'text-red-400' 
                               : 'text-gray-500'
                           }`}>
-                            {test.calculatedFromDicom && !test.dicomSeriesSource 
-                              ? '⚠️ Required: Select which DICOM series will be used to calculate this test value'
-                              : 'Select which DICOM series will be used to calculate this test value'
+                            {(test.calculatedFromDicom || test.requiresDicom) && !test.dicomSeriesSource 
+                              ? '⚠️ Required: Select which DICOM series will be used for this test'
+                              : 'Select which DICOM series will be used for this test'
                             }
                           </p>
+                          
+                          <div className="mt-3">
+                            <label className="block text-xs font-medium text-gray-400 flex items-center">
+                              <span>QC Analysis Code</span>
+                              {fieldMods.qcAnalysisCode && (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 ml-2 text-xs font-bold rounded border ${
+                                  fieldMods.isCustomTest 
+                                    ? 'text-blue-700 bg-blue-100 border-blue-300' 
+                                    : 'text-orange-700 bg-orange-100 border-orange-300'
+                                }`} 
+                                      title={fieldMods.isCustomTest ? "Custom analysis code" : "Modified analysis code"}>
+                                  🔧
+                                </span>
+                              )}
+                            </label>
+                            <select
+                              value={test.qcAnalysisCode || ''}
+                              disabled={isViewingWorksheet}
+                              onChange={(e) => updateCustomTest(test.id, 'qcAnalysisCode', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded-md text-gray-100 focus:ring-2 text-sm ${
+                                isViewingWorksheet 
+                                  ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                  : 'bg-gray-600 border-gray-500 focus:ring-blue-500'
+                              }`}
+                            >
+                              {getAnalysisCodeOptions(customWorksheetInfo.modality).map(option => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            {test.qcAnalysisCode && (
+                              <div className="mt-1">
+                                <p className="text-xs text-blue-300">
+                                  🤖 {getAnalysisCodeById(test.qcAnalysisCode)?.description || 'Automated analysis enabled'}
+                                </p>
+                                {getAnalysisCodeById(test.qcAnalysisCode)?.outputMetrics && (
+                                  <div className="mt-1">
+                                    <p className="text-xs text-gray-400">Expected outputs:</p>
+                                    <p className="text-xs text-gray-500">
+                                      {getAnalysisCodeById(test.qcAnalysisCode).outputMetrics.slice(0, 3).join(', ')}
+                                      {getAnalysisCodeById(test.qcAnalysisCode).outputMetrics.length > 3 && 
+                                        ` and ${getAnalysisCodeById(test.qcAnalysisCode).outputMetrics.length - 3} more...`
+                                      }
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <p className="text-xs text-gray-500 mt-1">
+                              Select an automated analysis algorithm to run when DICOM data is processed
+                            </p>
+                          </div>
                         </div>
                       )}
                       
                       <p className="text-xs text-gray-400">
-                        When checked, this test value will be automatically calculated from DICOM images
+                        When enabled, this test will use DICOM images. Select an analysis code to automatically calculate results, or leave blank for manual analysis with DICOM reference.
                       </p>
                     </div>
                   </div>
@@ -3311,6 +3958,7 @@ const Worksheets = () => {
                 <span>💾</span>
                 <span>Save as Template</span>
               </div>
+              
             </div>
             
             {!isViewingWorksheet && (
@@ -3366,7 +4014,7 @@ const Worksheets = () => {
                   }
                   
                   // DICOM validation for tests that need it
-                  if (customTests.some(test => test.calculatedFromDicom && !test.dicomSeriesSource)) {
+                  if (customTests.some(test => (test.calculatedFromDicom || test.requiresDicom) && !test.dicomSeriesSource)) {
                     console.log('🔧 Button disabled due to missing DICOM sources');
                     return true;
                   }
@@ -3537,7 +4185,7 @@ const Worksheets = () => {
           {/* Generate New Template Widget */}
           {!worksheetData && !isCreatingTemplate && (
             <div className="bg-gray-800 rounded-lg p-6 space-y-4">
-              <h2 className="text-xl font-semibold text-gray-100 mb-4">Generate New Template</h2>
+              <h2 className="text-xl font-semibold text-gray-100 mb-4">Create New Template</h2>
               
               {/* Create new template from scratch */}
               <div className="pb-2">
@@ -3553,64 +4201,69 @@ const Worksheets = () => {
                 </button>
               </div>
               
-              {/* Create from existing template */}
-              <div className="pt-2 border-t border-gray-600">
-                <div className="flex items-end space-x-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Select Template
-                    </label>
-                    <select
-                      value={selectedTemplateForGeneration}
-                      onChange={(e) => setSelectedTemplateForGeneration(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Choose a template...</option>
-                      {getModalityTemplates().map(template => (
-                        <option key={template.id} value={template.id}>
-                          {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (selectedTemplateForGeneration) {
-                        const template = getModalityTemplates().find(t => t.id.toString() === selectedTemplateForGeneration);
+              {/* Load existing template as starting point */}
+              <div className="pb-2">
+                <div className="mb-2">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Load Existing Template as Starting Point
+                    <span className="block text-xs text-gray-400 mt-1">Copy an existing template to modify and save as a new template</span>
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const template = getModalityTemplates().find(t => t.id.toString() === e.target.value);
                         if (template) {
-                          // Load template for editing as a new template
-                          setSelectedTemplate({ ...template, id: Date.now() }); // Give it a new ID
-                          setCustomWorksheetInfo({
+                          // Reset any existing form data
+                          resetTemplateForm();
+                          
+                          // Load template data with new ID (unlinked copy)
+                          const templateCopy = {
+                            ...template,
+                            id: Date.now(), // New ID to ensure it's not linked
                             title: `Copy of ${template.title}`,
-                            frequency: template.frequency,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                          };
+                          
+                          // Set the template data
+                          setSelectedTemplate(templateCopy);
+                          setCustomWorksheetInfo({
+                            title: templateCopy.title,
+                            frequency: templateCopy.frequency,
+                            modality: templateCopy.modality,
+                            description: templateCopy.description || '',
                             machineId: '',
-                            modality: template.modality,
-                            description: template.description || '',
                             startDate: '',
                             hasEndDate: false,
                             endDate: ''
                           });
-                          setCustomTests(template.tests.map(test => ({ ...test, id: Date.now() + Math.random() })));
-                          setDicomSeriesConfig(template.dicomSeriesConfig || []); // Load DICOM configuration
-                          setDicomConfigEnabled(template.dicomSeriesConfig && template.dicomSeriesConfig.length > 0);
+                          
+                          // Load tests
+                          setCustomTests(templateCopy.tests.map(test => ({
+                            ...test,
+                            id: Date.now() + Math.random() // New IDs for tests too
+                          })));
+                          
+                          // Switch to template creation mode
                           setIsCreatingTemplate(true);
-                          setIsCreatingFromCopy(true);
-                          // Success notification removed
+                          
+                          // Clear the selection
+                          e.target.value = '';
+                          
+                          toast.success(`Loaded "${template.title}" as starting point for new template`);
                         }
-                      } else {
-                        toast.error('Please select a template first');
                       }
                     }}
-                    disabled={!selectedTemplateForGeneration}
-                    className={`px-4 py-2 rounded-md transition-colors flex items-center space-x-2 ${
-                      selectedTemplateForGeneration 
-                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                    }`}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-2 focus:ring-blue-500"
                   >
-                    <span>📋</span>
-                    <span>Create From Selected</span>
-                  </button>
+                    <option value="">Select template to load...</option>
+                    {getModalityTemplates().map(template => (
+                      <option key={template.id} value={template.id}>
+                        📋 {template.title} ({template.modality} • {getFrequencyLabel(template.frequency)} • {template.tests.length} tests)
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
@@ -4022,22 +4675,33 @@ const Worksheets = () => {
                               <div className="flex items-center space-x-2">
                                 <input
                                   type="checkbox"
-                                  id={`template-calculated-${test.id}`}
-                                  checked={test.calculatedFromDicom || false}
+                                  id={`template-uses-dicom-${test.id}`}
+                                  checked={test.calculatedFromDicom || test.requiresDicom || false}
                                   disabled={isViewingWorksheet}
-                                  onChange={(e) => updateCustomTest(test.id, 'calculatedFromDicom', e.target.checked)}
+                                  onChange={(e) => {
+                                    const usesDicom = e.target.checked;
+                                    if (usesDicom) {
+                                      updateCustomTest(test.id, 'calculatedFromDicom', true);
+                                      updateCustomTest(test.id, 'requiresDicom', true);
+                                    } else {
+                                      updateCustomTest(test.id, 'calculatedFromDicom', false);
+                                      updateCustomTest(test.id, 'requiresDicom', false);
+                                      updateCustomTest(test.id, 'dicomSeriesSource', '');
+                                      updateCustomTest(test.id, 'qcAnalysisCode', '');
+                                    }
+                                  }}
                                   className={`w-3 h-3 text-blue-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2 ${
                                     isViewingWorksheet 
                                       ? 'bg-gray-700 cursor-not-allowed' 
                                       : 'bg-gray-600'
                                   }`}
                                 />
-                                <label htmlFor={`template-calculated-${test.id}`} className="text-xs text-blue-300">
-                                  📊 Calculate from DICOM
+                                <label htmlFor={`template-uses-dicom-${test.id}`} className="text-xs text-blue-300">
+                                  🏥 Uses DICOM
                                 </label>
                               </div>
                               
-                              {test.calculatedFromDicom && (
+                              {(test.calculatedFromDicom || test.requiresDicom) && (
                                 <div className="ml-5">
                                   <select
                                     value={test.dicomSeriesSource || ''}
@@ -4046,7 +4710,7 @@ const Worksheets = () => {
                                     className={`w-full p-1 border rounded text-white text-xs ${
                                       isViewingWorksheet 
                                         ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
-                                        : test.calculatedFromDicom && !test.dicomSeriesSource 
+                                        : (test.calculatedFromDicom || test.requiresDicom) && !test.dicomSeriesSource 
                                           ? 'bg-gray-600 border-red-500' 
                                           : 'bg-gray-600 border-gray-500'
                                     }`}
@@ -4062,6 +4726,30 @@ const Worksheets = () => {
                                       </option>
                                     ))}
                                   </select>
+                                  
+                                  <div className="mt-2">
+                                    <select
+                                      value={test.qcAnalysisCode || ''}
+                                      disabled={isViewingWorksheet}
+                                      onChange={(e) => updateCustomTest(test.id, 'qcAnalysisCode', e.target.value)}
+                                      className={`w-full p-1 border rounded text-white text-xs ${
+                                        isViewingWorksheet 
+                                          ? 'bg-gray-700 border-gray-600 cursor-not-allowed' 
+                                          : 'bg-gray-600 border-gray-500'
+                                      }`}
+                                    >
+                                      {getAnalysisCodeOptions(customWorksheetInfo.modality).map(option => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {test.qcAnalysisCode && (
+                                      <p className="text-xs text-blue-300 mt-1">
+                                        🤖 {getAnalysisCodeById(test.qcAnalysisCode)?.name}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </div>

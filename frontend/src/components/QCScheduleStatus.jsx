@@ -158,6 +158,14 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
     }
   };
 
+  const getFailedTestsFromQC = (qcCompletion) => {
+    if (!qcCompletion || !qcCompletion.tests) {
+      return [];
+    }
+    
+    return qcCompletion.tests.filter(test => test.result === 'fail');
+  };
+
   const getTotalStats = () => {
     let totalDue = 0;
     let totalCompleted = 0;
@@ -265,22 +273,53 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
           <div className="space-y-3">
             {qcFailures.map((item, index) => {
               const mostRecentFailure = item.failures[item.failures.length - 1];
+              const failedTests = getFailedTestsFromQC(mostRecentFailure);
+              const displayTests = failedTests.slice(0, 2);
+              const hasMoreTests = failedTests.length > 2;
+              
               return (
                 <div key={index} className="bg-red-900/30 border border-red-500 rounded-lg p-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-3">
-                      <div className="font-medium text-red-200">{item.worksheet.title} ({item.count})</div>
-                      <div className="text-xs text-red-400">Recent: {mostRecentFailure?.date || 'Unknown'}</div>
-                      <div className="text-xs text-red-400">By: {mostRecentFailure?.performedBy || 'Unknown'}</div>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <div className="font-medium text-red-200">{item.worksheet.title} ({item.count})</div>
+                        <div className="text-xs text-red-400">Recent: {mostRecentFailure?.date || 'Unknown'}</div>
+                        <div className="text-xs text-red-400">By: {mostRecentFailure?.performedBy || 'Unknown'}</div>
+                      </div>
+                      
+                      {/* Failed Tests List */}
+                      {failedTests.length > 0 && (
+                        <div className="mt-2">
+                          <div className="text-xs text-red-300 mb-1">Failed tests:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {displayTests.map((test, testIndex) => (
+                              <span 
+                                key={testIndex}
+                                className="px-2 py-1 bg-red-800/60 text-red-200 text-xs rounded border border-red-600"
+                              >
+                                {test.testName}
+                              </span>
+                            ))}
+                            {hasMoreTests && (
+                              <span className="px-2 py-1 bg-red-700/40 text-red-300 text-xs rounded border border-red-500">
+                                +{failedTests.length - 2} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {mostRecentFailure && (
-                      <Link
-                        to={`/qc/view/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}?date=${mostRecentFailure.date}&viewOnly=true`}
-                        className="px-3 py-1 bg-red-500 text-white text-xs rounded-md hover:bg-red-600 transition-colors"
-                      >
-                        👁️ View Failure
-                      </Link>
-                    )}
+                    
+                    <div className="ml-3">
+                      {mostRecentFailure && (
+                        <Link
+                          to={`/qc/view-worksheet/${machine.machineId}/${item.worksheet.frequency}/${item.worksheet.id}?date=${mostRecentFailure.date}&viewOnly=true`}
+                          className="px-3 py-1 bg-red-500 text-white text-xs rounded-md hover:bg-red-600 transition-colors"
+                        >
+                          👁️ View Failure
+                        </Link>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -319,7 +358,7 @@ const QCScheduleStatus = ({ machine, worksheets, compact = false }) => {
         </div>
       )}
 
-      {qcsDue.length === 0 && overdueQCs.length === 0 && qcFailures.length === 0 && (
+      {overdueQCs.length === 0 && qcFailures.length === 0 && (
         <div className="text-green-400 text-sm mt-4">
           All QCs are up to date with no failures!
         </div>

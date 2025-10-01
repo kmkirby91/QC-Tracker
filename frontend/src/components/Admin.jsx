@@ -32,6 +32,20 @@ const Admin = () => {
       ]
     },
     {
+      id: 'acr-status',
+      title: 'ACR Status Monitor',
+      description: 'Monitor ACR accreditation status and renewal timeline for all equipment',
+      icon: '🏥',
+      route: '/admin/acr-status',
+      color: 'bg-indigo-600 hover:bg-indigo-700',
+      features: [
+        'Accreditation Status Overview',
+        'Renewal Timeline Tracking',
+        'Expiration Alerts',
+        'Equipment Compliance Status'
+      ]
+    },
+    {
       id: 'personnel',
       title: 'Personnel Records',
       description: 'Staff credentials, training records, and qualification tracking',

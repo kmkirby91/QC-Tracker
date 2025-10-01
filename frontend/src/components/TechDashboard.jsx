@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import QCNotifications from './QCNotifications';
 import QCStatusDashboard from './QCStatusDashboard';
 import QCScheduleStatus from './QCScheduleStatus';
+import { fetchMachinesWithWorksheets } from '../utils/machineAPI';
 
 const TechDashboard = () => {
   const navigate = useNavigate();
@@ -30,8 +31,8 @@ const TechDashboard = () => {
   const fetchMachines = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/machines');
-      setMachines(response.data);
+      const machines = await fetchMachinesWithWorksheets();
+      setMachines(machines);
     } catch (error) {
       console.error('Error fetching machines:', error);
       toast.error('Failed to load machines');
