@@ -46,5 +46,69 @@
     "worksheetId": "sample-mri-daily-001",
     "worksheetTitle": "ACR MR Daily QC Protocol",
     "isRealSubmission": true
+  },
+  {
+    "id": "1759331990302",
+    "machineId": "MRI-ESS-001",
+    "machineType": "MRI",
+    "frequency": "daily",
+    "date": "2025-09-29",
+    "tests": [
+      {
+        "testName": "Center Frequency",
+        "value": "9",
+        "result": "fail",
+        "notes": "",
+        "tolerance": "±3 Hz",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Transmitter Gain/Attenuation",
+        "value": "1",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "±1 dB",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "System SNR Check",
+        "value": "1",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "±10%",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Image Quality Visual Assessment",
+        "value": "pass",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "Pass",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Patient Positioning Laser Accuracy",
+        "value": "1",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "±2 mm",
+        "performedBy": "kk"
+      },
+      {
+        "testName": "Emergency Systems Check",
+        "value": "pass",
+        "result": "pass",
+        "notes": "",
+        "tolerance": "Pass",
+        "performedBy": "kk"
+      }
+    ],
+    "performedBy": "kk",
+    "comments": "",
+    "overallResult": "fail",
+    "completedAt": "2025-10-01T15:19:50.302Z",
+    "worksheetId": "1759331284076-MRI-ESS-001",
+    "worksheetTitle": "ACR MR Daily QC Protocol",
+    "isRealSubmission": true
   }
 ]
